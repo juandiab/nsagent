@@ -75,13 +75,19 @@ const router = useRouter()
 const userMenu = ref()
 const currentUser = ref(getStoredUser())
 
-const mainNavItems = [
-  { label: 'Dashboard', path: '/', icon: 'pi pi-home' },
-  { label: 'Copilot', path: '/copilot', icon: 'pi pi-comments' },
-  { label: 'NetScalers', path: '/netscalers', icon: 'pi pi-server' },
-  { label: 'AI Providers', path: '/ai-providers', icon: 'pi pi-sparkles' },
-  { label: 'Next-Gen API', path: '/next-gen-api', icon: 'pi pi-code' }
-]
+const mainNavItems = computed(() => {
+  const items = [
+    { label: 'Dashboard', path: '/', icon: 'pi pi-home' },
+    { label: 'Copilot', path: '/copilot', icon: 'pi pi-comments' },
+    { label: 'NetScalers', path: '/netscalers', icon: 'pi pi-server' },
+    { label: 'AI Providers', path: '/ai-providers', icon: 'pi pi-sparkles' },
+    { label: 'Next-Gen API', path: '/next-gen-api', icon: 'pi pi-code' }
+  ]
+  if (currentUser.value?.role === 'admin') {
+    items.push({ label: 'Users', path: '/users', icon: 'pi pi-users' })
+  }
+  return items
+})
 
 const bottomNavItems = [
   { label: 'Settings', path: '/settings', icon: 'pi pi-cog' }
@@ -94,7 +100,7 @@ const userInitials = computed(() => {
 
 const userMenuItems = computed(() => [
   {
-    label: currentUser.value?.username || 'Account',
+    label: currentUser.value?.displayName || currentUser.value?.username || 'Account',
     items: [
       {
         label: 'Logout',

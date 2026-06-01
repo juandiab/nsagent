@@ -73,6 +73,42 @@
           </div>
         </div>
 
+        <div class="content-panel content-panel-padded mb-4">
+          <h2 class="section-title">Security</h2>
+          <p class="section-copy">
+            Sign in with your password first, then register a passkey for faster sign-in next time.
+          </p>
+
+          <div class="flex flex-column gap-3 mt-4">
+            <div class="flex align-items-center justify-content-between gap-3 flex-wrap">
+              <div>
+                <div class="setting-label">Passkeys</div>
+                <div class="setting-hint">
+                  {{ passkeyStatus.hasPasskey
+                    ? `${passkeyStatus.passkeyCount} passkey(s) registered for ${passkeyStatus.username}`
+                    : 'No passkey registered yet for your account.' }}
+                </div>
+              </div>
+              <Tag
+                :value="passkeyStatus.hasPasskey ? 'Enabled' : 'Not set up'"
+                :severity="passkeyStatus.hasPasskey ? 'success' : 'secondary'"
+              />
+            </div>
+
+            <Button
+              label="Register passkey"
+              icon="pi pi-key"
+              size="small"
+              :loading="passkeyRegistering"
+              @click="registerMyPasskey"
+            />
+
+            <Message v-if="passkeyMessage" :severity="passkeyMessageSeverity" :closable="false">
+              {{ passkeyMessage }}
+            </Message>
+          </div>
+        </div>
+
         <div class="content-panel content-panel-padded">
           <h2 class="section-title">Copilot</h2>
           <p class="section-copy">Control what can be attached to Copilot chat messages.</p>
@@ -206,6 +242,9 @@ import {
   testCopilotPlatformSearch
 } from '../services/copilotPlatform'
 import { getMcpConfig, getMcpStatus, saveMcpConfig } from '../services/mcp'
+import api from '../services/api'
+import { getStoredUser } from '../services/auth'
+import { fetchPasskeyStatus, passkeyErrorMessage, registerPasskey } from '../services/webauthn'
 
 const maxAttachmentOptions = [1, 2, 3, 4, 5, 6, 7, 8, 9, 10]
 const copilotSettings = reactive(getCopilotSettings())
@@ -242,6 +281,50 @@ const mcpStatus = reactive({
   toolCount: 0,
   enabledToolCount: 0
 })
+
+const passkeyRegistering = ref(false)
+const passkeyMessage = ref('')
+const passkeyMessageSeverity = ref('info')
+const passkeyStatus = reactive({
+  username: '',
+  hasPasskey: false,
+  passkeyCount: 0
+})
+
+async function loadPasskeyStatus() {
+  const user = getStoredUser()
+  if (!user?.username) return
+  passkeyStatus.username = user.username
+  try {
+    const status = await fetchPasskeyStatus(user.username)
+    passkeyStatus.hasPasskey = status.hasPasskey
+    passkeyStatus.passkeyCount = status.hasPasskey ? 1 : 0
+    const { data } = await api.get(`/users/${user.id}`)
+    passkeyStatus.passkeyCount = data.passkeyCount || 0
+    passkeyStatus.hasPasskey = passkeyStatus.passkeyCount > 0
+  } catch {
+    passkeyStatus.hasPasskey = false
+    passkeyStatus.passkeyCount = 0
+  }
+}
+
+async function registerMyPasskey() {
+  const user = getStoredUser()
+  if (!user?.username) return
+  passkeyRegistering.value = true
+  passkeyMessage.value = ''
+  try {
+    await registerPasskey(user.username)
+    passkeyMessage.value = 'Passkey registered. You can use it on the login screen next time.'
+    passkeyMessageSeverity.value = 'success'
+    await loadPasskeyStatus()
+  } catch (error) {
+    passkeyMessage.value = passkeyErrorMessage(error)
+    passkeyMessageSeverity.value = 'error'
+  } finally {
+    passkeyRegistering.value = false
+  }
+}
 
 function saveCopilotPrefs() {
   saveCopilotSettings({ ...copilotSettings })
@@ -368,7 +451,7 @@ async function testMcpConnection() {
 }
 
 onMounted(async () => {
-  await Promise.all([loadMcpConfig(), loadPlatformSettings()])
+  await Promise.all([loadMcpConfig(), loadPlatformSettings(), loadPasskeyStatus()])
 })
 </script>
 

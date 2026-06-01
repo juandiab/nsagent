@@ -31,6 +31,10 @@ services:
       - MONGO_URI=mongodb://mongodb:27017
       - MONGO_DB=netscaler_copilot
       - MCP_SERVER_URL=http://mcp-server:8001
+      - WEBAUTHN_RP_ID=${WEBAUTHN_RP_ID:-localhost}
+      - WEBAUTHN_RP_NAME=${WEBAUTHN_RP_NAME:-NSAgent}
+      - WEBAUTHN_ORIGIN=${WEBAUTHN_ORIGIN:-http://localhost:5173}
+      - CORS_ORIGINS=${CORS_ORIGINS:-http://localhost:5173,http://127.0.0.1:5173}
     networks:
       - netscaler-copilot-network
     depends_on:

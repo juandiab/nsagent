@@ -7,7 +7,10 @@ class LoginRequest(BaseModel):
 
 
 class UserResponse(BaseModel):
+    id: str
     username: str
+    displayName: str
+    role: str
 
 
 class LoginResponse(BaseModel):

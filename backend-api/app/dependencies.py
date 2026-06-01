@@ -44,3 +44,22 @@ async def get_current_user(
         )
 
     return user
+
+
+async def get_optional_current_user(
+    credentials: HTTPAuthorizationCredentials | None = Depends(security),
+) -> dict | None:
+    if credentials is None or credentials.scheme.lower() != "bearer":
+        return None
+
+    username = decode_access_token(credentials.credentials)
+    if username is None:
+        return None
+
+    return await get_user_by_username(get_database(), username)
+
+
+async def require_admin(current_user: dict = Depends(get_current_user)) -> dict:
+    if current_user.get("role") != "admin":
+        raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="Admin access required")
+    return current_user

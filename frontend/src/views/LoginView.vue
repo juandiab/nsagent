@@ -7,7 +7,7 @@
         <p class="login-subtitle m-0 mt-2">Sign in to manage your platform</p>
       </div>
 
-      <form class="flex flex-column gap-4" @submit.prevent="handleLogin">
+      <form class="flex flex-column gap-4" @submit.prevent="handlePasswordLogin">
         <div class="flex flex-column gap-2">
           <label for="username" class="field-label">Username</label>
           <InputText
@@ -16,6 +16,7 @@
             autocomplete="username"
             class="w-full"
             :disabled="loading"
+            @blur="refreshStatus"
           />
         </div>
 
@@ -30,7 +31,6 @@
             toggle-mask
             input-class="w-full"
             :disabled="loading"
-            @keyup.enter="handleLogin"
           />
         </div>
 
@@ -45,6 +45,25 @@
           class="w-full"
           :loading="loading"
         />
+
+        <template v-if="status?.hasPasskey">
+          <div class="login-divider">
+            <span>or</span>
+          </div>
+          <Button
+            type="button"
+            label="Sign in with passkey"
+            icon="pi pi-shield"
+            class="w-full"
+            severity="secondary"
+            outlined
+            :loading="loadingPasskey"
+            @click="handlePasskeyLogin"
+          />
+          <small class="field-hint text-center">
+            Use Touch ID, Face ID, Windows Hello, or a security key.
+          </small>
+        </template>
       </form>
     </div>
   </div>
@@ -60,6 +79,11 @@ import Password from 'primevue/password'
 import NetScalerLogo from '../components/NetScalerLogo.vue'
 import api from '../services/api'
 import { setAuth } from '../services/auth'
+import {
+  fetchPasskeyStatus,
+  loginWithPasskey,
+  passkeyErrorMessage
+} from '../services/webauthn'
 
 const router = useRouter()
 const route = useRoute()
@@ -67,23 +91,55 @@ const route = useRoute()
 const username = ref('')
 const password = ref('')
 const loading = ref(false)
+const loadingPasskey = ref(false)
 const errorMessage = ref('')
+const status = ref(null)
 
-async function handleLogin() {
+async function refreshStatus() {
+  const cleaned = username.value.trim()
+  if (!cleaned) {
+    status.value = null
+    return
+  }
+  try {
+    status.value = await fetchPasskeyStatus(cleaned)
+  } catch {
+    status.value = null
+  }
+}
+
+async function handlePasswordLogin() {
   errorMessage.value = ''
   loading.value = true
   try {
     const { data } = await api.post('/auth/login', {
-      username: username.value,
+      username: username.value.trim().toLowerCase(),
       password: password.value
     })
     setAuth(data.accessToken, data.user)
-    const redirect = route.query.redirect || '/'
-    router.push(redirect)
+    router.push(route.query.redirect || '/')
   } catch {
     errorMessage.value = 'Invalid username or password'
   } finally {
     loading.value = false
+  }
+}
+
+async function handlePasskeyLogin() {
+  errorMessage.value = ''
+  loadingPasskey.value = true
+  try {
+    await refreshStatus()
+    if (!status.value?.hasPasskey) {
+      errorMessage.value = 'No passkey registered for this account yet.'
+      return
+    }
+    await loginWithPasskey(username.value)
+    router.push(route.query.redirect || '/')
+  } catch (error) {
+    errorMessage.value = passkeyErrorMessage(error)
+  } finally {
+    loadingPasskey.value = false
   }
 }
 </script>
@@ -119,5 +175,26 @@ async function handleLogin() {
 .field-label {
   font-size: 0.8125rem;
   font-weight: 500;
+}
+
+.field-hint {
+  color: var(--p-text-muted-color);
+  font-size: 0.75rem;
+}
+
+.login-divider {
+  display: flex;
+  align-items: center;
+  gap: 0.75rem;
+  color: var(--p-text-muted-color);
+  font-size: 0.75rem;
+}
+
+.login-divider::before,
+.login-divider::after {
+  content: '';
+  flex: 1;
+  height: 1px;
+  background: var(--p-content-border-color);
 }
 </style>

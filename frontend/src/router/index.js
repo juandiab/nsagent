@@ -1,6 +1,6 @@
 import { createRouter, createWebHistory } from 'vue-router'
 import MainLayout from '../layouts/MainLayout.vue'
-import { getToken } from '../services/auth'
+import { getToken, getStoredUser } from '../services/auth'
 import CopilotView from '../views/CopilotView.vue'
 import DashboardView from '../views/DashboardView.vue'
 import LoginView from '../views/LoginView.vue'
@@ -8,6 +8,7 @@ import NetScalersView from '../views/NetScalersView.vue'
 import AIProvidersView from '../views/AIProvidersView.vue'
 import NextGenApiView from '../views/NextGenApiView.vue'
 import SettingsView from '../views/SettingsView.vue'
+import UsersView from '../views/UsersView.vue'
 
 const router = createRouter({
   history: createWebHistory(),
@@ -28,6 +29,7 @@ const router = createRouter({
         { path: 'netscalers', name: 'netscalers', component: NetScalersView },
         { path: 'ai-providers', name: 'ai-providers', component: AIProvidersView },
         { path: 'next-gen-api', name: 'next-gen-api', component: NextGenApiView },
+        { path: 'users', name: 'users', component: UsersView, meta: { requiresAdmin: true } },
         { path: 'settings', name: 'settings', component: SettingsView }
       ]
     }
@@ -36,13 +38,22 @@ const router = createRouter({
 
 router.beforeEach((to) => {
   const authenticated = Boolean(getToken())
+  const requiresAuth = to.matched.some((record) => record.meta.requiresAuth)
+  const requiresAdmin = to.matched.some((record) => record.meta.requiresAdmin)
 
   if (to.meta.public && authenticated) {
     return { path: '/' }
   }
 
-  if (to.meta.requiresAuth && !authenticated) {
+  if (requiresAuth && !authenticated) {
     return { path: '/login', query: { redirect: to.fullPath } }
+  }
+
+  if (requiresAdmin && authenticated) {
+    const user = getStoredUser()
+    if (user?.role !== 'admin') {
+      return { path: '/' }
+    }
   }
 
   return true
