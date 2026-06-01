@@ -16,6 +16,9 @@ from app.services.netscaler_service import (
     nextgen_request,
     run_cli_command,
     run_cli_commands,
+    run_diagnostic,
+    run_nsconmsg,
+    run_telnet,
     ssh_run_command,
     test_appliance_connection,
 )
@@ -201,7 +204,9 @@ NETSCALER_TOOLS = [
     types.Tool(
         name="netscaler_ssh_run_command",
         description=(
-            "Run a read-only NetScaler CLI command via SSH (show/stat/get only). "
+            "Run a read-only NetScaler CLI command via SSH (show/stat/get) or a connectivity "
+            "troubleshooting command (ping, ping6, traceroute, traceroute6). ping is automatically "
+            "bounded with a packet count so it cannot run indefinitely. "
             "Use after confirming the command in the ADC CLI reference."
         ),
         inputSchema={
@@ -212,7 +217,7 @@ NETSCALER_TOOLS = [
                 "password": {"type": "string", "description": "NetScaler SSH password"},
                 "command": {
                     "type": "string",
-                    "description": "Read-only CLI command, e.g. show ns version",
+                    "description": "Read-only or diagnostic command, e.g. show ns version, ping -c 4 10.0.0.5, traceroute 10.0.0.5",
                 },
                 "purpose": {
                     "type": "string",
@@ -272,6 +277,121 @@ NETSCALER_TOOLS = [
                 },
             },
             "required": ["host", "username", "password", "commands", "purpose"],
+        },
+    ),
+    types.Tool(
+        name="netscaler_run_diagnostic",
+        description=(
+            "Run a bounded network diagnostic from the appliance for connectivity troubleshooting: "
+            "ping, ping6, traceroute, traceroute6 (ICMP/path), or tcp_port (TCP port via telnet). "
+            "Use tcp_port for 'is port N open' or host:PORT reachability. Read-only and safe."
+        ),
+        inputSchema={
+            "type": "object",
+            "properties": {
+                "host": {"type": "string", "description": "NetScaler hostname or IP"},
+                "username": {"type": "string", "description": "NetScaler SSH username"},
+                "password": {"type": "string", "description": "NetScaler SSH password"},
+                "operation": {
+                    "type": "string",
+                    "description": "Diagnostic to run",
+                    "enum": ["ping", "ping6", "traceroute", "traceroute6", "tcp_port"],
+                },
+                "target": {
+                    "type": "string",
+                    "description": "Destination host or IP to test, e.g. 8.8.8.8 or server.example.com",
+                },
+                "count": {
+                    "type": "integer",
+                    "description": "ping only: number of echo requests (default 4, max 10)",
+                },
+                "max_hops": {
+                    "type": "integer",
+                    "description": "traceroute only: maximum hops/TTL (default 15, max 20)",
+                },
+                "port": {
+                    "type": "integer",
+                    "description": "tcp_port only: TCP port to test (1-65535)",
+                },
+            },
+            "required": ["host", "username", "password", "operation", "target"],
+        },
+    ),
+    types.Tool(
+        name="netscaler_telnet",
+        description=(
+            "Test TCP port connectivity from the NetScaler appliance using telnet via "
+            "`shell sh -c '/usr/bin/telnet HOST PORT </dev/null'`. NetScaler ADC has telnet "
+            "but not netcat/nc or GNU timeout. Returns verdict open/refused/no_response. "
+            "Ignore 'ERROR: Export failed' CLI noise when telnet shows Connected to."
+        ),
+        inputSchema={
+            "type": "object",
+            "properties": {
+                "host": {"type": "string", "description": "NetScaler hostname or IP"},
+                "username": {"type": "string", "description": "NetScaler SSH username"},
+                "password": {"type": "string", "description": "NetScaler SSH password"},
+                "target": {"type": "string", "description": "Destination host or IP to test"},
+                "port": {"type": "integer", "description": "TCP port to test (1-65535)"},
+                "timeout_seconds": {
+                    "type": "integer",
+                    "description": "Connect timeout in seconds (default 8, max 20)",
+                },
+            },
+            "required": ["host", "username", "password", "target", "port"],
+        },
+    ),
+    types.Tool(
+        name="netscaler_collect_nsconmsg",
+        description=(
+            "Collect performance statistics and event logs using nsconmsg (read-only). "
+            "Runs /netscaler/nsconmsg -K /var/nslog/<newnslog> -d <operation> from the shell — "
+            "always read-only (uppercase -K, never -k). Use for performance counters, CPU/memory "
+            "stats, event logs, and historical newnslog analysis."
+        ),
+        inputSchema={
+            "type": "object",
+            "properties": {
+                "host": {"type": "string", "description": "NetScaler hostname or IP"},
+                "username": {"type": "string", "description": "NetScaler SSH username"},
+                "password": {"type": "string", "description": "NetScaler SSH password"},
+                "operation": {
+                    "type": "string",
+                    "description": "nsconmsg -d operation",
+                    "enum": [
+                        "current",
+                        "stats",
+                        "statswt0",
+                        "event",
+                        "consmsg",
+                        "memstats",
+                        "settime",
+                        "oldconmsg",
+                    ],
+                },
+                "logfile": {
+                    "type": "string",
+                    "description": "newnslog file name under /var/nslog (default newnslog, e.g. newnslog.100)",
+                },
+                "counter": {
+                    "type": "string",
+                    "description": "Optional -g pattern, e.g. cpu_use, mem_err, vsvr_tot_hits",
+                },
+                "vserver": {
+                    "type": "string",
+                    "description": "Optional -j LB vserver name (use with oldconmsg)",
+                },
+                "selectors": {
+                    "type": "array",
+                    "items": {"type": "string"},
+                    "description": "Optional -s selectors: ConLB=1..3, ConMEM=1..3, disptime=1, time=ddmmmyyyy",
+                },
+                "interval": {
+                    "type": "integer",
+                    "description": "Optional -T interval in seconds",
+                },
+            },
+            "required": ["host", "username", "password", "operation"],
         },
     ),
     types.Tool(
@@ -455,6 +575,69 @@ async def call_netscaler_tool(name: str, arguments: dict) -> list[types.TextCont
             return _tool_error("purpose is required — confirm why this command sequence is needed")
         return await _run_nextgen_tool(
             lambda: run_cli_commands(host, username, password, commands)
+        )
+
+    if name == "netscaler_run_diagnostic":
+        operation = arguments.get("operation", "").strip()
+        target = arguments.get("target", "").strip()
+        if not operation:
+            return _tool_error("operation is required (ping, ping6, traceroute, traceroute6, tcp_port)")
+        if not target:
+            return _tool_error("target host or IP is required")
+        count = arguments.get("count")
+        max_hops = arguments.get("max_hops")
+        port = arguments.get("port")
+        if operation == "tcp_port" and port is None:
+            return _tool_error("port is required for tcp_port operation (1-65535)")
+        return await _run_nextgen_tool(
+            lambda: run_diagnostic(
+                host,
+                username,
+                password,
+                operation,
+                target,
+                count=int(count) if count is not None else None,
+                max_hops=int(max_hops) if max_hops is not None else None,
+                port=int(port) if port is not None else None,
+            )
+        )
+
+    if name == "netscaler_telnet":
+        target = arguments.get("target", "").strip()
+        port = arguments.get("port")
+        if not target:
+            return _tool_error("target host or IP is required")
+        if port is None:
+            return _tool_error("port is required (1-65535)")
+        timeout_seconds = arguments.get("timeout_seconds")
+        return await _run_nextgen_tool(
+            lambda: run_telnet(
+                host,
+                username,
+                password,
+                target,
+                int(port),
+                timeout_seconds=int(timeout_seconds) if timeout_seconds is not None else None,
+            )
+        )
+
+    if name == "netscaler_collect_nsconmsg":
+        operation = arguments.get("operation", "").strip()
+        if not operation:
+            return _tool_error("operation is required (current, stats, event, memstats, oldconmsg, ...)")
+        interval = arguments.get("interval")
+        return await _run_nextgen_tool(
+            lambda: run_nsconmsg(
+                host,
+                username,
+                password,
+                operation,
+                logfile=(arguments.get("logfile") or "newnslog"),
+                counter=arguments.get("counter"),
+                vserver=arguments.get("vserver"),
+                selectors=arguments.get("selectors") or [],
+                interval=int(interval) if interval is not None else None,
+            )
         )
 
     if name == "netscaler_nextgen_request":

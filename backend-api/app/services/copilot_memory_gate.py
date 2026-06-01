@@ -44,7 +44,9 @@ DESTRUCTIVE_CLI_VERBS = frozenset(
     }
 )
 
-READONLY_CLI_VERBS = frozenset({"show", "stat", "get", "count"})
+READONLY_CLI_VERBS = frozenset(
+    {"show", "stat", "get", "count", "ping", "ping6", "traceroute", "traceroute6"}
+)
 
 
 def nextgen_memory_review_required(tool_name: str) -> bool:

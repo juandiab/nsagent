@@ -205,10 +205,12 @@ COPILOT_TOOLS = [
     {
         "name": "netscaler_ssh_run_command",
         "description": (
-            "Run a read-only NetScaler CLI command via SSH (show/stat/get only). "
+            "Run a read-only NetScaler CLI command via SSH (show/stat/get) or a connectivity "
+            "troubleshooting command (ping, ping6, traceroute, traceroute6). "
             "Use only after search_netscaler_cli_reference returns a recommendedCommands entry "
-            "and only run that exact command (or documented alias). "
-            "If success is false, read retryHint/suggestedCommand and retry — do not answer the user yet."
+            "and only run that exact command (or documented alias). ping is automatically bounded "
+            "with a packet count. If success is false, read retryHint/suggestedCommand and retry — "
+            "do not answer the user yet."
         ),
         "parameters": {
             "type": "object",
@@ -219,7 +221,7 @@ COPILOT_TOOLS = [
                 },
                 "command": {
                     "type": "string",
-                    "description": "Read-only CLI command, e.g. show ns version",
+                    "description": "Read-only or diagnostic command, e.g. show ns version, ping -c 4 10.0.0.5, traceroute 10.0.0.5",
                 },
                 "purpose": {
                     "type": "string",
@@ -336,6 +338,137 @@ COPILOT_TOOLS = [
             "required": ["appliance_name", "method", "path"],
         },
     },
+    {
+        "name": "netscaler_run_diagnostic",
+        "description": (
+            "Run a bounded network diagnostic from the appliance for connectivity troubleshooting: "
+            "ping, ping6, traceroute, traceroute6 (ICMP/path), or tcp_port (TCP port open/closed via telnet). "
+            "Use ping/traceroute for 'can the appliance reach X' with no port. "
+            "Use tcp_port for 'is port N open on X' or 'can the appliance reach X:PORT'. "
+            "Read-only and safe — runs immediately, no confirmation and no memory search required."
+        ),
+        "parameters": {
+            "type": "object",
+            "properties": {
+                "appliance_name": {
+                    "type": "string",
+                    "description": "Inventory name of the NetScaler appliance",
+                },
+                "operation": {
+                    "type": "string",
+                    "description": "Diagnostic to run",
+                    "enum": ["ping", "ping6", "traceroute", "traceroute6", "tcp_port"],
+                },
+                "target": {
+                    "type": "string",
+                    "description": "Destination host or IP to test, e.g. 8.8.8.8 or server.example.com",
+                },
+                "count": {
+                    "type": "integer",
+                    "description": "ping only: number of echo requests (default 4, max 10)",
+                },
+                "max_hops": {
+                    "type": "integer",
+                    "description": "traceroute only: maximum hops (default 15, max 20)",
+                },
+                "port": {
+                    "type": "integer",
+                    "description": "tcp_port only: TCP port to test (1-65535)",
+                },
+            },
+            "required": ["appliance_name", "operation", "target"],
+        },
+    },
+    {
+        "name": "netscaler_telnet",
+        "description": (
+            "Test TCP port connectivity from the NetScaler appliance (telnet via shell sh -c). "
+            "Use for 'is port N open on host X', 'can the appliance reach X:PORT', or verifying "
+            "a backend service/port is reachable. Does NOT use GNU timeout or netcat — uses "
+            "/usr/bin/telnet on NetScaler ADC. Complements netscaler_run_diagnostic (ping = ICMP only). "
+            "Runs immediately — no memory search or confirmation needed. Returns verdict: "
+            "open, refused (port closed), or no_response (filtered/unreachable). "
+            "Report the summary/verdict field; ignore NetScaler 'ERROR: Export failed' CLI noise."
+        ),
+        "parameters": {
+            "type": "object",
+            "properties": {
+                "appliance_name": {
+                    "type": "string",
+                    "description": "Inventory name of the NetScaler appliance",
+                },
+                "target": {
+                    "type": "string",
+                    "description": "Destination host or IP to test, e.g. 10.0.0.5 or server.example.com",
+                },
+                "port": {
+                    "type": "integer",
+                    "description": "TCP port to test (1-65535), e.g. 443",
+                },
+                "timeout_seconds": {
+                    "type": "integer",
+                    "description": "Connect timeout in seconds (default 8, max 20)",
+                },
+            },
+            "required": ["appliance_name", "target", "port"],
+        },
+    },
+    {
+        "name": "netscaler_collect_nsconmsg",
+        "description": (
+            "Collect performance statistics and event logs via nsconmsg (read-only). "
+            "Use for 'performance stats', 'counters', 'CPU/memory usage over time', 'event logs', "
+            "or historical newnslog analysis. Always read-only (/netscaler/nsconmsg -K /var/nslog/<file> "
+            "-d <operation>). Runs immediately — no memory search or confirmation needed. "
+            "operation: current (perf data), stats/statswt0 (counters), event (event log), memstats "
+            "(memory), consmsg (console), settime (file time span), oldconmsg (historical, with vserver/selectors)."
+        ),
+        "parameters": {
+            "type": "object",
+            "properties": {
+                "appliance_name": {
+                    "type": "string",
+                    "description": "Inventory name of the NetScaler appliance",
+                },
+                "operation": {
+                    "type": "string",
+                    "enum": [
+                        "current",
+                        "stats",
+                        "statswt0",
+                        "event",
+                        "consmsg",
+                        "memstats",
+                        "settime",
+                        "oldconmsg",
+                    ],
+                    "description": "nsconmsg -d operation",
+                },
+                "logfile": {
+                    "type": "string",
+                    "description": "newnslog file under /var/nslog (default newnslog; e.g. newnslog.100)",
+                },
+                "counter": {
+                    "type": "string",
+                    "description": "Optional -g pattern, e.g. cpu_use, mem_err, vsvr_tot_hits",
+                },
+                "vserver": {
+                    "type": "string",
+                    "description": "Optional -j LB vserver name (use with oldconmsg)",
+                },
+                "selectors": {
+                    "type": "array",
+                    "items": {"type": "string"},
+                    "description": "Optional -s selectors: ConLB=1..3, ConMEM=1..3, disptime=1, time=ddmmmyyyy",
+                },
+                "interval": {
+                    "type": "integer",
+                    "description": "Optional -T interval in seconds",
+                },
+            },
+            "required": ["appliance_name", "operation"],
+        },
+    },
 ]
 
 SEARCH_TOOL = {
@@ -389,6 +522,9 @@ MCP_TOOL_MAP = {
     "netscaler_ssh_run_command": "netscaler_ssh_run_command",
     "netscaler_run_cli_command": "netscaler_run_cli_command",
     "netscaler_run_cli_commands": "netscaler_run_cli_commands",
+    "netscaler_run_diagnostic": "netscaler_run_diagnostic",
+    "netscaler_telnet": "netscaler_telnet",
+    "netscaler_collect_nsconmsg": "netscaler_collect_nsconmsg",
     "netscaler_nextgen_request": "netscaler_nextgen_request",
     "netscaler_list_lb_vservers": "netscaler_list_virtual_servers",
 }
@@ -514,6 +650,52 @@ async def execute_copilot_tool(
         body = arguments.get("body")
         if body is not None:
             mcp_args["body"] = body
+
+    if name == "netscaler_run_diagnostic":
+        operation = arguments.get("operation", "").strip()
+        target = arguments.get("target", "").strip()
+        if not operation:
+            raise ValueError("operation is required (ping, ping6, traceroute, traceroute6, tcp_port)")
+        if not target:
+            raise ValueError("target is required")
+        mcp_args["operation"] = operation
+        mcp_args["target"] = target
+        if arguments.get("count") is not None:
+            mcp_args["count"] = int(arguments["count"])
+        if arguments.get("max_hops") is not None:
+            mcp_args["max_hops"] = int(arguments["max_hops"])
+        if arguments.get("port") is not None:
+            mcp_args["port"] = int(arguments["port"])
+        if operation == "tcp_port" and arguments.get("port") is None:
+            raise ValueError("port is required for tcp_port operation")
+
+    if name == "netscaler_telnet":
+        target = arguments.get("target", "").strip()
+        port = arguments.get("port")
+        if not target:
+            raise ValueError("target is required")
+        if port is None:
+            raise ValueError("port is required")
+        mcp_args["target"] = target
+        mcp_args["port"] = int(port)
+        if arguments.get("timeout_seconds") is not None:
+            mcp_args["timeout_seconds"] = int(arguments["timeout_seconds"])
+
+    if name == "netscaler_collect_nsconmsg":
+        operation = arguments.get("operation", "").strip()
+        if not operation:
+            raise ValueError("operation is required (current, stats, event, memstats, oldconmsg, ...)")
+        mcp_args["operation"] = operation
+        if arguments.get("logfile"):
+            mcp_args["logfile"] = arguments["logfile"].strip()
+        if arguments.get("counter"):
+            mcp_args["counter"] = arguments["counter"].strip()
+        if arguments.get("vserver"):
+            mcp_args["vserver"] = arguments["vserver"].strip()
+        if arguments.get("selectors"):
+            mcp_args["selectors"] = arguments["selectors"]
+        if arguments.get("interval") is not None:
+            mcp_args["interval"] = int(arguments["interval"])
 
     if name == "netscaler_add_ip_address":
         ip_address = arguments.get("ip_address", "").strip()

@@ -202,15 +202,18 @@ Mandatory rules:
 2. The user already selected and authenticated to the active appliance — use it for every NetScaler tool call.
 3. Use only official documentation domains: developer-docs.netscaler.com, docs.netscaler.com, docs.citrix.com. Never cite or rely on other websites.
 4. **Before any Next-Gen API tool call**, you MUST call search_netscaler_nextgen_api and read memoryExcerpts + suggestedGetPaths from netscaler_nextgen_api_memory.md.
-5. **Before any SSH CLI command**, you MUST call search_netscaler_cli_reference and read memoryExcerpts + recommendedCommands from netscaler_adc_cli_memory.md.
-6. You can READ and WRITE configuration. Prefer NetScaler Next-Gen API tools:
+5. **Before any SSH CLI command**, you MUST call search_netscaler_cli_reference and read memoryExcerpts + recommendedCommands from netscaler_adc_cli_memory.md. **Exception:** connectivity diagnostics (ping, ping6, traceroute, traceroute6) use netscaler_run_diagnostic directly and require NO search.
+6. **ICMP connectivity checks ALWAYS use netscaler_run_diagnostic.** For "can the appliance ping X", "is X reachable" (no port), ping, or traceroute, call netscaler_run_diagnostic(operation, target) immediately. This tool is always available — never claim ping/traceroute is unavailable, never say the CLI reference lacks ping, and never tell the user to run it from the shell. A failed/unreachable result is a valid answer to report.
+6b. **TCP port checks use netscaler_telnet or netscaler_run_diagnostic(operation=tcp_port, target, port).** For "is port N open on X", "can the appliance reach X:PORT", call immediately — do NOT use ping. Uses `shell sh -c '/usr/bin/telnet HOST PORT </dev/null'` on NetScaler (no GNU timeout, no netcat). NEVER claim port-check tools are broken without calling them. Report verdict open/refused/no_response. Ignore "ERROR: Export failed" CLI noise when telnet shows Connected to.
+7. You can READ and WRITE configuration. Prefer NetScaler Next-Gen API tools:
    netscaler_get_system_info, netscaler_list_virtual_servers, netscaler_list_applications,
    netscaler_list_ip_addresses, netscaler_list_virtual_ips, netscaler_nextgen_get,
    netscaler_create_application (POST /applications),
    netscaler_nextgen_request (generic GET/POST/PUT/DELETE on any Next-Gen path),
+   netscaler_run_diagnostic (ping/ping6/traceroute/traceroute6 — connectivity troubleshooting),
    netscaler_run_cli_command (any classic CLI verb: add/set/bind/unbind/enable/disable/rm/clear/save/...),
    netscaler_run_cli_commands (run multiple classic CLI commands in one call — preferred for multi-step LB setup).
-7. Choosing how to fulfill a request:
+8. Choosing how to fulfill a request:
    a. For application-centric or Next-Gen resources (applications, certificates, routes, config_sets):
       search_netscaler_nextgen_api first, then netscaler_create_application or netscaler_nextgen_request
       with the exact path + JSON body from netscaler_nextgen_api_memory.md.
@@ -220,14 +223,14 @@ Mandatory rules:
    d. After classic CLI writes, run 'save ns config' to persist (Next-Gen API config persists automatically).
    e. If a write or command fails, read retryHint/suggestedCommand/errorMessage, fix it, and retry. Do not answer until it succeeds.
    f. For reads, if Next-Gen API tools do not return the data, fall back to a read-only command via netscaler_run_cli_command (or netscaler_ssh_run_command) after searching the CLI reference.
-8. DESTRUCTIVE OPERATIONS require explicit user confirmation BEFORE execution:
+9. DESTRUCTIVE OPERATIONS require explicit user confirmation BEFORE execution:
    - Classic CLI: rm, clear, delete, reboot, shutdown, disable, unbind, flush, reset, unset, kill, force.
    - Next-Gen API: DELETE requests, and disable/uninstall actions.
    - For these, first show the user the exact command/request and its impact, and ask them to confirm.
      Only after the user explicitly agrees, call the tool again with confirmed=true.
    - Additive/setup operations (add, set, bind, enable, link, save, create, POST, PUT) run immediately — no confirmation needed.
    - If a destructive tool returns needsConfirmation, stop and ask the user; do not retry without confirmed=true.
-9. Never tell the user to run manual CLI or GUI steps — perform the operation yourself with the tools.
+10. Never tell the user to run manual CLI or GUI steps — perform the operation yourself with the tools.
 
 Tool routing:
 - All IPs / NSIP / SNIP / VIP / "show ns ip": netscaler_list_ip_addresses
@@ -241,6 +244,10 @@ Tool routing:
 - Load-balancing VIPs only: netscaler_list_virtual_ips
 - Next-Gen applications only: netscaler_list_applications
 - VLAN / routing table / classic-only networking: search_netscaler_cli_reference, then netscaler_run_cli_command (show vlan, show route)
+- Connectivity troubleshooting / "can the appliance reach X" / "is X reachable" / ping / traceroute / network path: netscaler_run_diagnostic (operation=ping|ping6|traceroute|traceroute6, target=<host>) — runs immediately, no memory search or confirmation needed. A failed ping just means the host is unreachable; report that, don't retry.
+- TCP port reachability / "is port N open on X" / "can the appliance reach X on port N" / verify a backend service port: netscaler_telnet (target=<host>, port=<n>) — runs immediately, no memory search or confirmation needed. Reports verdict open/refused/no_response.
+- Deeper network diagnostics (ARP table, interface/link status, packet capture): search_netscaler_cli_reference, then netscaler_ssh_run_command (show arp, show interface, stat interface, show nstrace)
+- Performance statistics / counters / CPU or memory usage / event logs / newnslog analysis: netscaler_collect_nsconmsg (operation=current|stats|statswt0|event|memstats|consmsg|settime|oldconmsg, optional counter/vserver/selectors) — read-only nsconmsg, runs immediately, no memory search or confirmation needed
 - Unknown Next-Gen resource: search_netscaler_nextgen_api (memory file), then netscaler_nextgen_get or netscaler_nextgen_request
 
 Report tool results directly. State the command/request that was run and summarize its output.
@@ -329,7 +336,30 @@ async def run_copilot_chat(
 
     tool_traces: list[ToolCallTrace] = []
     enabled_tools = await get_enabled_copilot_tools(db)
+    enabled_tool_names = {tool["name"] for tool in enabled_tools}
     system_prompt = build_system_prompt(appliance_name)
+
+    from app.services.copilot_port_check import try_auto_tcp_port_check
+
+    auto_traces, auto_response = await try_auto_tcp_port_check(
+        db,
+        user_message=user_message,
+        appliance_name=appliance_name,
+        enabled_tool_names=enabled_tool_names,
+    )
+    if auto_traces:
+        tool_traces.extend(auto_traces)
+    if auto_response and auto_traces:
+        provider_name = provider["providerName"]
+        if auto_response.startswith("**") and "Verdict:" in auto_response:
+            return ChatResponse(
+                content=auto_response,
+                providerName=provider_name,
+                providerType=provider_type,
+                model=model,
+                toolCalls=tool_traces,
+            )
+        system_prompt += auto_response
 
     if provider_type == "Anthropic":
         content = await _run_anthropic_loop(

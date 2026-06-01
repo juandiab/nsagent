@@ -119,6 +119,25 @@ def build_tool_retry_hint(tool_name: str, result: str, user_message: str) -> str
                 "once per command. Do not answer the user until every command succeeds."
             )
 
+    if tool_name == "netscaler_telnet" and isinstance(data, dict):
+        verdict = data.get("verdict")
+        if verdict in ("open", "refused", "no_response"):
+            return None
+
+        payload_text = json.dumps(data).lower()
+        if "timeout" in payload_text and "not found" in payload_text:
+            return (
+                "netscaler_telnet does not use the GNU timeout command. Call netscaler_telnet again — "
+                "it runs `shell sh -c '/usr/bin/telnet HOST PORT </dev/null'` on NetScaler. "
+                "Report the verdict/summary field. Do not tell the user the tool is permanently broken."
+            )
+        if verdict == "unknown":
+            return (
+                "Port check verdict was unknown. Call netscaler_telnet again. "
+                "If raw output contains 'Connected to', report the port as OPEN even if "
+                "'ERROR: Export failed' appears — that is normal NetScaler CLI noise."
+            )
+
     if isinstance(data, dict) and data.get("blocked"):
         return data.get("message") or (
             "Next-Gen API tool blocked until search_netscaler_nextgen_api is called first."
@@ -154,8 +173,12 @@ def build_tool_retry_hint(tool_name: str, result: str, user_message: str) -> str
                 )
 
     if tool_name in ("netscaler_ssh_run_command", "netscaler_run_cli_command") and isinstance(data, dict):
+        # A failed ping/traceroute is a legitimate diagnostic result (host unreachable),
+        # not a syntax error to fix — don't push the model to retry it.
+        ran_command = str(data.get("command") or "").strip().lower()
+        is_diagnostic = ran_command.startswith(("ping ", "ping6 ", "traceroute ", "traceroute6 "))
         failed = data.get("commandFailed") or data.get("success") is False or data.get("exitStatus") not in (0, None)
-        if failed:
+        if failed and not is_diagnostic:
             suggested = data.get("suggestedCommand") or ""
             retry_hint = data.get("retryHint") or ""
             usage = data.get("usage") or ""

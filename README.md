@@ -6,14 +6,19 @@ Repository: [github.com/juandiab/nsagent](https://github.com/juandiab/nsagent)
 
 > **Disclaimer:** NSAgent is an independent project and is not affiliated with, endorsed by, or sponsored by Citrix Systems, Inc. NetScaler is a trademark of Citrix Systems, Inc.
 
+**Current release:** `v0.02` — NetScaler diagnostics (ICMP, TCP port checks, nsconmsg), auth improvements, and Copilot auto port-check.
+
 ## Features
 
 - **Appliance inventory** — store NetScaler hosts and encrypted credentials (Fernet).
 - **AI provider management** — OpenAI, Anthropic, Gemini, Grok, LM Studio, and OpenAI-compatible endpoints.
 - **Copilot chat** — tool-calling agent bound to the selected appliance; credentials never sent to the LLM.
-- **MCP server** — Model Context Protocol tools for Next-Gen API, classic CLI over SSH, and NITRO helpers.
+- **MCP server** — Model Context Protocol tools for Next-Gen API, classic CLI over SSH, NITRO helpers, and diagnostics.
 - **Memory-guided RAG** — `netscaler_nextgen_api_memory.md` and `netscaler_adc_cli_memory.md` gate API/CLI usage before execution.
 - **Classic + Next-Gen** — list virtual servers from Next-Gen applications and classic `lbvserver`; create apps via Next-Gen or multi-step LB setup via CLI.
+- **Authentication** — password login for all users; optional passkey (WebAuthn) sign-in after registration in Settings → Security.
+- **User management** — admin CRUD for users (roles `admin` / `user`), initial password on create, passkey count and removal.
+- **NetScaler diagnostics** — ICMP ping/traceroute, TCP port reachability via telnet from the appliance shell, and read-only `nsconmsg` performance/event collection.
 
 ## Architecture
 
@@ -34,13 +39,13 @@ Repository: [github.com/juandiab/nsagent](https://github.com/juandiab/nsagent)
 | Frontend     | 5173  | Vue 3 + PrimeVue admin UI and Copilot     |
 | Backend API  | 8000  | Auth, CRUD, Copilot orchestration, MCP proxy |
 | MCP Server   | 8001  | NetScaler tool execution (SSE-capable)    |
-| MongoDB      | 27017 | Settings, appliances, AI providers          |
+| MongoDB      | 27017 | Settings, appliances, AI providers, users |
 
 ## Prerequisites
 
 - Docker and Docker Compose
 - NetScaler ADC with **Next-Gen API** enabled (`enable ns nextgenapi`) for API tools
-- SSH access to the appliance for classic CLI read/write tools (port 22)
+- SSH access to the appliance for classic CLI and diagnostic tools (port 22)
 - Python 3.12+ (optional, only to generate a Fernet key locally)
 
 ## Quick start
@@ -65,6 +70,9 @@ Repository: [github.com/juandiab/nsagent](https://github.com/juandiab/nsagent)
    | `JWT_SECRET_KEY`         | Secret for session JWTs              |
    | `ADMIN_USERNAME`         | Initial admin user (seeded once)     |
    | `ADMIN_PASSWORD`         | Initial admin password               |
+   | `WEBAUTHN_RP_ID`         | WebAuthn RP ID (usually `localhost` or your hostname) |
+   | `WEBAUTHN_ORIGIN`        | Exact UI origin (e.g. `http://localhost:5173`) |
+   | `CORS_ORIGINS`           | Comma-separated allowed browser origins |
 
 3. **Start the stack**
 
@@ -74,15 +82,28 @@ Repository: [github.com/juandiab/nsagent](https://github.com/juandiab/nsagent)
 
 4. **Open the UI**
 
-   - App: [http://localhost:5173](http://localhost:5173)
+   - App: [http://localhost:5173](http://localhost:5173) or [http://127.0.0.1:5173](http://127.0.0.1:5173)
    - Default login: `admin` / `admin` (change via `.env` before first run)
 
 5. **Configure**
 
    - **NetScalers** — add your appliance (name, host, API/SSH user and password).
    - **AI Providers** — add an LLM provider and set it as default.
-   - **Settings → MCP** — tool toggles, SSH fallback, timeouts.
+   - **Settings → MCP** — tool toggles, **SSH fallback** (required for diagnostics), timeouts.
+   - **Settings → Security** — register an optional passkey after password login.
+   - **Users** (admin) — create users with initial passwords.
    - **Copilot** — select an appliance and ask questions or request changes.
+
+## Authentication
+
+| Flow | Description |
+|------|-------------|
+| **Password login** | Primary sign-in via `POST /auth/login`. Required for all users. |
+| **Passkey login** | Optional on the login screen if the user has registered passkeys. |
+| **Passkey registration** | Authenticated users register in **Settings → Security** (not from the login page). |
+| **Bootstrap admin** | Seeded from `ADMIN_USERNAME` / `ADMIN_PASSWORD` on first startup. |
+
+WebAuthn and CORS origins must match how users open the UI (see `.env.example`).
 
 ## Copilot behavior
 
@@ -90,8 +111,21 @@ The orchestrator enforces:
 
 1. **`search_netscaler_nextgen_api`** before Next-Gen API tools.
 2. **`search_netscaler_cli_reference`** before SSH/CLI write tools.
-3. **Tool execution** for config changes — the model cannot only list CLI commands; it must call `netscaler_run_cli_command` or `netscaler_run_cli_commands`.
+3. **Tool execution** for config changes — the model must call `netscaler_run_cli_command` or `netscaler_run_cli_commands`, not only list commands.
 4. **Confirmation** for destructive CLI/API operations (`rm`, `DELETE`, `unbind`, etc.) via `confirmed=true` after user approval.
+5. **Diagnostics run immediately** — no memory search required for ping, traceroute, TCP port checks, or nsconmsg.
+
+### Connectivity and diagnostics routing
+
+| User question | Tool | Notes |
+|---------------|------|-------|
+| Can the appliance ping / reach host (no port)? | `netscaler_run_diagnostic` | `operation`: `ping`, `ping6`, `traceroute`, `traceroute6` |
+| Is port N open on host? / reach `IP:PORT`? | `netscaler_telnet` or `netscaler_run_diagnostic` | `operation`: `tcp_port`, plus `port` |
+| Performance stats, counters, event logs | `netscaler_collect_nsconmsg` | Read-only `/netscaler/nsconmsg` over SSH |
+
+**Auto TCP port check:** when a Copilot message includes a host and port (e.g. `192.168.20.36:1234`), the backend runs `netscaler_telnet` automatically and returns the verdict — no need for the LLM to choose the tool.
+
+**NetScaler ADC note:** TCP port checks use `/usr/bin/telnet` via `shell sh -c 'telnet HOST PORT </dev/null'`. NetScaler does not ship `nc`/netcat or GNU `timeout`. The CLI may append `ERROR: Export failed` after shell commands; ignore that when telnet output shows `Connected to` or `Connection refused`.
 
 Example — classic LB virtual server with service group:
 
@@ -107,6 +141,8 @@ Copilot runs these via **`netscaler_run_cli_commands`** in one tool call after C
 
 ## MCP tools
 
+### Configuration and inventory
+
 | Tool | Description |
 |------|-------------|
 | `netscaler_test_connection` | Next-Gen API login test |
@@ -115,6 +151,11 @@ Copilot runs these via **`netscaler_run_cli_commands`** in one tool call after C
 | `netscaler_list_virtual_servers` | Next-Gen apps + classic NITRO `lbvserver` |
 | `netscaler_list_virtual_ips` | VIPs from Next-Gen applications |
 | `netscaler_list_ip_addresses` | NSIP, SNIP, VIP, servers (Next-Gen + NITRO) |
+
+### Next-Gen API and classic CLI
+
+| Tool | Description |
+|------|-------------|
 | `netscaler_nextgen_get` | Read-only GET on any Next-Gen path |
 | `netscaler_nextgen_request` | GET/POST/PUT/DELETE on Next-Gen paths |
 | `netscaler_create_application` | POST `/applications` (VIP + backends) |
@@ -123,7 +164,15 @@ Copilot runs these via **`netscaler_run_cli_commands`** in one tool call after C
 | `netscaler_run_cli_command` | Single classic CLI command (read or write) |
 | `netscaler_run_cli_commands` | Ordered sequence of CLI commands (multi-step setup) |
 
-Enable or disable tools under **Settings → MCP Server**.
+### Diagnostics (v0.02)
+
+| Tool | Description |
+|------|-------------|
+| `netscaler_run_diagnostic` | ICMP/path diagnostics: `ping`, `ping6`, `traceroute`, `traceroute6`, or **`tcp_port`** (with `port`) |
+| `netscaler_telnet` | TCP port reachability from the appliance via telnet; returns verdict **`open`**, **`refused`**, or **`no_response`** |
+| `netscaler_collect_nsconmsg` | Read-only performance/event collection via `/netscaler/nsconmsg` (`current`, `stats`, `event`, `memstats`, etc.) |
+
+Enable or disable tools under **Settings → MCP Server**. **SSH fallback must be enabled** for diagnostic tools.
 
 ## Memory files
 
@@ -132,19 +181,28 @@ Official-syntax references mounted into the backend (edit at repo root):
 - `netscaler_nextgen_api_memory.md` — Next-Gen API endpoints, payloads, behavioral rules
 - `netscaler_adc_cli_memory.md` — ADC CLI namespaces, commands, behavioral rules
 
-Copilot search tools read these before executing NetScaler operations.
+Copilot search tools read these before executing NetScaler write operations.
 
 ## API endpoints (backend)
 
 | Method | Path | Purpose |
 |--------|------|---------|
 | `GET` | `/health` | Health check |
-| `POST` | `/auth/login` | Admin login |
+| `POST` | `/auth/login` | Password login |
+| `GET` | `/auth/me` | Current user |
+| `POST` | `/auth/logout` | Logout |
+| `POST` | `/auth/webauthn/status` | Passkey availability for username |
+| `POST` | `/auth/webauthn/register/begin\|finish` | Register passkey (authenticated) |
+| `POST` | `/auth/webauthn/login/begin\|finish` | Passkey sign-in |
+| `GET/POST/PUT/DELETE` | `/users` | User management (admin) |
+| `DELETE` | `/users/{id}/passkeys/{passkeyId}` | Remove a user's passkey |
 | `GET/POST` | `/appliances` | Appliance CRUD |
 | `GET/POST` | `/ai-providers` | AI provider CRUD |
 | `GET/PUT` | `/mcp/config` | MCP settings |
 | `GET` | `/mcp/tools` | Enabled MCP tools |
+| `GET` | `/mcp/status` | MCP server online status |
 | `POST` | `/copilot/chat` | Copilot chat with tool traces |
+| `GET` | `/copilot/status` | Copilot readiness (default provider) |
 
 ## Development
 
@@ -160,6 +218,12 @@ Health checks:
 - MCP: [http://localhost:8001/health](http://localhost:8001/health)
 - MCP tools: [http://localhost:8001/tools](http://localhost:8001/tools)
 
+After changing Python dependencies in `requirements.txt`, rebuild the affected image:
+
+```bash
+docker compose build backend-api mcp-server && docker compose up -d backend-api mcp-server
+```
+
 ### Project layout
 
 ```
@@ -174,7 +238,7 @@ Health checks:
 
 ## Production notes
 
-For production images, remove bind-mount volume lines for `frontend`, `backend-api`, and `mcp-server` in `docker-compose.yml` so containers use code baked into each Dockerfile. Use strong secrets, TLS in front of the UI/API, and restrict MongoDB network access.
+For production images, remove bind-mount volume lines for `frontend`, `backend-api`, and `mcp-server` in `docker-compose.yml` so containers use code baked into each Dockerfile. Use strong secrets, TLS in front of the UI/API, restrict MongoDB network access, and set `WEBAUTHN_RP_ID`, `WEBAUTHN_ORIGIN`, and `CORS_ORIGINS` to your real hostname.
 
 ## License
 

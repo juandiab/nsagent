@@ -14,6 +14,9 @@ ALL_TOOL_NAMES = [
     "netscaler_ssh_run_command",
     "netscaler_run_cli_command",
     "netscaler_run_cli_commands",
+    "netscaler_run_diagnostic",
+    "netscaler_telnet",
+    "netscaler_collect_nsconmsg",
     "netscaler_nextgen_request",
 ]
 

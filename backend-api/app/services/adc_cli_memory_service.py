@@ -15,7 +15,7 @@ MEMORY_CANDIDATE_PATHS = (
 
 _memory_cache: tuple[float, str] | None = None
 
-READONLY_VERBS = ("show ", "stat ", "get ", "count ")
+READONLY_VERBS = ("show ", "stat ", "get ", "count ", "ping ", "ping6 ", "traceroute ", "traceroute6 ")
 WRITE_VERBS = ("add ns ip ", "add ns ip6 ")
 
 

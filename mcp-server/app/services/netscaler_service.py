@@ -1131,6 +1131,381 @@ async def run_cli_commands(
     }
 
 
+DIAGNOSTIC_OPERATIONS = frozenset({"ping", "ping6", "traceroute", "traceroute6", "tcp_port"})
+
+
+async def run_diagnostic(
+    host: str,
+    username: str,
+    password: str,
+    operation: str,
+    target: str,
+    *,
+    count: int | None = None,
+    max_hops: int | None = None,
+    port: int | None = None,
+) -> dict[str, Any]:
+    """Run a bounded network diagnostic (ping/traceroute/tcp_port) against a target."""
+    op = (operation or "").strip().lower()
+    if op not in DIAGNOSTIC_OPERATIONS:
+        raise ValueError(
+            f"operation must be one of: {', '.join(sorted(DIAGNOSTIC_OPERATIONS))} (got {operation})"
+        )
+
+    cleaned_target = (target or "").strip()
+    if not cleaned_target:
+        raise ValueError("target host or IP is required")
+
+    if op == "tcp_port":
+        if port is None:
+            raise ValueError("port is required for tcp_port operation")
+        return await run_telnet(host, username, password, cleaned_target, int(port))
+
+    from app.services.config_service import get_runtime_config
+    from app.services.ssh_service import run_ssh_command
+
+    if op in ("ping", "ping6"):
+        c = max(1, min(int(count), 10)) if count is not None else 4
+        command = f"{op} -c {c} {cleaned_target}"
+    else:
+        m = max(1, min(int(max_hops), 20)) if max_hops is not None else 15
+        command = f"{op} -q 1 -w 2 -m {m} {cleaned_target}"
+
+    config = get_runtime_config()
+    if not config.ssh_fallback_enabled:
+        raise ValueError("SSH access is disabled in MCP configuration")
+
+    # run_ssh_command validates + bounds the command via sanitize_diagnostic_command.
+    result = await run_ssh_command(
+        host,
+        username,
+        password,
+        command,
+        port=config.ssh_port,
+        timeout=float(config.ssh_timeout_seconds),
+        allow_writes=False,
+    )
+    result["operation"] = op
+    result["target"] = cleaned_target
+    return result
+
+
+import re as _re
+
+# Scoped, read-only nsconmsg support. nsconmsg runs from the BSD shell (/netscaler/nsconmsg)
+# and reads newnslog counter/event files. We only ever build read-only invocations with the
+# uppercase -K (read) flag — never -k (lowercase), which OVERWRITES the log file.
+NSCONMSG_OPERATIONS = frozenset(
+    {"settime", "stats", "statswt0", "current", "event", "consmsg", "memstats", "oldconmsg"}
+)
+# Safe newnslog file names under /var/nslog (e.g. newnslog, newnslog.100, newnslog.gz).
+_NSCONMSG_LOGFILE_RE = _re.compile(r"^newnslog[0-9A-Za-z._-]*$")
+_NSCONMSG_COUNTER_RE = _re.compile(r"^[A-Za-z0-9_./]+$")
+_NSCONMSG_VSERVER_RE = _re.compile(r"^[A-Za-z0-9_.:-]+$")
+# Selectors limited to the documented debug knobs.
+_NSCONMSG_SELECTOR_RE = _re.compile(r"^(ConLB|ConMEM)=[1-3]$|^disptime=1$|^time=[0-9A-Za-z:]+$")
+
+
+def build_nsconmsg_command(
+    operation: str,
+    *,
+    logfile: str = "newnslog",
+    counter: str | None = None,
+    vserver: str | None = None,
+    selectors: list[str] | None = None,
+    interval: int | None = None,
+) -> str:
+    """Build a validated, read-only `shell /netscaler/nsconmsg ...` command string."""
+    op = (operation or "").strip().lower()
+    if op not in NSCONMSG_OPERATIONS:
+        raise ValueError(
+            f"operation must be one of: {', '.join(sorted(NSCONMSG_OPERATIONS))} (got {operation})"
+        )
+
+    log = (logfile or "newnslog").strip()
+    if not _NSCONMSG_LOGFILE_RE.match(log):
+        raise ValueError(
+            "logfile must be a newnslog file name under /var/nslog (e.g. newnslog, newnslog.100)"
+        )
+
+    # -K (uppercase) READS the file; -k would overwrite it. Always read-only.
+    args = ["/netscaler/nsconmsg", "-K", f"/var/nslog/{log}"]
+
+    if counter is not None and str(counter).strip():
+        c = str(counter).strip()
+        if not _NSCONMSG_COUNTER_RE.match(c):
+            raise ValueError(f"Invalid counter name: {counter}")
+        args += ["-g", c]
+
+    if vserver is not None and str(vserver).strip():
+        v = str(vserver).strip()
+        if not _NSCONMSG_VSERVER_RE.match(v):
+            raise ValueError(f"Invalid vserver name: {vserver}")
+        args += ["-j", v]
+
+    for selector in selectors or []:
+        s = str(selector).strip()
+        if not _NSCONMSG_SELECTOR_RE.match(s):
+            raise ValueError(
+                f"Invalid selector: {selector} (allowed: ConLB=1..3, ConMEM=1..3, disptime=1, time=...)"
+            )
+        args += ["-s", s]
+
+    if interval is not None:
+        args += ["-T", str(int(interval))]
+
+    args += ["-d", op]
+
+    # The NetScaler CLI `shell <cmd>` runs <cmd> in the BSD shell and returns its output.
+    return "shell " + " ".join(args)
+
+
+async def run_nsconmsg(
+    host: str,
+    username: str,
+    password: str,
+    operation: str,
+    *,
+    logfile: str = "newnslog",
+    counter: str | None = None,
+    vserver: str | None = None,
+    selectors: list[str] | None = None,
+    interval: int | None = None,
+) -> dict[str, Any]:
+    """Run a scoped, read-only nsconmsg collection over SSH and return its output."""
+    from app.services.config_service import get_runtime_config
+    from app.services.ssh_service import run_prevalidated_command
+
+    command = build_nsconmsg_command(
+        operation,
+        logfile=logfile,
+        counter=counter,
+        vserver=vserver,
+        selectors=selectors,
+        interval=interval,
+    )
+
+    config = get_runtime_config()
+    if not config.ssh_fallback_enabled:
+        raise ValueError("SSH access is disabled in MCP configuration")
+
+    result = await run_prevalidated_command(
+        command,
+        host,
+        username,
+        password,
+        port=config.ssh_port,
+        timeout=float(config.ssh_timeout_seconds),
+    )
+    result["tool"] = "nsconmsg"
+    result["operation"] = operation
+    result["logFile"] = f"/var/nslog/{logfile}"
+    return result
+
+
+# Scoped TCP port-reachability test from the NetScaler BSD shell (telnet/perl).
+# NetScaler ADC typically has /usr/bin/telnet but not nc/netcat.
+_TELNET_HOST_RE = _re.compile(r"^[A-Za-z0-9_.:-]+$")
+DEFAULT_TELNET_TIMEOUT = 8
+MAX_TELNET_TIMEOUT = 20
+
+
+def build_port_check_shell_commands(target: str, port: int, timeout_seconds: int) -> list[tuple[str, str, str]]:
+    """Return (method, probe_name, command) attempts ordered for NetScaler ADC."""
+    return [
+        (
+            "telnet",
+            "telnet",
+            f"shell sh -c '/usr/bin/telnet {target} {port} </dev/null'",
+        ),
+        (
+            "telnet",
+            "telnet",
+            f"shell sh -c 'telnet {target} {port} </dev/null'",
+        ),
+        (
+            "telnet",
+            "telnet",
+            f"shell /usr/bin/telnet {target} {port}",
+        ),
+        (
+            "perl",
+            "perl",
+            (
+                "shell perl -MIO::Socket::INET -e '"
+                f'eval {{ my $s=IO::Socket::INET->new(PeerAddr=>"{target}",PeerPort=>{port},'
+                f'Proto=>"tcp",Timeout=>{timeout_seconds}); die unless $s; print "open\\n"; exit 0; }}; '
+                f'if ($@ =~ /Connection refused/i) {{ print "refused\\n"; exit 1; }} '
+                f'print "no_response\\n"; exit 2;'
+                "'"
+            ),
+        ),
+    ]
+
+
+def _has_telnet_diagnostic_output(combined: str) -> bool:
+    """True when telnet produced usable reachability output (ignore NetScaler CLI noise)."""
+    lowered = combined.lower()
+    if "connected to" in lowered or "escape character" in lowered:
+        return True
+    if "connection refused" in lowered:
+        return True
+    if "unable to connect" in lowered:
+        return True
+    if "connection closed by foreign host" in lowered:
+        return True
+    return "trying" in lowered
+
+
+def _has_perl_diagnostic_output(combined: str) -> bool:
+    lowered = combined.lower()
+    return any(token in lowered for token in ("open", "refused", "no_response"))
+
+
+def _shell_command_unusable(combined: str, utility: str) -> bool:
+    if utility == "telnet" and _has_telnet_diagnostic_output(combined):
+        return False
+    if utility == "perl" and _has_perl_diagnostic_output(combined):
+        return False
+
+    lowered = combined.lower()
+    if f"sh: {utility}: not found" in lowered:
+        return True
+    if (
+        f"{utility}: not found" in lowered
+        or f"{utility}: command not found" in lowered
+        or (utility in lowered and "command not found" in lowered)
+    ):
+        return True
+    if f"usage: {utility}" in lowered or f"usage:{utility}" in lowered:
+        return True
+    if "export failed" in lowered:
+        return True
+    return False
+
+
+def _parse_port_check_verdict(result: dict[str, Any], *, method: str) -> str:
+    combined = f"{result.get('output', '')} {result.get('stderr', '')}".lower()
+    exit_status = result.get("exitStatus")
+
+    if method == "perl":
+        if "open" in combined:
+            return "open"
+        if "refused" in combined:
+            return "refused"
+        if "no_response" in combined:
+            return "no_response"
+        if exit_status == 0:
+            return "open"
+        if exit_status == 1:
+            return "refused"
+        if exit_status == 2:
+            return "no_response"
+        return "unknown"
+
+    if "usage:" in combined and "telnet" in combined:
+        return "unknown"
+    if (
+        "connected to" in combined
+        or "escape character" in combined
+        or "connection closed by foreign host" in combined
+    ):
+        return "open"
+    if "connection refused" in combined:
+        return "refused"
+    if "unable to connect" in combined and "refused" in combined:
+        return "refused"
+    if (
+        "unable to connect" in combined
+        or "operation timed out" in combined
+        or "timed out" in combined
+        or exit_status in (124, None)
+    ):
+        return "no_response"
+    if "trying" in combined and "connected to" not in combined and not combined.strip():
+        return "no_response"
+    return "unknown"
+
+
+async def run_telnet(
+    host: str,
+    username: str,
+    password: str,
+    target: str,
+    port: int,
+    *,
+    timeout_seconds: int | None = None,
+) -> dict[str, Any]:
+    """Test TCP port connectivity from the appliance (telnet on NetScaler, perl fallback)."""
+    from app.services.config_service import get_runtime_config
+    from app.services.ssh_service import run_prevalidated_command
+
+    cleaned_target = (target or "").strip()
+    if not _TELNET_HOST_RE.match(cleaned_target):
+        raise ValueError("Invalid target host or IP")
+    p = int(port)
+    if not 1 <= p <= 65535:
+        raise ValueError("port must be between 1 and 65535")
+    t = max(1, min(int(timeout_seconds), MAX_TELNET_TIMEOUT)) if timeout_seconds else DEFAULT_TELNET_TIMEOUT
+
+    config = get_runtime_config()
+    if not config.ssh_fallback_enabled:
+        raise ValueError("SSH access is disabled in MCP configuration")
+
+    ssh_timeout = max(float(config.ssh_timeout_seconds), t + 5)
+    attempts = build_port_check_shell_commands(cleaned_target, p, t)
+
+    method = attempts[-1][0]
+    command = attempts[-1][2]
+    result: dict[str, Any] = {}
+    for attempt_method, utility, attempt_command in attempts:
+        command = attempt_command
+        result = await run_prevalidated_command(
+            command, host, username, password, port=config.ssh_port, timeout=ssh_timeout
+        )
+        combined = f"{result.get('output', '')} {result.get('stderr', '')}"
+        if not _shell_command_unusable(combined, utility):
+            method = attempt_method
+            break
+
+    verdict = _parse_port_check_verdict(result, method=method)
+    if verdict == "unknown":
+        combined_lower = f"{result.get('output', '')} {result.get('stderr', '')}".lower()
+        if "usage:" in combined_lower and not _has_telnet_diagnostic_output(combined_lower):
+            result["diagnosticNote"] = (
+                "Port-check commands failed on the appliance shell. "
+                "NetScaler ADC typically supports `/usr/bin/telnet` via `shell sh -c`."
+            )
+
+    verdict_meaning = {
+        "open": "TCP port is open and reachable",
+        "refused": "host reachable but the port is closed (connection refused)",
+        "no_response": "no response within the timeout — host down, port filtered, or no route",
+        "unknown": "could not determine reachability from the output",
+    }[verdict]
+
+    result["tool"] = "telnet"
+    result["method"] = method
+    result["command"] = command
+    result["target"] = cleaned_target
+    result["targetPort"] = p
+    result["verdict"] = verdict
+    result["verdictMeaning"] = verdict_meaning
+    result["summary"] = (
+        f"TCP port {p} on {cleaned_target}: {verdict.upper()} — {verdict_meaning}"
+    )
+    result["ignoreNetScalerCliNoise"] = (
+        "NetScaler often prints 'ERROR: Export failed' after shell commands even when telnet "
+        "succeeded. Trust the verdict field and telnet output ('Connected to', 'Connection refused'), "
+        "not the Export failed line."
+    )
+    # A closed/filtered port is a valid diagnostic answer, not a tool failure.
+    result["success"] = True
+    for noisy_key in ("commandFailed", "retryHint", "errorMessage"):
+        result.pop(noisy_key, None)
+    return result
+
+
 ALLOWED_NSIP_TYPES = frozenset({"NSIP", "SNIP", "VIP", "MIP", "GSLBSITEIP"})
 
 

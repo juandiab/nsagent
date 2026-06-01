@@ -4,6 +4,20 @@ from typing import Any
 import asyncssh
 
 READONLY_PREFIXES = ("show ", "stat ", "get ")
+# Read-only diagnostic/troubleshooting commands (ICMP reachability, path tracing).
+DIAGNOSTIC_PREFIXES = ("ping ", "ping6 ", "traceroute ", "traceroute6 ")
+DEFAULT_PING_COUNT = 4
+MAX_PING_COUNT = 10
+# traceroute defaults of 64 hops x 3 queries x 5s would far exceed the SSH timeout.
+# Bound it so it completes (max ~ MAX_HOPS x WAIT x 1 query) within the timeout.
+DEFAULT_TRACEROUTE_MAX_HOPS = 15
+MAX_TRACEROUTE_MAX_HOPS = 20
+TRACEROUTE_WAIT_SECONDS = 2
+# Shell metacharacters are never valid in a NetScaler diagnostic argument; block
+# them to prevent any command chaining/injection via the host argument.
+_SHELL_METACHARS = re.compile(r"[;&|`$><\\\n]")
+_PING_COUNT_RE = re.compile(r"(^|\s)-c\s+(\d+)")
+_TRACE_MAXHOPS_RE = re.compile(r"(^|\s)-m\s+(\d+)")
 BLOCKED_TOKENS = (
     " set ",
     " rm ",
@@ -46,13 +60,64 @@ def normalize_cli_command(command: str) -> str:
     return " ".join(command.strip().split())
 
 
+def is_diagnostic_command(command: str) -> bool:
+    return normalize_cli_command(command).lower().startswith(DIAGNOSTIC_PREFIXES)
+
+
+def sanitize_diagnostic_command(command: str) -> str:
+    """Validate ping/traceroute and bound ping so it cannot run indefinitely over SSH."""
+    normalized = normalize_cli_command(command)
+    if not normalized:
+        raise ValueError("command is required")
+
+    if _SHELL_METACHARS.search(normalized):
+        raise ValueError("Diagnostic commands must not contain shell metacharacters")
+
+    verb = normalized.lower().split()[0]
+    if verb in ("ping", "ping6"):
+        if _PING_COUNT_RE.search(normalized):
+            normalized = _PING_COUNT_RE.sub(
+                lambda m: f"{m.group(1)}-c {min(int(m.group(2)), MAX_PING_COUNT)}",
+                normalized,
+            )
+        else:
+            parts = normalized.split(maxsplit=1)
+            rest = parts[1] if len(parts) > 1 else ""
+            if not rest:
+                raise ValueError("ping requires a target host or IP")
+            normalized = f"{parts[0]} -c {DEFAULT_PING_COUNT} {rest}".strip()
+    elif verb in ("traceroute", "traceroute6"):
+        if _TRACE_MAXHOPS_RE.search(normalized):
+            normalized = _TRACE_MAXHOPS_RE.sub(
+                lambda m: f"{m.group(1)}-m {min(int(m.group(2)), MAX_TRACEROUTE_MAX_HOPS)}",
+                normalized,
+            )
+        else:
+            parts = normalized.split(maxsplit=1)
+            rest = parts[1] if len(parts) > 1 else ""
+            if not rest:
+                raise ValueError("traceroute requires a target host or IP")
+            # Bound hops, one query per hop, short wait — so it finishes within the SSH timeout.
+            normalized = (
+                f"{parts[0]} -q 1 -w {TRACEROUTE_WAIT_SECONDS} "
+                f"-m {DEFAULT_TRACEROUTE_MAX_HOPS} {rest}".strip()
+            )
+
+    return normalized
+
+
 def validate_cli_command(command: str) -> str:
     normalized = normalize_cli_command(command).lower()
     if not normalized:
         raise ValueError("command is required")
 
+    if normalized.startswith(DIAGNOSTIC_PREFIXES):
+        return sanitize_diagnostic_command(command)
+
     if not normalized.startswith(READONLY_PREFIXES):
-        raise ValueError("Only read-only show, stat, or get commands are allowed via SSH")
+        raise ValueError(
+            "Only read-only show, stat, get, ping, or traceroute commands are allowed via SSH"
+        )
 
     padded = f" {normalized} "
     for token in BLOCKED_TOKENS:
@@ -79,6 +144,9 @@ def validate_writable_cli_command(command: str) -> str:
     normalized = normalize_cli_command(command)
     if not normalized:
         raise ValueError("command is required")
+
+    if is_diagnostic_command(normalized):
+        return sanitize_diagnostic_command(normalized)
 
     tokens = normalized.lower().split()
     if tokens and tokens[0] in SHELL_BREAKOUT_TOKENS:
@@ -124,21 +192,21 @@ def _command_succeeded(exit_status: int | None, stdout: str, stderr: str) -> boo
     return True
 
 
-async def run_ssh_command(
+async def _execute_ssh(
+    safe_command: str,
     host: str,
     username: str,
     password: str,
-    command: str,
     *,
-    port: int = 22,
-    timeout: float = 30.0,
-    allow_writes: bool = False,
+    port: int,
+    timeout: float,
 ) -> dict[str, Any]:
+    """Connect, run an ALREADY-VALIDATED command, and return a parsed result payload.
+
+    Callers are responsible for validating/sanitizing safe_command before calling this.
+    """
     from app.services.netscaler_service import normalize_host
 
-    safe_command = (
-        validate_writable_cli_command(command) if allow_writes else validate_cli_command(command)
-    )
     target = normalize_host(host)
 
     try:
@@ -182,3 +250,40 @@ async def run_ssh_command(
             )
 
     return payload
+
+
+async def run_ssh_command(
+    host: str,
+    username: str,
+    password: str,
+    command: str,
+    *,
+    port: int = 22,
+    timeout: float = 30.0,
+    allow_writes: bool = False,
+) -> dict[str, Any]:
+    safe_command = (
+        validate_writable_cli_command(command) if allow_writes else validate_cli_command(command)
+    )
+    return await _execute_ssh(
+        safe_command, host, username, password, port=port, timeout=timeout
+    )
+
+
+async def run_prevalidated_command(
+    command: str,
+    host: str,
+    username: str,
+    password: str,
+    *,
+    port: int = 22,
+    timeout: float = 30.0,
+) -> dict[str, Any]:
+    """Run a command that the caller has already built and validated as safe.
+
+    Used only for internally-constructed commands (e.g. the scoped nsconmsg builder),
+    NOT for arbitrary model-supplied input.
+    """
+    return await _execute_ssh(
+        normalize_cli_command(command), host, username, password, port=port, timeout=timeout
+    )
