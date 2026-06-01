@@ -4,6 +4,8 @@
 
 Repository: [github.com/juandiab/nsagent](https://github.com/juandiab/nsagent)
 
+> **Disclaimer:** NSAgent is an independent project and is not affiliated with, endorsed by, or sponsored by Citrix Systems, Inc. NetScaler is a trademark of Citrix Systems, Inc.
+
 ## Features
 
 - **Appliance inventory** — store NetScaler hosts and encrypted credentials (Fernet).
@@ -176,4 +178,6 @@ For production images, remove bind-mount volume lines for `frontend`, `backend-a
 
 ## License
 
-No license file is included yet. Add one if you plan to open-source the project.
+[MIT](LICENSE) — see [LICENSE](LICENSE) for details.
+
+Copyright (c) 2026 [juandiab](https://github.com/juandiab).
