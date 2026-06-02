@@ -4,19 +4,70 @@ This directory should contain your SSL/TLS certificates for HTTPS support.
 
 ## Required Files
 
-Place the following certificate files in this directory:
+Nginx requires the following files:
 
-- `wildcard.nexxus-tech.com.crt` - SSL certificate for the domain
-- `wildcard.nexxus-tech.com.key` - Private key (keep secure!)
-- `fullchain.crt` - Full certificate chain
-- `ca-chain.crt` - Certificate authority chain
+- `cert.crt` - Full certificate chain (your certificate + intermediate CA certificates)
+- `cert.key` - Private key (keep secure!)
 
-## Additional Certificate Files (optional)
+## Converting Your Certificates
 
-- `STAR_nexxus-tech_com.crt`
-- `SSL2BUYEMEARSADomainValidationSecureServerCA.crt`
-- `USERTrustRSACertificationAuthority.crt`
-- `SectigoPublicServerAuthenticationRootR46_USERTrust.crt`
+If you have separate certificate files, combine them into the nginx format:
+
+### Step 1: Prepare Your Files
+
+You should have:
+- Your domain certificate (e.g., `yourdomain.crt`)
+- Your private key (e.g., `yourdomain.key`)
+- CA bundle/chain (e.g., `ca-bundle.crt` or intermediate certificates)
+
+### Step 2: Create the Full Chain Certificate
+
+Combine your certificate with the CA chain:
+
+```bash
+# Concatenate your certificate and CA chain
+cat yourdomain.crt ca-bundle.crt > cert.crt
+
+# Or if you have separate intermediate certificates:
+cat yourdomain.crt intermediate.crt root.crt > cert.crt
+```
+
+**Order matters:** Your domain certificate first, then intermediate certificates, then root CA.
+
+### Step 3: Copy the Private Key
+
+```bash
+# Simply copy or rename your private key
+cp yourdomain.key cert.key
+
+# Make sure the key is secure (readable only by owner)
+chmod 600 cert.key
+```
+
+### Step 4: Verify the Certificate Chain
+
+```bash
+# Check if the certificate and key match
+openssl x509 -noout -modulus -in cert.crt | openssl md5
+openssl rsa -noout -modulus -in cert.key | openssl md5
+# The MD5 hashes should match
+
+# Verify the certificate chain
+openssl verify -CAfile cert.crt cert.crt
+```
+
+## Example with Wildcard Certificate
+
+If you have a wildcard certificate like `*.nexxus-tech.com`:
+
+```bash
+# Create full chain
+cat wildcard.nexxus-tech.com.crt ca-bundle.crt > cert.crt
+
+# Copy private key
+cp wildcard.nexxus-tech.com.key cert.key
+chmod 600 cert.key
+```
 
 ## Important Notes
 
