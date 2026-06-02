@@ -68,6 +68,8 @@ watch(
             toolCalls: m.toolCalls || undefined,
             webSources: m.webSources || undefined,
             appliancePicker: m.appliancePicker || undefined,
+            inputForm: m.inputForm || undefined,
+            formSubmitted: m.formSubmitted || undefined,
             attachments: (m.attachments || []).map((a) => ({
               name: a.name,
               kind: a.kind,

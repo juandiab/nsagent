@@ -108,17 +108,28 @@
           </div>
         </div>
 
-        <div class="glass-prompts">
-          <button
-            v-for="prompt in starterPrompts"
-            :key="prompt"
-            class="glass-prompt"
-            :disabled="!ready"
-            @click="sendMessage(prompt)"
+        <div class="glass-recommended">
+          <p class="glass-recommended-intro">Recommended actions</p>
+          <div
+            v-for="group in recommendedGroups"
+            :key="group.id"
+            class="glass-prompt-group"
           >
-            <i class="pi pi-bolt" />
-            <span>{{ prompt }}</span>
-          </button>
+            <div class="glass-prompt-group-title">{{ group.title }}</div>
+            <div class="glass-prompts">
+              <button
+                v-for="action in group.actions"
+                :key="action.id"
+                class="glass-prompt"
+                :disabled="!ready && action.type === 'prompt'"
+                @click="runRecommendedAction(action)"
+              >
+                <i :class="action.icon" />
+                <span>{{ action.label }}</span>
+                <i v-if="action.type === 'link'" class="pi pi-arrow-right glass-prompt-link" />
+              </button>
+            </div>
+          </div>
         </div>
 
         <p v-if="!ready" class="glass-hint">No enabled AI provider — configure one in AI Providers.</p>
@@ -143,7 +154,9 @@
                 <span>{{ a.name }}</span>
               </div>
             </div>
-            <ChatMarkdown v-if="msg.content && msg.role === 'assistant'" :content="msg.content" />
+            <div v-if="assistantView(msg).content && msg.role === 'assistant'" :class="{ 'chat-error-block': msg.isError }">
+              <ChatMarkdown :content="assistantView(msg).content" />
+            </div>
             <div v-else-if="msg.content" class="chat-content">{{ msg.content }}</div>
             <div v-if="msg.webSources?.length" class="web-sources">
               <span class="web-badge" v-tooltip.top="'This reply used live web results from allowed domains'">
@@ -167,6 +180,12 @@
               :loading="msg.pickerLoading"
               :connecting="connecting"
               @select="connectAppliance"
+            />
+            <ChatConfigForm
+              v-if="assistantView(msg).inputForm && !assistantView(msg).formSubmitted"
+              :form="assistantView(msg).inputForm"
+              :submitting="loading && submittingFormIndex === index"
+              @submit="(values) => submitConfigForm(values, index)"
             />
             <ChatToolTrace v-if="msg.toolCalls?.length" :tools="msg.toolCalls" />
           </div>
@@ -228,9 +247,11 @@ import ProgressSpinner from 'primevue/progressspinner'
 import Select from 'primevue/select'
 import Textarea from 'primevue/textarea'
 import ChatAppliancePicker from './ChatAppliancePicker.vue'
+import ChatConfigForm from './ChatConfigForm.vue'
 import ChatMarkdown from './ChatMarkdown.vue'
 import ChatToolTrace from './ChatToolTrace.vue'
 import api from '../services/api'
+import { formatCopilotError, isProviderQuotaError } from '../utils/chatErrors'
 import {
   CONFIG_ACCEPT,
   attachmentPreviewUrl,
@@ -239,7 +260,9 @@ import {
   getCopilotSettings,
   listCopilotAppliances
 } from '../services/copilot'
+import { parseInputFormFromContent, resolveAssistantMessage } from '../utils/copilotForm'
 import { clearSession, getSession } from '../stores/copilotSessions'
+import { jpilotRecommendedGroups } from '../config/jpilotRecommendedActions'
 
 const props = defineProps({
   sessionId: { type: String, required: true },
@@ -261,6 +284,7 @@ const session = getSession(props.sessionId)
 // Transient UI state — fine to reset on remount.
 const loading = ref(false)
 const connecting = ref(false)
+const submittingFormIndex = ref(null)
 const messagesEl = ref(null)
 const pendingAttachments = ref([])
 const imageInputRef = ref(null)
@@ -268,11 +292,7 @@ const configInputRef = ref(null)
 const attachMenu = ref(null)
 
 const configAccept = CONFIG_ACCEPT
-const starterPrompts = [
-  'Show firmware version',
-  'List all IP addresses',
-  'Can the appliance reach 8.8.8.8?'
-]
+const recommendedGroups = jpilotRecommendedGroups
 
 const ready = computed(() => props.providers.length > 0)
 const providerOptions = computed(() =>
@@ -305,6 +325,15 @@ const attachMenuItems = computed(() => {
 
 function toggleAttachMenu(event) {
   attachMenu.value.toggle(event)
+}
+
+function runRecommendedAction(action) {
+  if (action.type === 'link') {
+    router.push(action.to)
+    return
+  }
+  if (!ready.value) return
+  sendMessage(action.text)
 }
 
 async function addFiles(fileList) {
@@ -368,6 +397,13 @@ function extractWebSources(toolCalls) {
     }
   }
   return sources
+}
+
+function assistantView(msg) {
+  if (msg.role !== 'assistant') {
+    return { content: msg.content, inputForm: null, formSubmitted: false }
+  }
+  return resolveAssistantMessage(msg)
 }
 
 function hostOf(url) {
@@ -455,18 +491,48 @@ async function runChat(content, attachments) {
       providerId: session.providerId || undefined,
       webSearch: session.webSearch !== false
     })
+    const parsed = parseInputFormFromContent(data.content || '')
     session.messages.push({
       role: 'assistant',
-      content: data.content,
+      content: parsed.content,
       toolCalls: data.toolCalls,
-      webSources: extractWebSources(data.toolCalls)
+      webSources: extractWebSources(data.toolCalls),
+      inputForm: data.inputForm || parsed.inputForm
     })
   } catch (error) {
-    const detail = error.response?.data?.detail || 'JPilot request failed'
-    session.messages.push({ role: 'assistant', content: `Sorry, something went wrong: ${detail}` })
+    const content = formatCopilotError(error)
+    session.messages.push({
+      role: 'assistant',
+      content,
+      isError: true,
+      providerQuotaError: isProviderQuotaError(error)
+    })
   } finally {
     loading.value = false
     await scrollToBottom()
+  }
+}
+
+async function submitConfigForm(values, messageIndex) {
+  const msg = session.messages[messageIndex]
+  const view = resolveAssistantMessage(msg)
+  if (!view.inputForm || view.formSubmitted || loading.value) return
+
+  const lines = [`Configuration inputs for: ${view.inputForm.title}`]
+  for (const field of view.inputForm.fields) {
+    const value = values[field.id]
+    const rendered =
+      field.type === 'boolean' ? (value ? 'yes' : 'no') : String(value ?? '').trim() || '(not provided)'
+    lines.push(`- ${field.label}: ${rendered}`)
+  }
+  lines.push('', 'Proceed with the configuration using these values.')
+
+  msg.formSubmitted = true
+  submittingFormIndex.value = messageIndex
+  try {
+    await sendMessage(lines.join('\n'))
+  } finally {
+    submittingFormIndex.value = null
   }
 }
 
@@ -636,34 +702,77 @@ onMounted(scrollToBottom)
   padding: 0.05rem 0.4rem;
 }
 
+.glass-recommended {
+  margin-top: 1rem;
+  max-height: min(24rem, 42vh);
+  overflow-y: auto;
+  padding-right: 0.25rem;
+}
+
+.glass-recommended-intro {
+  margin: 0 0 0.75rem;
+  font-size: 0.8125rem;
+  font-weight: 600;
+  color: var(--glass-muted);
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+}
+
+.glass-prompt-group + .glass-prompt-group {
+  margin-top: 0.85rem;
+}
+
+.glass-prompt-group-title {
+  margin-bottom: 0.35rem;
+  padding: 0 0.7rem;
+  font-size: 0.75rem;
+  font-weight: 600;
+  color: var(--glass-muted);
+}
+
 .glass-prompts {
   display: flex;
   flex-direction: column;
-  gap: 0.25rem;
-  margin-top: 0.9rem;
+  gap: 0.15rem;
 }
 
 .glass-prompt {
   display: flex;
   align-items: center;
   gap: 0.6rem;
-  padding: 0.6rem 0.7rem;
+  padding: 0.55rem 0.7rem;
   border: 0;
   border-radius: 0.6rem;
   background: transparent;
   color: var(--glass-text);
-  font-size: 0.9rem;
+  font-size: 0.875rem;
   text-align: left;
   cursor: pointer;
   transition: background 0.15s ease;
+}
+
+.glass-prompt span {
+  flex: 1;
+}
+
+.glass-prompt-link {
+  font-size: 0.75rem;
+  color: var(--glass-muted);
+  margin-left: auto;
 }
 
 .glass-prompt:hover:not(:disabled) {
   background: var(--glass-field);
 }
 
-.glass-prompt i {
+.glass-prompt:disabled {
+  opacity: 0.55;
+  cursor: not-allowed;
+}
+
+.glass-prompt > i:first-child {
   color: var(--p-primary-color);
+  flex-shrink: 0;
 }
 
 .glass-pending {
@@ -706,6 +815,11 @@ onMounted(scrollToBottom)
 
 .chat-message-user .chat-bubble {
   background: color-mix(in srgb, var(--p-primary-color) 16%, var(--glass-strong));
+}
+
+.chat-error-block {
+  border-left: 3px solid var(--p-orange-500);
+  padding-left: 0.75rem;
 }
 
 .chat-bubble-loading {

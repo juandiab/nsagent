@@ -95,6 +95,7 @@ const mainNavItems = computed(() => {
     { label: 'Dashboard', path: '/', icon: 'pi pi-home' },
     { label: 'JPilot', path: '/copilot', icon: 'pi pi-comments' },
     { label: 'NetScalers', path: '/netscalers', icon: 'pi pi-server' },
+    { label: 'SSL Certificates', path: '/ssl-csr', icon: 'pi pi-shield' },
     { label: 'AI Providers', path: '/ai-providers', icon: 'pi pi-sparkles' },
     { label: 'Next-Gen API', path: '/next-gen-api', icon: 'pi pi-code' }
   ]
@@ -105,6 +106,7 @@ const mainNavItems = computed(() => {
 })
 
 const bottomNavItems = [
+  { label: 'Plans', path: '/plans', icon: 'pi pi-tags' },
   { label: 'Settings', path: '/settings', icon: 'pi pi-cog' }
 ]
 

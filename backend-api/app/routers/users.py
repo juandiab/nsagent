@@ -13,6 +13,7 @@ from app.services.user_service import (
     list_users,
     update_user,
 )
+from app.services.password_reset_service import send_reset_code
 from app.services.webauthn_service import delete_passkey, list_user_passkeys
 
 router = APIRouter(prefix="/users", tags=["users"])
@@ -49,6 +50,7 @@ async def post_user(
             db,
             username=payload.username,
             display_name=payload.displayName,
+            email=payload.email,
             password=payload.password,
             role=payload.role,
         )
@@ -94,12 +96,16 @@ async def put_user(
                 detail="Cannot demote the last admin user",
             )
 
-    updated = await update_user(
-        db,
-        user_id,
-        display_name=payload.displayName,
-        role=payload.role,
-    )
+    try:
+        updated = await update_user(
+            db,
+            user_id,
+            display_name=payload.displayName,
+            email=payload.email,
+            role=payload.role,
+        )
+    except ValueError as exc:
+        raise HTTPException(status_code=status.HTTP_409_CONFLICT, detail=str(exc)) from exc
     if updated is None:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="User not found")
     return UserListItem(**updated)
@@ -157,3 +163,23 @@ async def remove_passkey(
 
     await delete_passkey(db, oid)
     return MessageResponse(message="Passkey removed")
+
+
+@router.post("/{user_id}/reset-password", response_model=MessageResponse)
+async def request_user_password_reset(
+    user_id: str,
+    db=Depends(get_db),
+    current_user: dict = Depends(require_admin),
+) -> MessageResponse:
+    user = await get_user_by_id(db, user_id)
+    if user is None:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="User not found")
+
+    try:
+        masked_email = await send_reset_code(db, user=user, initiated_by=current_user["username"])
+    except ValueError as exc:
+        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail=str(exc)) from exc
+    except RuntimeError as exc:
+        raise HTTPException(status_code=status.HTTP_503_SERVICE_UNAVAILABLE, detail=str(exc)) from exc
+
+    return MessageResponse(message=f"Password reset code sent to {masked_email}")

@@ -34,6 +34,11 @@ from app.services.copilot_service import (
     to_gemini_tools,
     to_openai_tools,
 )
+from app.services.copilot_form import (
+    attach_default_lb_form_if_missing,
+    parse_input_form,
+    to_response_input_form,
+)
 from app.services.copilot_memory_gate import (
     CLI_MEMORY_SEARCH_TOOL,
     MEMORY_SEARCH_TOOL,
@@ -43,10 +48,10 @@ from app.services.copilot_memory_gate import (
 )
 from app.services.copilot_retry import build_tool_retry_hint
 from app.services.encryption_service import decrypt_value
-from app.services.adc_cli_memory_service import get_cli_behavioral_rules
-from app.services.nextgen_memory_service import get_behavioral_rules
 
 MAX_TOOL_ITERATIONS = 20
+MAX_HISTORY_MESSAGES = 16
+MAX_TOOL_RESULT_CHARS = 6000
 
 # Tools that change appliance state. Used to detect fabricated execution claims.
 WRITE_EXEC_TOOL_NAMES = frozenset(
@@ -143,7 +148,63 @@ def _user_requests_config_change(user_message: str) -> bool:
     return has_verb and has_noun
 
 
+def _user_wants_discovery_first(user_message: str) -> bool:
+    lowered = user_message.lower()
+    return any(
+        phrase in lowered
+        for phrase in (
+            "ask me",
+            "ask questions",
+            "questions you need",
+            "what do you need",
+            "tell me what you need",
+            "before you configure",
+            "before configuring",
+            "what information",
+            "what details",
+        )
+    )
+
+
+def _assistant_is_gathering_requirements(content: str) -> bool:
+    if not content or not content.strip():
+        return False
+    lowered = content.lower()
+    if "?" in content:
+        return True
+    return any(
+        phrase in lowered
+        for phrase in (
+            "please provide",
+            "please share",
+            "please confirm",
+            "i need the following",
+            "could you provide",
+            "can you provide",
+            "let me know",
+            "before i configure",
+            "before i can configure",
+            "missing information",
+            "still need",
+        )
+    )
+
+
+def _response_has_input_form(content: str) -> bool:
+    _, form = parse_input_form(content)
+    return form is not None
+
+
 def _should_force_tool_execution(user_message: str, tool_traces: list[ToolCallTrace], content: str) -> bool:
+    if content and _response_has_input_form(content):
+        return False
+
+    if _user_wants_discovery_first(user_message):
+        return bool(content and (_CLI_LISTING_PATTERN.search(content) or _ACTION_CLAIM_PATTERN.search(content)))
+
+    if content and _assistant_is_gathering_requirements(content) and not _had_successful_action(tool_traces):
+        return False
+
     if not _user_requests_config_change(user_message):
         return False
     if _had_successful_action(tool_traces):
@@ -152,9 +213,12 @@ def _should_force_tool_execution(user_message: str, tool_traces: list[ToolCallTr
         return True
     exec_tools = {trace.name for trace in tool_traces} & WRITE_EXEC_TOOL_NAMES
     if not exec_tools and tool_traces:
-        # Searched memory but never executed — common failure mode.
+        if content and _assistant_is_gathering_requirements(content):
+            return False
         return True
     if not tool_traces:
+        if _user_wants_discovery_first(user_message):
+            return False
         return True
     return False
 
@@ -202,7 +266,7 @@ Mandatory rules:
 2. The user already selected and authenticated to the active appliance — use it for every NetScaler tool call.
 3. Use only official documentation domains: developer-docs.netscaler.com, docs.netscaler.com, docs.citrix.com (plus any extra domains the admin allowed). When a search tool returns webResults (domain-restricted live web search), you may use and cite those URLs. Never cite or rely on other websites.
 4. **Before any Next-Gen API tool call**, you MUST call search_netscaler_nextgen_api and read memoryExcerpts + suggestedGetPaths from netscaler_nextgen_api_memory.md.
-5. **Before any SSH CLI command**, you MUST call search_netscaler_cli_reference and read memoryExcerpts + recommendedCommands from netscaler_adc_cli_memory.md. **Exception:** connectivity diagnostics (ping, ping6, traceroute, traceroute6) use netscaler_run_diagnostic directly and require NO search.
+5. **Before any SSH CLI command**, you MUST call search_netscaler_cli_reference and read **recommendedCommands** (exact syntax). When retrievalMode is `section`, also read memoryExcerpts. **Exception:** connectivity diagnostics (ping, ping6, traceroute, traceroute6) use netscaler_run_diagnostic directly and require NO search.
 6. **ICMP connectivity checks ALWAYS use netscaler_run_diagnostic.** For "can the appliance ping X", "is X reachable" (no port), ping, or traceroute, call netscaler_run_diagnostic(operation, target) immediately. This tool is always available — never claim ping/traceroute is unavailable, never say the CLI reference lacks ping, and never tell the user to run it from the shell. A failed/unreachable result is a valid answer to report.
 6b. **TCP port checks use netscaler_telnet or netscaler_run_diagnostic(operation=tcp_port, target, port).** For "is port N open on X", "can the appliance reach X:PORT", call immediately — do NOT use ping. Uses `shell sh -c '/usr/bin/telnet HOST PORT </dev/null'` on NetScaler (no GNU timeout, no netcat). NEVER claim port-check tools are broken without calling them. Report verdict open/refused/no_response. Ignore "ERROR: Export failed" CLI noise when telnet shows Connected to.
 6c. **"Can YOU / JPilot reach the documentation or internet" uses jpilot_check_doc_connectivity — NOT an appliance ping.** That question is about the JPilot backend's own HTTPS reach to the official docs (and web search), which is a different host on a different network path than any appliance. Never answer "can you reach the docs" with a ping/telnet from a NetScaler; appliance reachability ≠ JPilot's reachability.
@@ -232,6 +296,12 @@ Mandatory rules:
    - Additive/setup operations (add, set, bind, enable, link, save, create, POST, PUT) run immediately — no confirmation needed.
    - If a destructive tool returns needsConfirmation, stop and ask the user; do not retry without confirmed=true.
 10. Never tell the user to run manual CLI or GUI steps — perform the operation yourself with the tools.
+11. Multi-step configuration (load balancers, StoreFront/Citrix, Delivery Controllers, CS vservers, SSL offload):
+   a. **First** call search_netscaler_cli_reference (and search_netscaler_nextgen_api when application-centric). Use official syntax from memory excerpts.
+   b. When VIP, backends, ports, SSL, or names are missing, reply with a **short intro** then a ```jpilot-form``` JSON block with inputForm.fields — **no prose after the fence**. Use sensible defaults (HTTP/80 or SSL/443 for Delivery Controllers, LEASTCONNECTION, tcp-default monitor). For service type, offer HTTP, SSL, TCP, UDP, and SSL_BRIDGE when relevant.
+   c. If official docs have no workload-specific pattern, use the **default classic LB** shape: add lb vserver → service group → bind members → bind monitor → save ns config.
+   d. **Do NOT** run write tools until the user submits the form or explicitly provided every value in chat.
+   e. Form JSON shape: select options may be plain strings or {"value":"HTTPS","label":"HTTPS (port 443)"}. **Health monitor and load-balancing method must use `"type":"select"` with an `options` array** (e.g. monitor: tcp-default, http, ping, none). Example: {"inputForm":{"title":"...","fields":[{"id":"vip","label":"VIP","type":"text","required":true},{"id":"monitor","label":"Health monitor","type":"select","default":"tcp-default","options":["tcp-default","http","ping","none"]}]}}
 
 Tool routing:
 - All IPs / NSIP / SNIP / VIP / "show ns ip": netscaler_list_ip_addresses
@@ -259,17 +329,45 @@ When the user attaches files or images, analyze them in NetScaler context only i
 
 
 def build_system_prompt(appliance_name: str) -> str:
-    nextgen_rules = get_behavioral_rules()
-    cli_rules = get_cli_behavioral_rules()
-    blocks: list[str] = [SYSTEM_PROMPT]
-    if nextgen_rules:
-        blocks.append(f"\nNetScaler Next-Gen API behavioral rules (memory file):\n{nextgen_rules}")
-    if cli_rules:
-        blocks.append(f"\nNetScaler ADC CLI behavioral rules (memory file):\n{cli_rules}")
     return (
-        f"{''.join(blocks)}\n"
+        f"{SYSTEM_PROMPT}\n"
         f"Active appliance: {appliance_name}\n"
-        f"Next-Gen API login is confirmed. Always pass appliance_name \"{appliance_name}\" to NetScaler tools."
+        f"Next-Gen API login is confirmed. Always pass appliance_name \"{appliance_name}\" to NetScaler tools.\n"
+        "Official CLI/API behavioral rules are loaded on demand via search_netscaler_cli_reference and "
+        "search_netscaler_nextgen_api — do not assume syntax without searching first."
+    )
+
+
+def trim_chat_history(history: list[dict]) -> list[dict]:
+    if len(history) <= MAX_HISTORY_MESSAGES:
+        return history
+    return history[-MAX_HISTORY_MESSAGES:]
+
+
+def _truncate_tool_result(result: str) -> str:
+    if len(result) <= MAX_TOOL_RESULT_CHARS:
+        return result
+    return result[:MAX_TOOL_RESULT_CHARS] + "\n...[truncated for context]"
+
+
+def _finalize_chat_response(
+    content: str,
+    *,
+    provider_name: str,
+    provider_type: str,
+    model: str,
+    tool_traces: list[ToolCallTrace],
+    user_message: str = "",
+) -> ChatResponse:
+    cleaned, input_form = parse_input_form(content)
+    cleaned, input_form = attach_default_lb_form_if_missing(user_message, cleaned, input_form)
+    return ChatResponse(
+        content=cleaned,
+        providerName=provider_name,
+        providerType=provider_type,
+        model=model,
+        toolCalls=tool_traces,
+        inputForm=to_response_input_form(input_form),
     )
 
 
@@ -362,6 +460,7 @@ async def run_copilot_chat(
     enabled_tools = await get_enabled_copilot_tools(db)
     enabled_tool_names = {tool["name"] for tool in enabled_tools}
     system_prompt = build_system_prompt(appliance_name)
+    history = trim_chat_history(history)
 
     from app.services.copilot_port_check import try_auto_tcp_port_check
 
@@ -376,24 +475,47 @@ async def run_copilot_chat(
     if auto_response and auto_traces:
         provider_name = provider["providerName"]
         if auto_response.startswith("**") and "Verdict:" in auto_response:
-            return ChatResponse(
-                content=auto_response,
-                providerName=provider_name,
-                providerType=provider_type,
+            return _finalize_chat_response(
+                auto_response,
+                provider_name=provider_name,
+                provider_type=provider_type,
                 model=model,
-                toolCalls=tool_traces,
+                tool_traces=tool_traces,
+                user_message=user_message,
             )
         system_prompt += auto_response
 
+    provider_name = provider["providerName"]
+
     if provider_type == "Anthropic":
         content = await _run_anthropic_loop(
-            db, api_key, model, user_message, history, tool_traces, attachment_list, enabled_tools, system_prompt, appliance_name
+            db,
+            api_key,
+            model,
+            user_message,
+            history,
+            tool_traces,
+            attachment_list,
+            enabled_tools,
+            system_prompt,
+            appliance_name,
+            provider_name,
         )
     elif provider_type == "Gemini":
         content = await _run_gemini_loop(
-            db, api_key, model, user_message, history, tool_traces, attachment_list, enabled_tools, system_prompt, appliance_name
+            db,
+            api_key,
+            model,
+            user_message,
+            history,
+            tool_traces,
+            attachment_list,
+            enabled_tools,
+            system_prompt,
+            appliance_name,
+            provider_name,
         )
-    elif provider_type in {"OpenAI", "Grok", "LM Studio", "OpenAI-Compatible"}:
+    elif provider_type in {"OpenAI", "Grok", "DeepSeek", "LM Studio", "OpenAI-Compatible"}:
         if provider_type == "LM Studio":
             lm_base_urls = lm_studio_endpoint_candidates(endpoint.strip())
             base_url = lm_base_urls[0]
@@ -414,6 +536,8 @@ async def run_copilot_chat(
             system_prompt,
             appliance_name,
             base_url_candidates,
+            provider_type,
+            provider_name,
         )
     else:
         raise ValueError(f"Unsupported provider type: {provider_type}")
@@ -435,12 +559,13 @@ async def run_copilot_chat(
 
     content = guard_fabricated_execution(content, tool_traces)
 
-    return ChatResponse(
-        content=content,
-        providerName=provider["providerName"],
-        providerType=provider_type,
+    return _finalize_chat_response(
+        content,
+        provider_name=provider["providerName"],
+        provider_type=provider_type,
         model=model,
-        toolCalls=tool_traces,
+        tool_traces=tool_traces,
+        user_message=user_message,
     )
 
 
@@ -457,6 +582,8 @@ async def _run_openai_loop(
     system_prompt: str,
     appliance_name: str,
     base_url_candidates: list[str] | None = None,
+    provider_type: str = "OpenAI-Compatible",
+    provider_name: str = "",
 ) -> str:
     messages: list[dict[str, Any]] = [{"role": "system", "content": system_prompt}]
     for item in history:
@@ -482,6 +609,8 @@ async def _run_openai_loop(
             messages=messages,
             tools=tools,
             base_url_candidates=fallback_candidates,
+            provider_type=provider_type,
+            provider_name=provider_name,
         )
         fallback_candidates = None
         choice = data["choices"][0]["message"]
@@ -501,24 +630,38 @@ async def _run_openai_loop(
 
         messages.append(choice)
 
+        retry_hints: list[str] = []
         for tool_call in tool_calls:
-            fn = tool_call["function"]
-            name = fn["name"]
-            arguments = json.loads(fn.get("arguments") or "{}")
-            result, nextgen_memory_reviewed, cli_memory_reviewed = await _execute_tool_with_memory_gate(
-                db, name, arguments, appliance_name, nextgen_memory_reviewed, cli_memory_reviewed
-            )
+            fn = tool_call.get("function") or {}
+            name = fn.get("name") or ""
+            raw_arguments = fn.get("arguments") or "{}"
+            try:
+                arguments = json.loads(raw_arguments) if isinstance(raw_arguments, str) else dict(raw_arguments)
+            except (json.JSONDecodeError, TypeError):
+                arguments = {}
+            try:
+                result, nextgen_memory_reviewed, cli_memory_reviewed = await _execute_tool_with_memory_gate(
+                    db, name, arguments, appliance_name, nextgen_memory_reviewed, cli_memory_reviewed
+                )
+            except Exception as exc:
+                logger.exception("tool_call name=%s failed", name)
+                result = json.dumps({"success": False, "errorMessage": str(exc)})
+
             tool_traces.append(ToolCallTrace(name=name, arguments=arguments, result=result))
+            tool_call_id = tool_call.get("id") or f"call_{len(tool_traces)}"
             messages.append(
                 {
                     "role": "tool",
-                    "tool_call_id": tool_call["id"],
-                    "content": result,
+                    "tool_call_id": tool_call_id,
+                    "content": _truncate_tool_result(result),
                 }
             )
             retry_hint = build_tool_retry_hint(name, result, user_message)
             if retry_hint:
-                messages.append({"role": "system", "content": retry_hint})
+                retry_hints.append(retry_hint)
+
+        if retry_hints:
+            messages.append({"role": "system", "content": "\n\n".join(retry_hints)})
 
     return "I reached the maximum number of tool calls. Please try a simpler request."
 
@@ -534,6 +677,7 @@ async def _run_gemini_loop(
     enabled_tools: list[dict[str, Any]],
     system_prompt: str,
     appliance_name: str,
+    provider_name: str = "",
 ) -> str:
     contents: list[dict[str, Any]] = []
     for item in history:
@@ -557,6 +701,7 @@ async def _run_gemini_loop(
             system=system_prompt,
             contents=contents,
             tools=tools,
+            provider_name=provider_name,
         )
 
         candidate = (data.get("candidates") or [{}])[0]
@@ -616,6 +761,7 @@ async def _run_anthropic_loop(
     enabled_tools: list[dict[str, Any]],
     system_prompt: str,
     appliance_name: str,
+    provider_name: str = "",
 ) -> str:
     messages: list[dict[str, Any]] = []
     for item in history:
@@ -638,6 +784,7 @@ async def _run_anthropic_loop(
             system=system_prompt,
             messages=messages,
             tools=tools,
+            provider_name=provider_name,
         )
 
         content_blocks = data.get("content", [])

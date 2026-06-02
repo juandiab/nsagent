@@ -195,8 +195,9 @@ bind ssl vserver <vsName> -cipherName <cipherGroup>
 
 # RSA key / CSR / self-signed cert generation
 create ssl rsakey <keyFile> <bits> -exponent F4 -keyform PEM
-create ssl certReq <reqFile> -keyFile <key> -countryName <C> -organizationName <O> -commonName <CN>
-create ssl cert <certFile> <reqFile> <ROOT_CERT|...> -keyFile <key> -days <n>
+create ssl certReq <reqFile> -keyFile <key> -keyForm PEM -countryName <C> -stateName <ST> -organizationName <O> [-organizationUnitName <OU>] [-localityName <L>] [-commonName <CN>] [-emailAddress <email>] [-subjectAltName "DNS:host1,DNS:host2"]
+create ssl cert <certFile> <reqFile> ROOT_CERT -keyFile <key> -days <n>
+add ssl certKey <certkeyName> -cert <certFile> -key <keyFile>   # required before bind ssl vserver
 
 # CRL / OCSP
 add ssl crl <crlName> <crlFile> -inform PEM

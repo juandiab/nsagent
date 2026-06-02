@@ -114,6 +114,38 @@ async def list_lb_vservers_via_mcp(
     )
 
 
+async def generate_csr_via_mcp(
+    host: str,
+    username: str,
+    password: str,
+    params: dict,
+    db: AsyncIOMotorDatabase | None = None,
+) -> dict:
+    payload = {
+        "host": host,
+        "username": username,
+        "password": password,
+        **params,
+    }
+    return await _post_mcp("/netscaler/ssl/generate-csr", payload, db=db)
+
+
+async def generate_self_signed_via_mcp(
+    host: str,
+    username: str,
+    password: str,
+    params: dict,
+    db: AsyncIOMotorDatabase | None = None,
+) -> dict:
+    payload = {
+        "host": host,
+        "username": username,
+        "password": password,
+        **params,
+    }
+    return await _post_mcp("/netscaler/ssl/generate-self-signed", payload, db=db)
+
+
 async def list_mcp_tools(db: AsyncIOMotorDatabase | None = None) -> dict:
     base_url = await _resolve_server_url(db)
     async with httpx.AsyncClient(timeout=10.0) as client:

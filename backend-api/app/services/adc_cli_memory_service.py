@@ -15,6 +15,52 @@ MEMORY_CANDIDATE_PATHS = (
 
 _memory_cache: tuple[float, str] | None = None
 
+CLI_VERBS = frozenset(
+    {
+        "add",
+        "rm",
+        "set",
+        "unset",
+        "show",
+        "bind",
+        "unbind",
+        "enable",
+        "disable",
+        "stat",
+        "clear",
+        "rename",
+        "link",
+        "unlink",
+        "import",
+        "export",
+        "update",
+        "create",
+        "save",
+        "switch",
+        "force",
+        "sync",
+        "flush",
+        "count",
+        "kill",
+        "reset",
+        "install",
+        "apply",
+        "diff",
+        "batch",
+        "source",
+        "start",
+        "stop",
+        "get",
+        "ping",
+        "ping6",
+        "traceroute",
+        "traceroute6",
+        "shell",
+        "reboot",
+        "shutdown",
+    }
+)
+
 READONLY_VERBS = ("show ", "stat ", "get ", "count ", "ping ", "ping6 ", "traceroute ", "traceroute6 ")
 WRITE_VERBS = ("add ns ip ", "add ns ip6 ")
 
@@ -73,11 +119,6 @@ def _terms(query: str) -> list[str]:
     return found or [cleaned]
 
 
-def _score_section(title: str, body: str, terms: list[str]) -> int:
-    haystack = f"{title}\n{body}".lower()
-    return sum(1 for term in terms if term in haystack)
-
-
 def _extract_readonly_commands(body: str) -> list[str]:
     commands: list[str] = []
     seen: set[str] = set()
@@ -121,10 +162,16 @@ def get_cli_behavioral_rules() -> str:
     return ""
 
 
-def search_adc_cli_memory(query: str, max_sections: int = 6, max_chars_per_section: int = 1200) -> dict[str, Any]:
+def search_adc_cli_memory(
+    query: str,
+    max_sections: int = 2,
+    max_chars_per_section: int = 600,
+) -> dict[str, Any]:
     cleaned_query = query.strip()
     if not cleaned_query:
         raise ValueError("Search query is required")
+
+    from app.services.cli_command_index import score_section_for_query
 
     markdown = _load_memory_markdown()
     sections = _split_sections(markdown)
@@ -132,8 +179,8 @@ def search_adc_cli_memory(query: str, max_sections: int = 6, max_chars_per_secti
 
     ranked: list[tuple[int, dict[str, str]]] = []
     for section in sections:
-        score = _score_section(section["title"], section["body"], terms)
-        if score:
+        score = score_section_for_query(section["title"], section["body"], terms, cleaned_query)
+        if score > 0:
             ranked.append((score, section))
 
     ranked.sort(key=lambda item: item[0], reverse=True)
@@ -175,7 +222,7 @@ def search_adc_cli_memory(query: str, max_sections: int = 6, max_chars_per_secti
         "query": cleaned_query,
         "excerptCount": len(memory_excerpts),
         "memoryExcerpts": memory_excerpts,
-        "suggestedCommands": suggested_commands[:20],
+        "suggestedCommands": suggested_commands[:8],
         "behavioralRulesIncluded": bool(get_cli_behavioral_rules()),
         "mustReviewMemoryFirst": True,
     }

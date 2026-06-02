@@ -23,6 +23,12 @@ export const AI_PROVIDER_HINTS = {
     example: '',
     hostNote: 'Cloud API — get an API key from console.x.ai'
   },
+  DeepSeek: {
+    required: false,
+    hint: 'Leave empty — uses https://api.deepseek.com/v1',
+    example: '',
+    hostNote: 'Cloud API — get an API key from platform.deepseek.com'
+  },
   'LM Studio': {
     required: true,
     hint: 'OpenAI-compatible base URL — LM Studio uses /v1',

@@ -34,7 +34,21 @@ READONLY_CLI_COMMANDS: list[dict] = [
         "topic": "firmware version and build",
         "docPath": "ns/ns-version.html",
         "section": "show ns version",
-        "keywords": ("version", "firmware", "build", "release"),
+        "keywords": ("version", "firmware", "build", "release", "system info"),
+    },
+    {
+        "command": "show ns hostname",
+        "topic": "appliance hostname",
+        "docPath": "ns/ns-hostName.html",
+        "section": "show ns hostname",
+        "keywords": ("hostname", "host name", "system name", "system info"),
+    },
+    {
+        "command": "show ns hardware",
+        "topic": "hardware platform and serial number",
+        "docPath": "ns/ns-hardware.html",
+        "section": "show ns hardware",
+        "keywords": ("hardware", "serial", "serial number", "platform", "system info"),
     },
     {
         "command": "show lb vserver",
@@ -307,20 +321,30 @@ def search_command_catalog(query: str, max_results: int = 8) -> list[dict]:
     if not terms:
         terms = [cleaned]
 
+    query_tokens = cleaned.split()
     scored: list[tuple[int, dict]] = []
     for entry in READONLY_CLI_COMMANDS:
+        command_lower = entry.get("command", "").lower()
         haystack = " ".join(
             [
-                entry.get("command", ""),
+                command_lower,
                 entry.get("topic", ""),
                 " ".join(entry.get("keywords", ())),
                 " ".join(entry.get("aliases", ())),
             ]
-        ).lower()
-        score = sum(1 for term in terms if term in haystack)
-        if score:
+        )
+        score = sum(2 for term in terms if term in haystack)
+        cmd_tokens = command_lower.split()
+        if len(query_tokens) >= 2 and len(cmd_tokens) >= 2:
+            if query_tokens[0] == cmd_tokens[0] and query_tokens[1] == cmd_tokens[1]:
+                score += 10
+        if cleaned in command_lower:
+            score += 12
+        min_score = 2 if len(terms) >= 2 else 1
+        if score >= min_score:
             row = dict(entry)
             row["docUrl"] = official_doc_url(row["docPath"])
+            row["score"] = score
             scored.append((score, row))
 
     scored.sort(key=lambda item: item[0], reverse=True)

@@ -13,6 +13,7 @@
 
     <div class="content-panel">
       <DataTable
+        class="users-table"
         :value="filteredUsers"
         :loading="loading"
         striped-rows
@@ -22,6 +23,11 @@
       >
         <Column field="username" header="Username" sortable />
         <Column field="displayName" header="Display name" sortable />
+        <Column field="email" header="Email" sortable>
+          <template #body="{ data }">
+            {{ data.email || '—' }}
+          </template>
+        </Column>
         <Column field="role" header="Role" sortable>
           <template #body="{ data }">
             <Tag :value="data.role" :severity="data.role === 'admin' ? 'warn' : 'secondary'" />
@@ -35,11 +41,24 @@
             />
           </template>
         </Column>
-        <Column header="Actions" style="min-width: 10rem">
+        <Column headerClass="actions-col" bodyClass="actions-col" style="min-width: 12rem">
+          <template #header>
+            <span class="actions-header">Actions</span>
+          </template>
           <template #body="{ data }">
-            <div class="flex gap-1">
+            <div class="actions-cell flex gap-1">
               <Button
-                v-tooltip.top="'View passkeys'"
+                v-tooltip="tooltip('Send password reset code')"
+                icon="pi pi-envelope"
+                text
+                rounded
+                size="small"
+                :disabled="!data.email || resettingUserId === data.id"
+                :loading="resettingUserId === data.id"
+                @click="confirmResetPassword(data)"
+              />
+              <Button
+                v-tooltip="tooltip('View passkeys')"
                 icon="pi pi-key"
                 text
                 rounded
@@ -47,6 +66,7 @@
                 @click="openPasskeysDialog(data)"
               />
               <Button
+                v-tooltip="tooltip('Edit user')"
                 icon="pi pi-pencil"
                 text
                 rounded
@@ -54,7 +74,7 @@
                 @click="openEditDialog(data)"
               />
               <Button
-                v-tooltip.top="'Delete'"
+                v-tooltip="tooltip('Delete user')"
                 icon="pi pi-trash"
                 text
                 rounded
@@ -86,6 +106,11 @@
           <InputText id="displayName" v-model="form.displayName" class="w-full" />
         </div>
         <div class="flex flex-column gap-2">
+          <label for="email" class="field-label">Email</label>
+          <InputText id="email" v-model="form.email" type="email" class="w-full" autocomplete="off" />
+          <small class="field-hint">Used to send password reset codes.</small>
+        </div>
+        <div class="flex flex-column gap-2">
           <label for="role" class="field-label">Role</label>
           <Select id="role" v-model="form.role" :options="roles" class="w-full" />
         </div>
@@ -100,7 +125,7 @@
             input-class="w-full"
             autocomplete="new-password"
           />
-          <small class="field-hint">Minimum 8 characters. The user can change it later and add a passkey in Settings.</small>
+          <small class="field-hint">Minimum 8 characters. Users can reset their password with a code sent to their email.</small>
         </div>
         <Message v-if="!isEditing" severity="info" :closable="false">
           Users sign in with this password first, then register a passkey under Settings → Security.
@@ -174,6 +199,7 @@ import {
   deleteUser,
   getUser,
   listUsers,
+  requestPasswordReset,
   updateUser
 } from '../services/users'
 
@@ -191,12 +217,18 @@ const passkeysVisible = ref(false)
 const passkeysLoading = ref(false)
 const passkeysUser = ref(null)
 const passkeys = ref([])
+const resettingUserId = ref(null)
 
 const roles = ['user', 'admin']
+
+function tooltip(value) {
+  return { value, appendTo: 'body', position: 'bottom' }
+}
 
 const form = ref({
   username: '',
   displayName: '',
+  email: '',
   password: '',
   role: 'user'
 })
@@ -205,7 +237,7 @@ const filteredUsers = computed(() => {
   const q = searchQuery.value.trim().toLowerCase()
   if (!q) return users.value
   return users.value.filter((user) =>
-    [user.username, user.displayName, user.role].some((value) =>
+    [user.username, user.displayName, user.email, user.role].some((value) =>
       String(value || '').toLowerCase().includes(q)
     )
   )
@@ -234,7 +266,7 @@ async function loadUsers() {
 }
 
 function resetForm() {
-  form.value = { username: '', displayName: '', password: '', role: 'user' }
+  form.value = { username: '', displayName: '', email: '', password: '', role: 'user' }
 }
 
 function openCreateDialog() {
@@ -250,17 +282,29 @@ function openEditDialog(user) {
   form.value = {
     username: user.username,
     displayName: user.displayName,
+    email: user.email || '',
     role: user.role
   }
   dialogVisible.value = true
 }
 
 async function saveUser() {
+  if (!form.value.email.trim()) {
+    toast.add({
+      severity: 'warn',
+      summary: 'Email required',
+      detail: 'Each user needs an email address for password reset.',
+      life: 4000
+    })
+    return
+  }
+
   saving.value = true
   try {
     if (isEditing.value) {
       await updateUser(editingId.value, {
         displayName: form.value.displayName,
+        email: form.value.email.trim().toLowerCase(),
         role: form.value.role
       })
       toast.add({ severity: 'success', summary: 'User updated', life: 3000 })
@@ -268,6 +312,7 @@ async function saveUser() {
       await createUser({
         username: form.value.username.trim().toLowerCase(),
         displayName: form.value.displayName.trim(),
+        email: form.value.email.trim().toLowerCase(),
         password: form.value.password,
         role: form.value.role
       })
@@ -285,6 +330,35 @@ async function saveUser() {
   } finally {
     saving.value = false
   }
+}
+
+function confirmResetPassword(user) {
+  confirm.require({
+    message: `Send a password reset code to ${user.email}?`,
+    header: 'Reset password',
+    icon: 'pi pi-envelope',
+    accept: async () => {
+      resettingUserId.value = user.id
+      try {
+        const { data } = await requestPasswordReset(user.id)
+        toast.add({
+          severity: 'success',
+          summary: 'Reset code sent',
+          detail: data.message,
+          life: 6000
+        })
+      } catch (error) {
+        toast.add({
+          severity: 'error',
+          summary: 'Reset failed',
+          detail: error.response?.data?.detail || error.message,
+          life: 5000
+        })
+      } finally {
+        resettingUserId.value = null
+      }
+    }
+  })
 }
 
 function confirmDelete(user) {
@@ -379,5 +453,24 @@ onMounted(loadUsers)
 .field-hint {
   color: var(--p-text-muted-color);
   font-size: 0.75rem;
+}
+
+.users-table :deep(.actions-col) {
+  width: 12rem;
+  min-width: 12rem;
+}
+
+.users-table :deep(thead .actions-col) {
+  pointer-events: none;
+}
+
+.users-table :deep(tbody .actions-col) {
+  position: relative;
+  z-index: 1;
+}
+
+.actions-cell {
+  min-height: 2rem;
+  align-items: center;
 }
 </style>

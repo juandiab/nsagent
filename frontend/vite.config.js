@@ -10,6 +10,13 @@ export default defineConfig(({ mode }) => {
     server: {
       host: '0.0.0.0',
       port: 5173,
+      proxy: {
+        '/nexxus-blog': {
+          target: 'https://www.nexxus-tech.com',
+          changeOrigin: true,
+          rewrite: (path) => path.replace(/^\/nexxus-blog/, '/api/blog')
+        }
+      },
       watch: {
         usePolling: true
       },

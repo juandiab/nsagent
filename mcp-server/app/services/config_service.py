@@ -18,6 +18,7 @@ ALL_TOOL_NAMES = [
     "netscaler_telnet",
     "netscaler_collect_nsconmsg",
     "netscaler_nextgen_request",
+    "netscaler_generate_csr",
 ]
 
 

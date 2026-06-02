@@ -1,0 +1,46 @@
+"""Tests for LB vserver form detection heuristics."""
+
+import sys
+from pathlib import Path
+
+sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
+
+from app.services.copilot_form import (  # noqa: E402
+    message_targets_policy_or_feature_config,
+    user_requests_lb_vserver_create,
+)
+
+
+def test_responder_redirect_on_existing_vserver_is_not_lb_create():
+    msg = (
+        "create a responder policy to redirect all traffic from HTTP to HTTPs "
+        "and apply it to the lb Vserver web_example"
+    )
+    assert message_targets_policy_or_feature_config(msg)
+    assert not user_requests_lb_vserver_create(msg)
+
+
+def test_rewrite_policy_bind_is_not_lb_create():
+    msg = "add rewrite policy pol1 and bind it to the lb vserver web_example"
+    assert message_targets_policy_or_feature_config(msg)
+    assert not user_requests_lb_vserver_create(msg)
+
+
+def test_create_load_balancer_still_triggers_form():
+    msg = "create a load balancer for StoreFront with VIP 192.168.1.10"
+    assert user_requests_lb_vserver_create(msg)
+
+
+def test_create_lb_vserver_with_vip_still_triggers_form():
+    msg = "create lb vserver web_app HTTP 10.20.30.40 80 with backend 10.0.0.5"
+    assert user_requests_lb_vserver_create(msg)
+
+
+def test_configure_delivery_controllers_still_triggers_form():
+    msg = "configure delivery controllers load balancing"
+    assert user_requests_lb_vserver_create(msg)
+
+
+def test_show_vservers_is_not_lb_create():
+    msg = "show all lb vservers"
+    assert not user_requests_lb_vserver_create(msg)

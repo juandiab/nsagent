@@ -6,10 +6,11 @@ from fastapi.middleware.cors import CORSMiddleware
 from app.config import settings
 from app.database import close_mongo_connection, connect_to_mongo, get_database
 from app.dependencies import get_current_user
-from app.routers import ai_providers, appliance_ops, appliances, auth, copilot, health, mcp, users, webauthn
+from app.routers import ai_providers, appliance_ops, appliances, auth, copilot, health, mcp, ssl_csr, users, webauthn
 from app.services.mcp_client import push_config_to_mcp_server
 from app.services.mcp_config_service import ensure_default_settings, get_mcp_settings
 from app.services.ai_provider_service import migrate_lm_studio_endpoints
+from app.services.password_reset_service import ensure_password_reset_indexes
 from app.services.user_service import ensure_default_admin
 from app.services.webauthn_service import ensure_webauthn_indexes
 
@@ -20,6 +21,7 @@ async def lifespan(app: FastAPI):
     db = get_database()
     await ensure_default_admin(db)
     await ensure_webauthn_indexes(db)
+    await ensure_password_reset_indexes(db)
     await ensure_default_settings(db)
     await migrate_lm_studio_endpoints(db)
     try:
@@ -54,4 +56,5 @@ app.include_router(mcp.router, dependencies=protected)
 app.include_router(copilot.router, dependencies=protected)
 app.include_router(appliance_ops.router, dependencies=protected)
 app.include_router(appliances.router, dependencies=protected)
+app.include_router(ssl_csr.router, dependencies=protected)
 app.include_router(ai_providers.router, dependencies=protected)

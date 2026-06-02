@@ -24,6 +24,11 @@ PROVIDER_DEFAULTS: dict[str, dict[str, str]] = {
         "endpoint_hint": "Leave empty — uses https://api.x.ai/v1 (xAI)",
         "endpoint_example": "",
     },
+    "DeepSeek": {
+        "base_url": "https://api.deepseek.com/v1",
+        "endpoint_hint": "Leave empty — uses https://api.deepseek.com/v1",
+        "endpoint_example": "",
+    },
     "LM Studio": {
         "base_url": "",
         "endpoint_hint": "LM Studio OpenAI-compatible base URL (use /v1 — not the server root URL)",
@@ -136,6 +141,8 @@ async def fetch_models(provider_type: str, api_key: str, endpoint: str) -> list[
         return await _fetch_gemini_models(api_key)
     if provider_type == "Grok":
         return await _fetch_openai_models(api_key, resolve_base_url(provider_type, endpoint))
+    if provider_type == "DeepSeek":
+        return await _fetch_openai_models(api_key, resolve_base_url(provider_type, endpoint))
     if provider_type in {"LM Studio", "OpenAI-Compatible"}:
         return await _fetch_openai_compatible_models(
             resolve_base_url(provider_type, endpoint),
@@ -159,6 +166,11 @@ async def test_provider(
         sample = models[0] if models else "none"
         return True, f"Connected successfully — {count} model(s) available (e.g. {sample})"
     except Exception as exc:
+        from app.services.ai_provider_errors import maybe_parse_ai_provider_error
+
+        parsed = maybe_parse_ai_provider_error(str(exc), provider_type=provider_type)
+        if parsed is not None:
+            return False, str(parsed)
         return False, str(exc)
 
 

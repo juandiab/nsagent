@@ -261,6 +261,15 @@ function parsed(tool) {
 
     if (tool.name === 'search_netscaler_cli_reference' && typeof data === 'object') {
       const items = []
+      if (data.retrievalMode) {
+        items.push({
+          title: `Retrieval: ${data.retrievalMode}`,
+          url: data.referenceUrl || '',
+          description: data.retrievalMode === 'command'
+            ? 'Matched specific CLI command(s) — section excerpts omitted.'
+            : 'Broader section context included for workflow or ambiguous query.'
+        })
+      }
       for (const excerpt of data.memoryExcerpts || []) {
         items.push({
           title: `CLI memory: ${excerpt.title}`,

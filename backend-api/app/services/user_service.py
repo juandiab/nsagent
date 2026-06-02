@@ -38,6 +38,13 @@ async def get_user_by_username(db: AsyncIOMotorDatabase, username: str) -> dict 
     return await db.users.find_one({"username": username.strip().lower()})
 
 
+async def get_user_by_email(db: AsyncIOMotorDatabase, email: str) -> dict | None:
+    cleaned = email.strip().lower()
+    if not cleaned:
+        return None
+    return await db.users.find_one({"email": cleaned})
+
+
 async def get_user_by_id(db: AsyncIOMotorDatabase, user_id: str) -> dict | None:
     try:
         oid = ObjectId(user_id)
@@ -61,12 +68,17 @@ async def create_user(
     *,
     username: str,
     display_name: str,
+    email: str,
     password: str,
     role: str = "user",
 ) -> dict[str, Any]:
     cleaned_username = username.strip().lower()
     if await get_user_by_username(db, cleaned_username):
         raise ValueError(f"Username '{cleaned_username}' already exists")
+
+    cleaned_email = email.strip().lower()
+    if await get_user_by_email(db, cleaned_email):
+        raise ValueError(f"Email '{cleaned_email}' is already in use")
 
     cleaned_password = password.strip()
     if len(cleaned_password) < 8:
@@ -75,6 +87,7 @@ async def create_user(
     doc = {
         "username": cleaned_username,
         "displayName": display_name.strip(),
+        "email": cleaned_email,
         "role": role,
         "hashedPassword": hash_password(cleaned_password),
         "createdAt": utc_now(),
@@ -92,6 +105,7 @@ async def update_user(
     user_id: str,
     *,
     display_name: str | None = None,
+    email: str | None = None,
     role: str | None = None,
 ) -> dict[str, Any] | None:
     user = await get_user_by_id(db, user_id)
@@ -101,6 +115,12 @@ async def update_user(
     updates: dict[str, Any] = {"updatedAt": utc_now()}
     if display_name is not None:
         updates["displayName"] = display_name.strip()
+    if email is not None:
+        cleaned_email = email.strip().lower()
+        existing = await get_user_by_email(db, cleaned_email)
+        if existing and existing["_id"] != user["_id"]:
+            raise ValueError(f"Email '{cleaned_email}' is already in use")
+        updates["email"] = cleaned_email
     if role is not None:
         updates["role"] = role
 

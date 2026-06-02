@@ -11,7 +11,12 @@ from app.services.copilot_platform_service import (
     get_platform_settings,
     update_platform_settings,
 )
-from app.services.copilot_orchestrator import get_default_provider, run_copilot_chat
+from app.services.copilot_orchestrator import get_default_provider, resolve_chat_provider, run_copilot_chat
+from app.services.ai_provider_errors import (
+    AiProviderError,
+    enrich_ai_provider_error,
+    maybe_parse_ai_provider_error,
+)
 from app.schemas.copilot import (
     ChatRequest,
     ChatResponse,
@@ -135,6 +140,8 @@ async def copilot_chat(
             detail="Select and connect to a NetScaler appliance before chatting",
         )
 
+    provider = await resolve_chat_provider(db, payload.providerId)
+
     try:
         history = [item.model_dump() for item in payload.history]
         return await run_copilot_chat(
@@ -147,9 +154,38 @@ async def copilot_chat(
             provider_id=payload.providerId,
             web_search=payload.webSearch,
         )
+    except AiProviderError as exc:
+        if provider and not exc.provider_name:
+            exc.provider_name = provider.get("providerName", "")
+        detail = await enrich_ai_provider_error(db, exc, payload.providerId)
+        raise HTTPException(
+            status_code=status.HTTP_429_TOO_MANY_REQUESTS,
+            detail=detail,
+        ) from exc
     except ValueError as exc:
+        if isinstance(exc, AiProviderError):
+            detail = await enrich_ai_provider_error(db, exc, payload.providerId)
+            raise HTTPException(
+                status_code=status.HTTP_429_TOO_MANY_REQUESTS,
+                detail=detail,
+            ) from exc
         raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail=str(exc)) from exc
     except Exception as exc:
+        provider_type = provider.get("providerType", "") if provider else ""
+        model = provider.get("model", "") if provider else ""
+        provider_name = provider.get("providerName", "") if provider else ""
+        parsed = maybe_parse_ai_provider_error(
+            str(exc),
+            provider_type=provider_type,
+            model=model,
+            provider_name=provider_name,
+        )
+        if parsed is not None:
+            detail = await enrich_ai_provider_error(db, parsed, payload.providerId)
+            raise HTTPException(
+                status_code=status.HTTP_429_TOO_MANY_REQUESTS,
+                detail=detail,
+            ) from exc
         raise HTTPException(
             status_code=status.HTTP_502_BAD_GATEWAY,
             detail=f"Copilot request failed: {exc}",

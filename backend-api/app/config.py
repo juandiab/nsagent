@@ -17,6 +17,14 @@ class Settings(BaseSettings):
     webauthn_rp_name: str = "NSAgent"
     webauthn_origin: str = "http://localhost:5173"
     cors_origins: str = "http://localhost:5173,http://127.0.0.1:5173"
+    smtp_host: str = ""
+    smtp_port: int = 587
+    smtp_username: str = ""
+    smtp_password: str = ""
+    smtp_from_address: str = ""
+    smtp_use_tls: bool = True
+    smtp_use_ssl: bool = False
+    password_reset_log_codes: bool = False
 
     @property
     def cors_origin_list(self) -> list[str]:

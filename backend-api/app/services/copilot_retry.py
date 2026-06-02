@@ -1,6 +1,8 @@
 import json
 from typing import Any
 
+from app.services.copilot_form import is_form_submission, user_requests_lb_vserver_create
+
 
 def _parse_tool_payload(result: str) -> Any:
     try:
@@ -105,14 +107,44 @@ def build_tool_retry_hint(tool_name: str, result: str, user_message: str) -> str
 
     if tool_name == "search_netscaler_cli_reference" and isinstance(data, dict):
         has_memory = bool(data.get("memoryExcerptCount"))
-        has_commands = bool(data.get("recommendedCommands"))
+        has_commands = bool(data.get("recommendedCommands") or data.get("commandIndexHits"))
         if not has_memory and not has_commands:
             return (
                 "CLI memory search returned no matches. Broaden the query using namespace/entity "
                 "terms from netscaler_adc_cli_memory.md (e.g. lb vserver, show ns ip, stat lb vserver)."
             )
         lowered = user_message.lower()
+        if is_form_submission(user_message):
+            return (
+                "The user submitted the configuration form. EXECUTE now with "
+                "netscaler_run_cli_commands (full sequence + save ns config) using the provided values. "
+                "Do not ask the same questions again."
+            )
+        if user_requests_lb_vserver_create(user_message):
+            return (
+                "CLI reference loaded for a load balancer create request. "
+                "Reply with a short intro, then a ```jpilot-form``` JSON block with inputForm.fields "
+                "(VIP, vserver name, front-end port, service type HTTP/SSL/TCP/UDP/SSL_BRIDGE, backend IPs/ports, monitor). "
+                "Use official patterns from memory when available; otherwise use sensible defaults "
+                "(Delivery Controllers: SSL/443, LEASTCONNECTION, tcp-default). "
+                "Do NOT run write tools until the user submits the form."
+            )
         if any(v in lowered for v in ("create", "add", "bind", "configure", "setup", "set up")):
+            if any(
+                phrase in lowered
+                for phrase in (
+                    "ask me",
+                    "ask questions",
+                    "questions you need",
+                    "what do you need",
+                    "before you configure",
+                )
+            ):
+                return (
+                    "CLI reference loaded. The user asked you to gather requirements first. "
+                    "Reply with a short intro, then a ```jpilot-form``` JSON block with inputForm.fields "
+                    "(use type boolean for yes/no). Do not run write tools until the user submits the form."
+                )
             return (
                 "CLI reference loaded. Do NOT list commands in prose — EXECUTE them now with "
                 "netscaler_run_cli_commands (full sequence + save ns config) or netscaler_run_cli_command "

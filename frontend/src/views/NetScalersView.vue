@@ -13,6 +13,7 @@
 
     <div class="content-panel">
       <DataTable
+        class="netscalers-table"
         :value="filteredAppliances"
         :loading="loading"
         striped-rows
@@ -40,11 +41,14 @@
             <span class="notes-cell">{{ data.notes || '—' }}</span>
           </template>
         </Column>
-        <Column header="Actions" style="min-width: 12rem">
+        <Column headerClass="actions-col" bodyClass="actions-col" style="min-width: 12rem">
+          <template #header>
+            <span class="actions-header">Actions</span>
+          </template>
           <template #body="{ data }">
-            <div class="flex gap-1">
+            <div class="actions-cell flex gap-1">
               <Button
-                v-tooltip.top="'Inspect via MCP'"
+                v-tooltip="tooltip('Inspect via MCP')"
                 icon="pi pi-search"
                 text
                 rounded
@@ -53,7 +57,7 @@
                 @click="inspectAppliance(data)"
               />
               <Button
-                v-tooltip.top="'Test connection'"
+                v-tooltip="tooltip('Test connection')"
                 icon="pi pi-bolt"
                 text
                 rounded
@@ -63,6 +67,7 @@
                 @click="testAppliance(data)"
               />
               <Button
+                v-tooltip="tooltip('Edit NetScaler')"
                 icon="pi pi-pencil"
                 text
                 rounded
@@ -70,7 +75,7 @@
                 @click="openEditDialog(data)"
               />
               <Button
-                v-tooltip.top="data.enabled ? 'Disable' : 'Enable'"
+                v-tooltip="tooltip(data.enabled ? 'Disable' : 'Enable')"
                 :icon="data.enabled ? 'pi pi-ban' : 'pi pi-check'"
                 text
                 rounded
@@ -79,7 +84,7 @@
                 @click="toggleEnabled(data)"
               />
               <Button
-                v-tooltip.top="'Delete'"
+                v-tooltip="tooltip('Delete NetScaler')"
                 icon="pi pi-trash"
                 text
                 rounded
@@ -224,6 +229,10 @@ const editingId = ref(null)
 const searchQuery = ref('')
 
 const environments = ['LAB', 'DEV', 'TEST', 'UAT', 'PROD']
+
+function tooltip(value) {
+  return { value, appendTo: 'body', position: 'bottom' }
+}
 
 const emptyForm = () => ({
   name: '',
@@ -470,6 +479,25 @@ onMounted(loadAppliances)
 .notes-cell {
   color: var(--p-text-muted-color);
   font-size: 0.875rem;
+}
+
+.netscalers-table :deep(.actions-col) {
+  width: 12rem;
+  min-width: 12rem;
+}
+
+.netscalers-table :deep(thead .actions-col) {
+  pointer-events: none;
+}
+
+.netscalers-table :deep(tbody .actions-col) {
+  position: relative;
+  z-index: 1;
+}
+
+.actions-cell {
+  min-height: 2rem;
+  align-items: center;
 }
 
 .inspect-grid {

@@ -46,6 +46,14 @@ services:
       - WEBAUTHN_RP_NAME=${WEBAUTHN_RP_NAME:-NSAgent}
       - WEBAUTHN_ORIGIN=${WEBAUTHN_ORIGIN:-https://jpilot.nexxus-tech.com}
       - CORS_ORIGINS=${CORS_ORIGINS:-https://jpilot.nexxus-tech.com}
+      - SMTP_HOST=${SMTP_HOST:-}
+      - SMTP_PORT=${SMTP_PORT:-587}
+      - SMTP_USERNAME=${SMTP_USERNAME:-}
+      - SMTP_PASSWORD=${SMTP_PASSWORD:-}
+      - SMTP_FROM_ADDRESS=${SMTP_FROM_ADDRESS:-}
+      - SMTP_USE_TLS=${SMTP_USE_TLS:-true}
+      - SMTP_USE_SSL=${SMTP_USE_SSL:-false}
+      - PASSWORD_RESET_LOG_CODES=${PASSWORD_RESET_LOG_CODES:-false}
     networks:
       - nsagent-network
     depends_on:

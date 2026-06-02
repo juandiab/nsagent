@@ -17,6 +17,8 @@ from app.services.netscaler_service import (
     run_cli_command,
     run_cli_commands,
     run_diagnostic,
+    generate_ssl_csr,
+    generate_ssl_self_signed,
     run_nsconmsg,
     run_telnet,
     ssh_run_command,
@@ -395,6 +397,62 @@ NETSCALER_TOOLS = [
         },
     ),
     types.Tool(
+        name="netscaler_generate_csr",
+        description=(
+            "Generate an SSL private key and either a CSR (OpenSSL) or a self-signed certificate "
+            "(NetScaler classic CLI) under /nsconfig/ssl. Returns PEM output for copy/paste or local use."
+        ),
+        inputSchema={
+            "type": "object",
+            "properties": {
+                "host": {"type": "string", "description": "NetScaler hostname or IP"},
+                "username": {"type": "string", "description": "NetScaler SSH username"},
+                "password": {"type": "string", "description": "NetScaler SSH password"},
+                "key_name": {"type": "string", "description": "Base name for key/CSR files (no path)"},
+                "generation_mode": {
+                    "type": "string",
+                    "enum": ["csr", "self_signed"],
+                    "description": "csr = signing request for a CA; self_signed = NetScaler ROOT_CERT",
+                },
+                "validity_days": {
+                    "type": "integer",
+                    "description": "Self-signed certificate validity in days (default 365)",
+                },
+                "cert_type": {
+                    "type": "string",
+                    "enum": ["standard", "wildcard", "san"],
+                    "description": "Certificate type",
+                },
+                "key_type": {
+                    "type": "string",
+                    "enum": ["rsa", "ecdsa"],
+                    "description": "Private key algorithm",
+                },
+                "key_size": {
+                    "type": "integer",
+                    "description": "RSA key size (2048, 3072, or 4096)",
+                },
+                "key_password": {
+                    "type": "string",
+                    "description": "Optional password to encrypt the private key",
+                },
+                "common_name": {"type": "string", "description": "Certificate common name (CN)"},
+                "country": {"type": "string", "description": "Country code (C), e.g. US"},
+                "state": {"type": "string", "description": "State or province (ST)"},
+                "locality": {"type": "string", "description": "City or locality (L)"},
+                "organization": {"type": "string", "description": "Organization (O)"},
+                "organizational_unit": {"type": "string", "description": "Organizational unit (OU)"},
+                "email": {"type": "string", "description": "Email address"},
+                "subject_alt_names": {
+                    "type": "array",
+                    "items": {"type": "string"},
+                    "description": "DNS names or IPs for SAN certificates",
+                },
+            },
+            "required": ["host", "username", "password", "key_name", "cert_type", "common_name"],
+        },
+    ),
+    types.Tool(
         name="netscaler_nextgen_request",
         description=(
             "Perform any NetScaler Next-Gen API request (GET, POST, PUT, or DELETE) against a path "
@@ -638,6 +696,42 @@ async def call_netscaler_tool(name: str, arguments: dict) -> list[types.TextCont
                 selectors=arguments.get("selectors") or [],
                 interval=int(interval) if interval is not None else None,
             )
+        )
+
+    if name == "netscaler_generate_csr":
+        key_name = arguments.get("key_name", "").strip()
+        cert_type = arguments.get("cert_type", "").strip()
+        common_name = arguments.get("common_name", "").strip()
+        if not key_name:
+            return _tool_error("key_name is required")
+        if not cert_type:
+            return _tool_error("cert_type is required (standard, wildcard, or san)")
+        if not common_name:
+            return _tool_error("common_name is required")
+        csr_params = {
+            "key_name": key_name,
+            "cert_type": cert_type,
+            "generation_mode": arguments.get("generation_mode", "csr"),
+            "validity_days": arguments.get("validity_days", 365),
+            "key_type": arguments.get("key_type", "rsa"),
+            "key_size": arguments.get("key_size", 2048),
+            "key_password": arguments.get("key_password"),
+            "common_name": common_name,
+            "country": arguments.get("country", "US"),
+            "state": arguments.get("state", ""),
+            "locality": arguments.get("locality", ""),
+            "organization": arguments.get("organization", ""),
+            "organizational_unit": arguments.get("organizational_unit", ""),
+            "email": arguments.get("email"),
+            "subject_alt_names": arguments.get("subject_alt_names") or [],
+        }
+        mode = str(arguments.get("generation_mode", "csr")).strip().lower()
+        if mode == "self_signed":
+            return await _run_nextgen_tool(
+                lambda: generate_ssl_self_signed(host, username, password, csr_params)
+            )
+        return await _run_nextgen_tool(
+            lambda: generate_ssl_csr(host, username, password, csr_params)
         )
 
     if name == "netscaler_nextgen_request":

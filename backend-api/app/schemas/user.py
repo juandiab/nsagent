@@ -6,12 +6,19 @@ from pydantic import BaseModel, Field
 class UserCreateRequest(BaseModel):
     username: str = Field(min_length=2, max_length=64, pattern=r"^[a-zA-Z0-9._-]+$")
     displayName: str = Field(min_length=1, max_length=128)
+    email: str = Field(min_length=5, max_length=254, pattern=r"^[^@\s]+@[^@\s]+\.[^@\s]+$")
     password: str = Field(min_length=8, max_length=128)
     role: str = Field(default="user", pattern=r"^(admin|user)$")
 
 
 class UserUpdateRequest(BaseModel):
     displayName: str | None = Field(default=None, min_length=1, max_length=128)
+    email: str | None = Field(
+        default=None,
+        min_length=5,
+        max_length=254,
+        pattern=r"^[^@\s]+@[^@\s]+\.[^@\s]+$",
+    )
     role: str | None = Field(default=None, pattern=r"^(admin|user)$")
 
 
@@ -26,6 +33,7 @@ class UserListItem(BaseModel):
     id: str
     username: str
     displayName: str
+    email: str | None = None
     role: str
     passkeyCount: int
     createdAt: datetime

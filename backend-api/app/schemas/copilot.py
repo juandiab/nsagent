@@ -62,6 +62,24 @@ class ToolCallTrace(BaseModel):
     result: str
 
 
+class InputFormField(BaseModel):
+    id: str
+    label: str
+    type: str = "text"
+    required: bool = False
+    placeholder: str = ""
+    hint: str = ""
+    default: str | bool | int | float | None = None
+    options: list[dict[str, str]] = []
+
+
+class InputForm(BaseModel):
+    title: str
+    description: str = ""
+    submitLabel: str = "Submit"
+    fields: list[InputFormField] = []
+
+
 class ChatResponse(BaseModel):
     role: str = "assistant"
     content: str
@@ -69,6 +87,7 @@ class ChatResponse(BaseModel):
     providerType: str
     model: str
     toolCalls: list[ToolCallTrace] = []
+    inputForm: InputForm | None = None
 
 
 class CopilotStatusResponse(BaseModel):

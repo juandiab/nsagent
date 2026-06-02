@@ -507,7 +507,7 @@ CLI_SEARCH_TOOL = {
     "description": (
         "REQUIRED before netscaler_run_cli_command or netscaler_run_cli_commands. "
         "Searches netscaler_adc_cli_memory.md plus the official ADC CLI reference. "
-        "Read memoryExcerpts and recommendedCommands and run the exact command(s) — never invent CLI syntax."
+        "Read recommendedCommands for exact syntax; read memoryExcerpts only when retrievalMode is section. Never invent CLI syntax."
     ),
     "parameters": {
         "type": "object",
@@ -852,6 +852,8 @@ async def _chat_openai_at_base(
     model: str,
     messages: list[dict[str, Any]],
     tools: list[dict[str, Any]],
+    provider_type: str = "OpenAI-Compatible",
+    provider_name: str = "",
 ) -> dict[str, Any]:
     url = f"{base_url.rstrip('/')}/chat/completions"
     headers = build_openai_compatible_headers(api_key)
@@ -861,7 +863,14 @@ async def _chat_openai_at_base(
     async with httpx.AsyncClient(timeout=120.0) as client:
         response = await client.post(url, json=payload, headers=headers)
         if response.status_code >= 400:
-            raise ValueError(response.text)
+            from app.services.ai_provider_errors import raise_for_ai_provider_response
+
+            raise_for_ai_provider_response(
+                response,
+                provider_type=provider_type,
+                model=model,
+                provider_name=provider_name,
+            )
         return response.json()
 
 
@@ -898,6 +907,8 @@ async def chat_openai_compatible(
     messages: list[dict[str, Any]],
     tools: list[dict[str, Any]],
     base_url_candidates: list[str] | None = None,
+    provider_type: str = "OpenAI-Compatible",
+    provider_name: str = "",
 ) -> tuple[dict[str, Any], str]:
     candidates = _openai_base_candidates(base_url, base_url_candidates)
 
@@ -910,6 +921,8 @@ async def chat_openai_compatible(
                 model=model,
                 messages=messages,
                 tools=tools,
+                provider_type=provider_type,
+                provider_name=provider_name,
             )
             return data, candidate
         except httpx.ConnectError as exc:
@@ -919,6 +932,10 @@ async def chat_openai_compatible(
             errors.append(f"{candidate}: timed out")
             continue
         except ValueError as exc:
+            from app.services.ai_provider_errors import AiProviderError
+
+            if isinstance(exc, AiProviderError):
+                raise
             message = str(exc)
             errors.append(f"{candidate}: {message}")
             if _should_try_next_openai_base(message):
@@ -935,6 +952,7 @@ async def chat_anthropic(
     system: str,
     messages: list[dict[str, Any]],
     tools: list[dict[str, Any]],
+    provider_name: str = "",
 ) -> dict[str, Any]:
     url = "https://api.anthropic.com/v1/messages"
     headers = {
@@ -953,7 +971,14 @@ async def chat_anthropic(
     async with httpx.AsyncClient(timeout=120.0) as client:
         response = await client.post(url, json=payload, headers=headers)
         if response.status_code >= 400:
-            raise ValueError(response.text)
+            from app.services.ai_provider_errors import raise_for_ai_provider_response
+
+            raise_for_ai_provider_response(
+                response,
+                provider_type="Anthropic",
+                model=model,
+                provider_name=provider_name,
+            )
         return response.json()
 
 
@@ -984,6 +1009,7 @@ async def chat_gemini(
     system: str,
     contents: list[dict[str, Any]],
     tools: list[dict[str, Any]],
+    provider_name: str = "",
 ) -> dict[str, Any]:
     model_id = _normalize_gemini_model(model)
     url = f"https://generativelanguage.googleapis.com/v1beta/models/{model_id}:generateContent"
@@ -996,5 +1022,12 @@ async def chat_gemini(
     async with httpx.AsyncClient(timeout=120.0) as client:
         response = await client.post(url, params={"key": api_key}, json=payload)
         if response.status_code >= 400:
-            raise ValueError(response.text)
+            from app.services.ai_provider_errors import raise_for_ai_provider_response
+
+            raise_for_ai_provider_response(
+                response,
+                provider_type="Gemini",
+                model=model,
+                provider_name=provider_name,
+            )
         return response.json()

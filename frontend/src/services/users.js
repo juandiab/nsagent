@@ -23,3 +23,8 @@ export function getUser(id) {
 export function deletePasskey(userId, passkeyId) {
   return api.delete(`/users/${userId}/passkeys/${passkeyId}`)
 }
+
+export function requestPasswordReset(userId) {
+  return api.post(`/users/${userId}/reset-password`)
+}
+

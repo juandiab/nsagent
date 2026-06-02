@@ -13,8 +13,9 @@
 
     <AiSectionNav />
 
-    <div class="content-panel">
+    <div class="content-panel ai-providers-panel">
       <DataTable
+        class="ai-providers-table"
         :value="filteredProviders"
         :loading="loading"
         striped-rows
@@ -43,11 +44,14 @@
             <Tag v-if="data.isDefault" value="Default" severity="warn" icon="pi pi-star-fill" />
           </template>
         </Column>
-        <Column header="Actions" style="min-width: 10rem">
+        <Column headerClass="actions-col" bodyClass="actions-col" style="min-width: 12rem">
+          <template #header>
+            <span class="actions-header">Actions</span>
+          </template>
           <template #body="{ data }">
-            <div class="flex gap-1">
+            <div class="actions-cell flex gap-1">
               <Button
-                v-tooltip.top="'Test connection'"
+                v-tooltip="tooltip('Test connection')"
                 icon="pi pi-bolt"
                 text
                 rounded
@@ -57,7 +61,7 @@
                 @click="testProvider(data)"
               />
               <Button
-                v-tooltip.top="'Edit'"
+                v-tooltip="tooltip('Edit')"
                 icon="pi pi-pencil"
                 text
                 rounded
@@ -65,7 +69,7 @@
                 @click="openEditDialog(data)"
               />
               <Button
-                v-tooltip.top="'Set as default'"
+                v-tooltip="tooltip('Set as default')"
                 icon="pi pi-star"
                 text
                 rounded
@@ -74,7 +78,7 @@
                 @click="setDefault(data)"
               />
               <Button
-                v-tooltip.top="'Delete'"
+                v-tooltip="tooltip('Delete')"
                 icon="pi pi-trash"
                 text
                 rounded
@@ -92,8 +96,10 @@
       v-model:visible="dialogVisible"
       :header="isEditing ? 'Edit AI Provider' : 'Add AI Provider'"
       modal
+      append-to="body"
       :style="{ width: 'min(32rem, 92vw)' }"
       :draggable="false"
+      :content-style="{ overflow: 'visible' }"
     >
       <div class="flex flex-column gap-3">
         <div class="flex flex-column gap-2">
@@ -106,6 +112,7 @@
             id="providerType"
             v-model="form.providerType"
             :options="providerTypes"
+            append-to="body"
             class="w-full"
             @change="onProviderTypeChange"
           />
@@ -159,6 +166,7 @@
             id="model"
             v-model="form.model"
             :options="availableModels"
+            append-to="body"
             class="w-full"
             placeholder="Fetch models first"
             :disabled="!availableModels.length"
@@ -222,7 +230,11 @@ const isEditing = ref(false)
 const editingId = ref(null)
 const searchQuery = ref('')
 
-const providerTypes = ['OpenAI', 'Anthropic', 'Gemini', 'Grok', 'LM Studio', 'OpenAI-Compatible']
+const providerTypes = ['OpenAI', 'Anthropic', 'Gemini', 'Grok', 'DeepSeek', 'LM Studio', 'OpenAI-Compatible']
+
+function tooltip(value) {
+  return { value, appendTo: 'body', position: 'bottom' }
+}
 
 const emptyForm = () => ({
   providerName: '',
@@ -509,6 +521,29 @@ onMounted(loadProviders)
 .field-hint {
   color: var(--p-text-muted-color);
   font-size: 0.8125rem;
+}
+
+.ai-providers-panel {
+  overflow: visible;
+}
+
+.ai-providers-table :deep(.actions-col) {
+  width: 12rem;
+  min-width: 12rem;
+}
+
+.ai-providers-table :deep(thead .actions-col) {
+  pointer-events: none;
+}
+
+.ai-providers-table :deep(tbody .actions-col) {
+  position: relative;
+  z-index: 1;
+}
+
+.actions-cell {
+  min-height: 2rem;
+  align-items: center;
 }
 
 @keyframes page-in {

@@ -1,4 +1,5 @@
 import json
+import shlex
 from contextlib import asynccontextmanager
 from typing import Any
 
@@ -438,6 +439,13 @@ class NextGenClient:
             self.username,
             self.password,
         )
+        if not platform.get("hostname") or not platform.get("serialNumber"):
+            platform = await _enrich_platform_info_via_ssh(
+                self.host,
+                self.username,
+                self.password,
+                platform,
+            )
         version = platform.get("version", "")
         info: dict[str, Any] = {
             "host": self.host,
@@ -484,6 +492,8 @@ async def _fetch_appliance_platform_stats(
             ("config/ns", "ns"),
             ("config/nsversion", "nsversion"),
             ("config/systemparameter", "systemparameter"),
+            ("config/nshostname", "nshostname"),
+            ("config/nshardware", "nshardware"),
         ):
             merged = await _fetch_nitro_resource(client, f"{base_url}/{path}", header_headers, resource_key)
             best = _merge_platform_info(best, merged)
@@ -505,6 +515,8 @@ async def _fetch_appliance_platform_stats(
                     ("stat/ns", "ns"),
                     ("config/ns", "ns"),
                     ("config/nsversion", "nsversion"),
+                    ("config/nshostname", "nshostname"),
+                    ("config/nshardware", "nshardware"),
                 ):
                     merged = await _fetch_nitro_resource(client, f"{base_url}/{path}", auth_headers, resource_key)
                     best = _merge_platform_info(best, merged)
@@ -525,6 +537,66 @@ async def _fetch_appliance_platform_stats(
                 pass
 
     return best
+
+
+def _parse_cli_field_from_output(command: str, output: str) -> str:
+    cmd = command.strip().lower()
+    for line in (output or "").splitlines():
+        stripped = line.strip()
+        if not stripped or stripped.startswith("Done"):
+            continue
+        lower = stripped.lower()
+        if "hostname" in cmd:
+            if lower.startswith("name:") or lower.startswith("hostname:"):
+                return stripped.split(":", 1)[1].strip()
+        if "hardware" in cmd and "serial" in lower:
+            return stripped.split(":", 1)[1].strip()
+    return ""
+
+
+async def _enrich_platform_info_via_ssh(
+    host: str,
+    username: str,
+    password: str,
+    current: dict[str, Any],
+) -> dict[str, Any]:
+    from app.services.config_service import get_runtime_config
+    from app.services.ssh_service import run_ssh_command
+
+    config = get_runtime_config()
+    if not config.ssh_fallback_enabled:
+        return current
+
+    merged = dict(current)
+    lookups: list[tuple[str, str]] = []
+    if not merged.get("hostname"):
+        lookups.append(("show ns hostname", "hostname"))
+    if not merged.get("serialNumber"):
+        lookups.append(("show ns hardware", "serialNumber"))
+
+    for command, field in lookups:
+        try:
+            result = await run_ssh_command(
+                host,
+                username,
+                password,
+                command,
+                port=config.ssh_port,
+                timeout=float(config.ssh_timeout_seconds),
+            )
+        except Exception:
+            continue
+        if not result.get("success"):
+            continue
+        value = _parse_cli_field_from_output(command, result.get("output", ""))
+        if value:
+            merged[field] = value
+
+    merged["platformStatsAvailable"] = any(
+        merged.get(key)
+        for key in ("hostname", "version", "buildNumber", "serialNumber", "ipAddress", "mode", "platform")
+    )
+    return merged
 
 
 async def _fetch_nitro_resource(
@@ -589,7 +661,7 @@ def _normalize_ns_platform_info(info: dict[str, Any]) -> dict[str, Any]:
         return ""
 
     normalized = {
-        "hostname": pick("hostname", "host_name", "systemname", "system_name"),
+        "hostname": pick("hostname", "host_name", "systemname", "system_name", "nshostname"),
         "version": pick(
             "version",
             "product_version",
@@ -599,7 +671,7 @@ def _normalize_ns_platform_info(info: dict[str, Any]) -> dict[str, Any]:
             "nsversion",
         ),
         "buildNumber": pick("build_number", "buildnumber", "product_build_number", "build"),
-        "serialNumber": pick("serialnumber", "serial_number", "serial"),
+        "serialNumber": pick("serialnumber", "serial_number", "serial", "serialno", "serialnum"),
         "ipAddress": pick("ipaddress", "ip_address", "host", "nsip"),
         "mode": pick("mode", "ha_state", "hastate", "ha_mode"),
         "platform": pick("platform", "platformtype", "platform_type", "machine"),
@@ -1612,6 +1684,124 @@ async def add_ip_address(
 # Backward-compatible alias used by existing REST routes.
 async def list_lb_vservers(host: str, username: str, password: str) -> list[dict[str, Any]]:
     return await list_applications(host, username, password)
+
+
+async def generate_ssl_csr(
+    host: str,
+    username: str,
+    password: str,
+    params: dict[str, Any],
+) -> dict[str, Any]:
+    """Create a private key and CSR under /nsconfig/ssl using OpenSSL on the appliance shell."""
+    from app.services.config_service import get_runtime_config
+    from app.services.ssl_csr_service import build_openssl_csr_shell_script, extract_csr_pem
+    from app.services.ssh_service import run_prevalidated_command
+
+    built = build_openssl_csr_shell_script(params)
+    config = get_runtime_config()
+    if not config.ssh_fallback_enabled:
+        raise ValueError("SSH access is disabled in MCP configuration")
+
+    shell_command = f"shell sh -c {shlex.quote(built['script'])}"
+    result = await run_prevalidated_command(
+        shell_command,
+        host,
+        username,
+        password,
+        port=config.ssh_port,
+        timeout=float(max(config.ssh_timeout_seconds, 60)),
+    )
+
+    combined = "\n".join(
+        part for part in (result.get("output", ""), result.get("stderr", "")) if part
+    ).strip()
+    if not result.get("success") and "BEGIN CERTIFICATE REQUEST" not in combined:
+        raise ValueError(
+            combined or result.get("message") or "OpenSSL CSR generation failed on the appliance"
+        )
+
+    csr_pem = extract_csr_pem(combined)
+    return {
+        "success": True,
+        "message": "Private key and CSR created on the NetScaler",
+        "csr": csr_pem,
+        "keyPath": built["key_path"],
+        "csrPath": built["csr_path"],
+        "keyName": built["key_name"],
+        "commonName": built["common_name"],
+        "certType": built["cert_type"],
+        "keyType": built["key_type"],
+        "method": "openssl",
+        "output": result.get("output", ""),
+    }
+
+
+async def generate_ssl_self_signed(
+    host: str,
+    username: str,
+    password: str,
+    params: dict[str, Any],
+) -> dict[str, Any]:
+    """Create a self-signed certificate on NetScaler using classic CLI (rsakey/certReq/cert)."""
+    from app.services.config_service import get_runtime_config
+    from app.services.ssl_csr_service import build_netscaler_self_signed_plan, extract_cert_pem
+    from app.services.ssh_service import run_prevalidated_command
+
+    plan = build_netscaler_self_signed_plan(params)
+    config = get_runtime_config()
+    if not config.ssh_fallback_enabled:
+        raise ValueError("SSH access is disabled in MCP configuration")
+
+    cli_result = await run_cli_commands(host, username, password, plan["commands"])
+    if not cli_result.get("success"):
+        failed = next(
+            (item for item in cli_result.get("results", []) if not item.get("success")),
+            None,
+        )
+        detail = ""
+        if failed:
+            detail = failed.get("output") or failed.get("stderr") or ""
+        raise ValueError(detail or "NetScaler self-signed certificate generation failed")
+
+    read_script = f"cat {plan['cert_path']}"
+    shell_command = f"shell sh -c {shlex.quote(read_script)}"
+    result = await run_prevalidated_command(
+        shell_command,
+        host,
+        username,
+        password,
+        port=config.ssh_port,
+        timeout=float(max(config.ssh_timeout_seconds, 60)),
+    )
+
+    combined = "\n".join(
+        part for part in (result.get("output", ""), result.get("stderr", "")) if part
+    ).strip()
+    if not combined and not result.get("success"):
+        raise ValueError("Could not read generated certificate from the NetScaler")
+
+    cert_pem = extract_cert_pem(combined)
+    certkey_name = plan.get("certkey_name", plan["key_name"])
+    return {
+        "success": True,
+        "message": (
+            f"Self-signed certificate and certKey '{certkey_name}' created on the NetScaler. "
+            f"Bind with: bind ssl vserver <vsName> -certkeyName {certkey_name}"
+        ),
+        "certificate": cert_pem,
+        "keyPath": plan["key_path"],
+        "reqPath": plan["req_path"],
+        "certPath": plan["cert_path"],
+        "certKeyName": certkey_name,
+        "keyName": plan["key_name"],
+        "commonName": plan["common_name"],
+        "certType": plan["cert_type"],
+        "keyType": plan["key_type"],
+        "validityDays": plan["validity_days"],
+        "method": "netscaler_cli",
+        "commands": plan["commands"],
+        "output": result.get("output", ""),
+    }
 
 
 def format_tool_result(data: Any) -> str:

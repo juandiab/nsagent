@@ -46,6 +46,10 @@
           :loading="loading"
         />
 
+        <div class="text-center">
+          <RouterLink to="/reset-password" class="reset-link">Reset password with email code</RouterLink>
+        </div>
+
         <template v-if="status?.hasPasskey">
           <div class="login-divider">
             <span>or</span>
@@ -70,7 +74,7 @@
 </template>
 
 <script setup>
-import { ref } from 'vue'
+import { onBeforeUnmount, ref, watch } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
 import Button from 'primevue/button'
 import InputText from 'primevue/inputtext'
@@ -94,6 +98,7 @@ const loading = ref(false)
 const loadingPasskey = ref(false)
 const errorMessage = ref('')
 const status = ref(null)
+let statusTimer = null
 
 async function refreshStatus() {
   const cleaned = username.value.trim()
@@ -107,6 +112,21 @@ async function refreshStatus() {
     status.value = null
   }
 }
+
+watch(username, (value) => {
+  clearTimeout(statusTimer)
+  if (!value.trim()) {
+    status.value = null
+    return
+  }
+  statusTimer = setTimeout(() => {
+    refreshStatus()
+  }, 300)
+})
+
+onBeforeUnmount(() => {
+  clearTimeout(statusTimer)
+})
 
 async function handlePasswordLogin() {
   errorMessage.value = ''
@@ -196,5 +216,15 @@ async function handlePasskeyLogin() {
   flex: 1;
   height: 1px;
   background: var(--p-content-border-color);
+}
+
+.reset-link {
+  color: var(--p-primary-color);
+  font-size: 0.8125rem;
+  text-decoration: none;
+}
+
+.reset-link:hover {
+  text-decoration: underline;
 }
 </style>

@@ -6,7 +6,13 @@ from starlette.routing import Mount, Route
 from starlette.responses import JSONResponse
 
 from app.services.config_service import serialize_runtime_config, update_runtime_config
-from app.services.netscaler_service import get_system_info, list_lb_vservers, test_appliance_connection
+from app.services.netscaler_service import (
+    generate_ssl_csr,
+    generate_ssl_self_signed,
+    get_system_info,
+    list_lb_vservers,
+    test_appliance_connection,
+)
 from app.tools.netscaler_tools import NETSCALER_TOOLS, call_netscaler_tool, get_enabled_tools
 
 mcp_app = Server("netscaler-copilot")
@@ -123,6 +129,55 @@ async def appliance_lb_vservers(request: Request):
         return JSONResponse({"success": False, "message": str(exc)})
 
 
+async def appliance_generate_csr(request: Request):
+    payload = await request.json()
+    try:
+        params = _ssl_params_from_payload(payload)
+        result = await generate_ssl_csr(
+            payload.get("host", ""),
+            payload.get("username", ""),
+            payload.get("password", ""),
+            params,
+        )
+        return JSONResponse({"success": True, "data": result})
+    except Exception as exc:
+        return JSONResponse({"success": False, "message": str(exc)})
+
+
+def _ssl_params_from_payload(payload: dict) -> dict:
+    return {
+        "key_name": payload.get("key_name", ""),
+        "cert_type": payload.get("cert_type", ""),
+        "key_type": payload.get("key_type", "rsa"),
+        "key_size": payload.get("key_size", 2048),
+        "key_password": payload.get("key_password"),
+        "common_name": payload.get("common_name", ""),
+        "country": payload.get("country", "US"),
+        "state": payload.get("state", ""),
+        "locality": payload.get("locality", ""),
+        "organization": payload.get("organization", ""),
+        "organizational_unit": payload.get("organizational_unit", ""),
+        "email": payload.get("email"),
+        "subject_alt_names": payload.get("subject_alt_names") or [],
+        "validity_days": payload.get("validity_days", 365),
+    }
+
+
+async def appliance_generate_self_signed(request: Request):
+    payload = await request.json()
+    try:
+        params = _ssl_params_from_payload(payload)
+        result = await generate_ssl_self_signed(
+            payload.get("host", ""),
+            payload.get("username", ""),
+            payload.get("password", ""),
+            params,
+        )
+        return JSONResponse({"success": True, "data": result})
+    except Exception as exc:
+        return JSONResponse({"success": False, "message": str(exc)})
+
+
 app = Starlette(
     routes=[
         Route("/health", endpoint=health),
@@ -133,6 +188,8 @@ app = Starlette(
         Route("/test/appliance", endpoint=test_appliance, methods=["POST"]),
         Route("/netscaler/system-info", endpoint=appliance_system_info, methods=["POST"]),
         Route("/netscaler/lb-vservers", endpoint=appliance_lb_vservers, methods=["POST"]),
+        Route("/netscaler/ssl/generate-csr", endpoint=appliance_generate_csr, methods=["POST"]),
+        Route("/netscaler/ssl/generate-self-signed", endpoint=appliance_generate_self_signed, methods=["POST"]),
         Route("/sse", endpoint=handle_sse),
         Mount("/messages", app=sse.handle_post_message),
     ]

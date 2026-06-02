@@ -4,7 +4,7 @@ from typing import Literal
 from pydantic import BaseModel, ConfigDict, Field
 
 
-ProviderType = Literal["OpenAI", "Anthropic", "Gemini", "Grok", "LM Studio", "OpenAI-Compatible"]
+ProviderType = Literal["OpenAI", "Anthropic", "Gemini", "Grok", "DeepSeek", "LM Studio", "OpenAI-Compatible"]
 
 
 class AIProviderCreate(BaseModel):
