@@ -1,0 +1,43 @@
+# Secrets and local env
+.env
+.env.local
+
+# TLS / SSL certificates (local deployment only — never commit private material)
+certs/
+ssl/*
+!ssl/README.md
+*.pem
+*.key
+*.crt
+*.cer
+*.p12
+*.pfx
+
+# Python
+__pycache__/
+*.py[cod]
+*.egg-info/
+.venv/
+venv/
+.pytest_cache/
+.mypy_cache/
+
+# Node / frontend
+node_modules/
+frontend/dist/
+frontend/.vite/
+
+# IDE and OS
+.DS_Store
+.idea/
+.vscode/
+*.swp
+.claude/
+
+# Logs and runtime
+*.log
+.coverage
+htmlcov/
+
+# Docker volumes (local data)
+mongodb_data/
