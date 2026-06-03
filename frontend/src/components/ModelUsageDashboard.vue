@@ -51,11 +51,11 @@
             unit="queries"
           />
         </div>
-        <p v-else class="usage-empty">Add a Brave Search API key under JPilot web search to track query usage.</p>
+        <p v-else class="usage-empty">Add a Brave Search API key under Settings → AI Providers to track query usage.</p>
       </div>
 
       <div v-if="!dashboard.providers.length" class="usage-empty-block">
-        No AI providers configured. Add providers under <strong>AI Providers</strong>.
+        No AI providers configured. Add LLM providers under Settings → AI Providers.
       </div>
 
       <div

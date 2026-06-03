@@ -105,10 +105,7 @@ const mainNavItems = computed(() => {
   const items = [
     { label: 'Dashboard', path: '/', icon: 'pi pi-home' },
     { label: 'JPilot', path: '/copilot', icon: 'pi pi-comments' },
-    { label: 'NetScalers', path: '/netscalers', icon: 'pi pi-server' },
-    { label: 'SSL Certificates', path: '/ssl-csr', icon: 'pi pi-shield' },
-    { label: 'AI Providers', path: '/ai-providers', icon: 'pi pi-sparkles' },
-    { label: 'Next-Gen API', path: '/next-gen-api', icon: 'pi pi-code' }
+    { label: 'NetScalers', path: '/netscalers', icon: 'pi pi-server' }
   ]
   if (currentUser.value?.role === 'admin') {
     items.push({ label: 'Users', path: '/users', icon: 'pi pi-users' })

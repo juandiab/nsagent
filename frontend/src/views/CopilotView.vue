@@ -39,13 +39,13 @@
             </button>
           </div>
         </div>
-        <Button v-tooltip.top="'JPilot settings'" icon="pi pi-cog" text rounded @click="router.push('/settings')" />
+        <Button v-tooltip.top="'Chat settings'" icon="pi pi-cog" text rounded @click="router.push('/settings?section=jpilot')" />
       </template>
     </PageHeader>
 
     <Message v-if="!ready" severity="warn" :closable="false" class="mb-3">
       No enabled AI provider found.
-      <RouterLink to="/ai-providers" class="ml-2">Configure AI Providers →</RouterLink>
+      <RouterLink to="/settings?section=ai-providers" class="ml-2">Configure AI Providers →</RouterLink>
     </Message>
 
     <div class="stage flex-1" :style="stageStyle">

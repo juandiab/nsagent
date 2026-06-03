@@ -2,16 +2,32 @@
   <div class="page">
     <PageHeader
       title="NetScalers"
-      subtitle="Manage your NetScaler appliance inventory"
-      searchable
+      :subtitle="headerSubtitle"
+      :searchable="activeTab === 'inventory'"
       v-model:search="searchQuery"
     >
-      <template #actions>
+      <template v-if="activeTab === 'inventory'" #actions>
         <Button label="Add NetScaler" icon="pi pi-plus" size="small" @click="openCreateDialog" />
       </template>
     </PageHeader>
 
-    <div class="content-panel">
+    <nav class="netscalers-nav">
+      <ul class="netscalers-nav-list">
+        <li
+          v-for="tab in tabs"
+          :key="tab.key"
+          class="netscalers-nav-item"
+          :class="{ 'is-active': activeTab === tab.key }"
+        >
+          <a class="netscalers-nav-link" @click="selectTab(tab.key)">
+            <i :class="[tab.icon, 'netscalers-nav-icon']" />
+            <span>{{ tab.label }}</span>
+          </a>
+        </li>
+      </ul>
+    </nav>
+
+    <div v-show="activeTab === 'inventory'" class="content-panel">
       <DataTable
         class="netscalers-table"
         :value="filteredAppliances"
@@ -96,6 +112,10 @@
           </template>
         </Column>
       </DataTable>
+    </div>
+
+    <div v-show="activeTab === 'ssl'">
+      <SslCsrPanel />
     </div>
 
     <Dialog
@@ -193,7 +213,8 @@
 </template>
 
 <script setup>
-import { computed, onMounted, reactive, ref } from 'vue'
+import { computed, onMounted, reactive, ref, watch } from 'vue'
+import { useRoute, useRouter } from 'vue-router'
 import { useConfirm } from 'primevue/useconfirm'
 import { useToast } from 'primevue/usetoast'
 import Button from 'primevue/button'
@@ -209,7 +230,38 @@ import Tag from 'primevue/tag'
 import Textarea from 'primevue/textarea'
 import ToggleSwitch from 'primevue/toggleswitch'
 import PageHeader from '../components/PageHeader.vue'
+import SslCsrPanel from '../components/SslCsrPanel.vue'
 import api from '../services/api'
+
+const route = useRoute()
+const router = useRouter()
+
+const tabs = [
+  { key: 'inventory', label: 'Inventory', icon: 'pi pi-server' },
+  { key: 'ssl', label: 'SSL Certificates', icon: 'pi pi-shield' }
+]
+const tabKeys = new Set(tabs.map((tab) => tab.key))
+const activeTab = ref('inventory')
+
+const headerSubtitle = computed(() =>
+  activeTab.value === 'ssl'
+    ? 'Generate a CSR for a CA or a self-signed certificate directly on your NetScaler'
+    : 'Manage your NetScaler appliance inventory'
+)
+
+function applyTabFromQuery() {
+  const tab = route.query.tab
+  if (typeof tab === 'string' && tabKeys.has(tab)) {
+    activeTab.value = tab
+  }
+}
+
+function selectTab(key) {
+  activeTab.value = key
+  router.replace({ query: { ...route.query, tab: key } })
+}
+
+watch(() => route.query.tab, applyTabFromQuery)
 
 const confirm = useConfirm()
 const toast = useToast()
@@ -457,12 +509,62 @@ function confirmDelete(appliance) {
   })
 }
 
-onMounted(loadAppliances)
+onMounted(() => {
+  applyTabFromQuery()
+  loadAppliances()
+})
 </script>
 
 <style scoped>
 .page {
   animation: page-in 0.35s ease;
+}
+
+.netscalers-nav {
+  border-bottom: 1px solid var(--p-content-border-color);
+  overflow-x: auto;
+  margin-bottom: 1.25rem;
+}
+
+.netscalers-nav-list {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: flex;
+  flex-direction: row;
+  white-space: nowrap;
+}
+
+.netscalers-nav-item {
+  border-bottom: 2px solid transparent;
+  margin-bottom: -1px;
+}
+
+.netscalers-nav-item.is-active {
+  border-bottom-color: var(--p-primary-color);
+}
+
+.netscalers-nav-link {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  padding: 0.75rem 1rem;
+  cursor: pointer;
+  font-weight: 500;
+  color: var(--p-text-muted-color);
+  transition: color 0.15s ease;
+}
+
+.netscalers-nav-item.is-active .netscalers-nav-link {
+  color: var(--p-primary-color);
+}
+
+.netscalers-nav-link:hover {
+  color: var(--p-text-color);
+}
+
+.netscalers-nav-icon {
+  font-size: 1rem;
 }
 
 .field-label {

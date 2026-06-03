@@ -1,96 +1,106 @@
 <template>
-  <div class="page">
-    <PageHeader
-      title="AI Providers"
-      subtitle="Configure LLM providers for intelligent automation"
-      searchable
-      v-model:search="searchQuery"
-    >
-      <template #actions>
-        <Button label="Add Provider" icon="pi pi-plus" size="small" @click="openCreateDialog" />
-      </template>
-    </PageHeader>
-
-    <AiSectionNav />
-
-    <div class="content-panel ai-providers-panel">
-      <DataTable
-        class="ai-providers-table"
-        :value="filteredProviders"
-        :loading="loading"
-        striped-rows
-        paginator
-        :rows="10"
-        :rows-per-page-options="[10, 25, 50]"
-        empty-message="No AI providers configured. Add one to enable intelligent features."
-      >
-        <Column field="providerName" header="Provider Name" sortable />
-        <Column field="providerType" header="Type" sortable>
-          <template #body="{ data }">
-            <Tag :value="data.providerType" severity="info" />
-          </template>
-        </Column>
-        <Column field="model" header="Model" sortable />
-        <Column header="Status">
-          <template #body="{ data }">
-            <Tag
-              :value="data.enabled ? 'Enabled' : 'Disabled'"
-              :severity="data.enabled ? 'success' : 'secondary'"
-            />
-          </template>
-        </Column>
-        <Column header="Default">
-          <template #body="{ data }">
-            <Tag v-if="data.isDefault" value="Default" severity="warn" icon="pi pi-star-fill" />
-          </template>
-        </Column>
-        <Column headerClass="actions-col" bodyClass="actions-col" style="min-width: 12rem">
-          <template #header>
-            <span class="actions-header">Actions</span>
-          </template>
-          <template #body="{ data }">
-            <div class="actions-cell flex gap-1">
-              <Button
-                v-tooltip="tooltip('Test connection')"
-                icon="pi pi-bolt"
-                text
-                rounded
-                size="small"
-                severity="info"
-                :loading="testingId === data.id"
-                @click="testProvider(data)"
-              />
-              <Button
-                v-tooltip="tooltip('Edit')"
-                icon="pi pi-pencil"
-                text
-                rounded
-                size="small"
-                @click="openEditDialog(data)"
-              />
-              <Button
-                v-tooltip="tooltip('Set as default')"
-                icon="pi pi-star"
-                text
-                rounded
-                size="small"
-                :disabled="data.isDefault"
-                @click="setDefault(data)"
-              />
-              <Button
-                v-tooltip="tooltip('Delete')"
-                icon="pi pi-trash"
-                text
-                rounded
-                size="small"
-                severity="danger"
-                @click="confirmDelete(data)"
-              />
-            </div>
-          </template>
-        </Column>
-      </DataTable>
+  <div class="content-panel content-panel-padded ai-providers-panel">
+    <div class="panel-intro flex align-items-start justify-content-between gap-3 flex-wrap">
+      <div>
+        <div class="panel-eyebrow">
+          <Tag value="LLM" severity="info" icon="pi pi-sparkles" />
+          <span>Language models</span>
+        </div>
+        <h2 class="section-title mt-2">AI providers</h2>
+        <p class="section-copy">
+          Connect OpenAI, Anthropic, Gemini, Grok, DeepSeek, LM Studio, or compatible endpoints.
+          These models power JPilot chat, reasoning, and tool use.
+        </p>
+      </div>
+      <div class="panel-toolbar flex align-items-center gap-2 flex-wrap">
+        <IconField icon-position="left" class="search-field">
+          <InputIcon class="pi pi-search" />
+          <InputText v-model="searchQuery" placeholder="Search providers…" />
+        </IconField>
+        <Button label="Add provider" icon="pi pi-plus" size="small" @click="openCreateDialog" />
+      </div>
     </div>
+
+    <Message v-if="loadError" severity="error" :closable="false" class="mt-3">
+      {{ loadError }}
+    </Message>
+
+    <DataTable
+      class="ai-providers-table mt-4"
+      :value="filteredProviders"
+      :loading="loading"
+      striped-rows
+      paginator
+      :rows="10"
+      :rows-per-page-options="[10, 25, 50]"
+      empty-message="No AI providers configured. Add one to enable JPilot."
+    >
+      <Column field="providerName" header="Provider Name" sortable />
+      <Column field="providerType" header="Type" sortable>
+        <template #body="{ data }">
+          <Tag :value="data.providerType" severity="info" />
+        </template>
+      </Column>
+      <Column field="model" header="Model" sortable />
+      <Column header="Status">
+        <template #body="{ data }">
+          <Tag
+            :value="data.enabled ? 'Enabled' : 'Disabled'"
+            :severity="data.enabled ? 'success' : 'secondary'"
+          />
+        </template>
+      </Column>
+      <Column header="Default">
+        <template #body="{ data }">
+          <Tag v-if="data.isDefault" value="Default" severity="warn" icon="pi pi-star-fill" />
+        </template>
+      </Column>
+      <Column headerClass="actions-col" bodyClass="actions-col" style="min-width: 12rem">
+        <template #header>
+          <span class="actions-header">Actions</span>
+        </template>
+        <template #body="{ data }">
+          <div class="actions-cell flex gap-1">
+            <Button
+              v-tooltip="tooltip('Test connection')"
+              icon="pi pi-bolt"
+              text
+              rounded
+              size="small"
+              severity="info"
+              :loading="testingId === data.id"
+              @click="testProvider(data)"
+            />
+            <Button
+              v-tooltip="tooltip('Edit')"
+              icon="pi pi-pencil"
+              text
+              rounded
+              size="small"
+              @click="openEditDialog(data)"
+            />
+            <Button
+              v-tooltip="tooltip('Set as default')"
+              icon="pi pi-star"
+              text
+              rounded
+              size="small"
+              :disabled="data.isDefault"
+              @click="setDefault(data)"
+            />
+            <Button
+              v-tooltip="tooltip('Delete')"
+              icon="pi pi-trash"
+              text
+              rounded
+              size="small"
+              severity="danger"
+              @click="confirmDelete(data)"
+            />
+          </div>
+        </template>
+      </Column>
+    </DataTable>
 
     <Dialog
       v-model:visible="dialogVisible"
@@ -204,14 +214,14 @@ import Button from 'primevue/button'
 import Column from 'primevue/column'
 import DataTable from 'primevue/datatable'
 import Dialog from 'primevue/dialog'
+import IconField from 'primevue/iconfield'
+import InputIcon from 'primevue/inputicon'
 import InputText from 'primevue/inputtext'
 import Message from 'primevue/message'
 import Password from 'primevue/password'
 import Select from 'primevue/select'
 import Tag from 'primevue/tag'
 import ToggleSwitch from 'primevue/toggleswitch'
-import PageHeader from '../components/PageHeader.vue'
-import AiSectionNav from '../components/AiSectionNav.vue'
 import { getProviderHint } from '../config/aiProviders'
 import api from '../services/api'
 
@@ -220,6 +230,7 @@ const toast = useToast()
 
 const providers = ref([])
 const loading = ref(false)
+const loadError = ref('')
 const saving = ref(false)
 const testingId = ref(null)
 const testingDialog = ref(false)
@@ -264,11 +275,14 @@ const filteredProviders = computed(() => {
 
 async function loadProviders() {
   loading.value = true
+  loadError.value = ''
   try {
     const { data } = await api.get('/ai-providers')
-    providers.value = data
-  } catch {
-    toast.add({ severity: 'error', summary: 'Error', detail: 'Failed to load AI providers', life: 3000 })
+    providers.value = Array.isArray(data) ? data : []
+  } catch (error) {
+    loadError.value = error.response?.data?.detail || 'Failed to load AI providers from the server'
+    providers.value = []
+    toast.add({ severity: 'error', summary: 'Error', detail: loadError.value, life: 5000 })
   } finally {
     loading.value = false
   }
@@ -508,8 +522,36 @@ onMounted(loadProviders)
 </script>
 
 <style scoped>
-.page {
-  animation: page-in 0.35s ease;
+.section-title {
+  font-size: 1.125rem;
+  font-weight: 600;
+  margin: 0;
+}
+
+.section-copy {
+  margin: 0.35rem 0 0;
+  color: var(--p-text-muted-color);
+  font-size: 0.875rem;
+  max-width: 42rem;
+}
+
+.panel-eyebrow {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  font-size: 0.75rem;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+  color: var(--p-text-muted-color);
+}
+
+.panel-toolbar {
+  flex-shrink: 0;
+}
+
+.search-field {
+  min-width: 12rem;
 }
 
 .field-label {
@@ -544,16 +586,5 @@ onMounted(loadProviders)
 .actions-cell {
   min-height: 2rem;
   align-items: center;
-}
-
-@keyframes page-in {
-  from {
-    opacity: 0;
-    transform: translateY(8px);
-  }
-  to {
-    opacity: 1;
-    transform: translateY(0);
-  }
 }
 </style>

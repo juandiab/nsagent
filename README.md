@@ -6,7 +6,7 @@ Repository: [github.com/juandiab/nsagent](https://github.com/juandiab/nsagent)
 
 > **Disclaimer:** JPilot is an independent project and is not affiliated with, endorsed by, or sponsored by Citrix Systems, Inc. NetScaler is a trademark of Citrix Systems, Inc.
 
-**Current release:** `v0.05` — guided LB forms, memory gates, SSL CSR tools, password reset, expanded LLM providers, CLI reference upgrades, and JPilot UX improvements.
+**Current release:** `v0.06` — consolidated Settings hub (MCP, Chat, AI Providers, Next-Gen API, Security, Legal), SSL tools under NetScalers, slimmer navigation, MCP catalog sync, and nginx rate-limit fix.
 
 ## Features
 
@@ -23,9 +23,22 @@ Repository: [github.com/juandiab/nsagent](https://github.com/juandiab/nsagent)
 - **User management** — admin CRUD for users (roles `admin` / `user`), email for resets, initial password on create, passkey count and removal.
 - **SSL certificate tools** — generate CSRs or self-signed certificates on the appliance (UI + API + MCP).
 - **NetScaler diagnostics** — ICMP ping/traceroute, TCP port reachability via telnet from the appliance shell, and read-only `nsconmsg` performance/event collection.
-- **Optional Brave Search** — domain-restricted web augmentation when local memory/docs are weak (Settings → Platform).
+- **Optional Brave Search** — domain-restricted web augmentation when local memory/docs are weak (Settings → AI Providers).
 - **Dashboard shortcuts** — recommended JPilot prompts and links (health summary, list IPs/vservers, diagnostics, guided LB).
-- **Model usage dashboard** — Settings sidebar shows monthly LLM token/request usage and Brave Search query usage with progress bars (tracked locally per calendar month).
+- **Model usage dashboard** — Settings → AI Providers shows monthly LLM token/request usage and Brave Search query usage with progress bars (tracked locally per calendar month).
+
+## What's new in v0.06
+
+| Area | Highlights |
+|------|------------|
+| **Settings hub** | Single Settings page with tabs: MCP Server, Chat, AI Providers, Next-Gen API, Security, Legal. |
+| **AI Providers** | LLM provider CRUD and Brave Search (visually separate from LLMs) moved from the main menu; usage dashboard lives in the same tab. |
+| **Next-Gen API** | Connection and reference panel moved to Settings → Next-Gen API (`/next-gen-api` redirects). |
+| **NetScalers** | SSL Certificate Tools moved to NetScalers → SSL Certificates tab (`/ssl-csr` redirects). |
+| **Navigation** | Slimmer sidebar: Dashboard, JPilot, NetScalers, Settings (+ Users for admins). |
+| **MCP catalog** | Settings tool list synced with server — Next-Gen request, diagnostics, telnet, nsconmsg, CSR generation. |
+| **Performance** | nginx API rate limit raised (`30r/s`, burst 60) to prevent 503s when Settings loads multiple endpoints. |
+| **Fixes** | Settings lazy-loads section data on tab switch; route redirects for moved pages. |
 
 ## What's new in v0.05
 
@@ -134,13 +147,12 @@ To reconfigure an existing install (overwrites `.env`):
 
 After first login:
 
-   - **NetScalers** — add your appliance (name, host, API/SSH user and password).
-   - **AI Providers** — add an LLM provider and set it as default.
-   - **Settings → MCP** — tool toggles, **SSH fallback** (required for diagnostics and SSL shell), timeouts.
-   - **Settings → Platform** — optional Brave Search API key for JPilot doc augmentation.
+   - **NetScalers** — add your appliance (name, host, API/SSH user and password); **SSL Certificates** tab for CSR/self-signed generation.
+   - **Settings → AI Providers** — add an LLM provider, set default, configure optional Brave Search, and view usage.
+   - **Settings → MCP Server** — tool toggles, **SSH fallback** (required for diagnostics and SSL shell), SMTP, timeouts.
+   - **Settings → Next-Gen API** — test Next-Gen connection and browse API reference.
    - **Settings → Security** — register an optional passkey after password login.
    - **Users** (admin) — create users with email (for password reset) and initial passwords.
-   - **SSL Certificate Tools** — generate CSR or self-signed cert on an appliance.
    - **JPilot** — select an appliance and ask questions or request changes.
 
 ### Manual setup (advanced)

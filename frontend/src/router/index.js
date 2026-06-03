@@ -7,9 +7,6 @@ import LoginView from '../views/LoginView.vue'
 import LegalView from '../views/LegalView.vue'
 import ResetPasswordView from '../views/ResetPasswordView.vue'
 import NetScalersView from '../views/NetScalersView.vue'
-import AIProvidersView from '../views/AIProvidersView.vue'
-import NextGenApiView from '../views/NextGenApiView.vue'
-import SslCsrView from '../views/SslCsrView.vue'
 import SettingsView from '../views/SettingsView.vue'
 import PricingView from '../views/PricingView.vue'
 import UsersView from '../views/UsersView.vue'
@@ -42,9 +39,9 @@ const router = createRouter({
         { path: '', name: 'dashboard', component: DashboardView },
         { path: 'copilot', name: 'copilot', component: CopilotView },
         { path: 'netscalers', name: 'netscalers', component: NetScalersView },
-        { path: 'ssl-csr', name: 'ssl-csr', component: SslCsrView },
-        { path: 'ai-providers', name: 'ai-providers', component: AIProvidersView },
-        { path: 'next-gen-api', name: 'next-gen-api', component: NextGenApiView },
+        { path: 'ssl-csr', redirect: { path: '/netscalers', query: { tab: 'ssl' } } },
+        { path: 'ai-providers', redirect: { path: '/settings', query: { section: 'ai-providers' } } },
+        { path: 'next-gen-api', redirect: { path: '/settings', query: { section: 'nextgen' } } },
         { path: 'users', name: 'users', component: UsersView, meta: { requiresAdmin: true } },
         { path: 'plans', name: 'plans', component: PricingView },
         { path: 'settings', name: 'settings', component: SettingsView }

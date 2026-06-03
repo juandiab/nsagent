@@ -100,14 +100,14 @@ export const jpilotRecommendedGroups = [
         label: 'Open SSL certificate tools',
         icon: 'pi pi-shield',
         type: 'link',
-        to: '/ssl-csr'
+        to: '/netscalers?tab=ssl'
       },
       {
         id: 'self-signed',
         label: 'Generate a self-signed cert for testing',
         icon: 'pi pi-key',
         type: 'link',
-        to: '/ssl-csr'
+        to: '/netscalers?tab=ssl'
       },
       {
         id: 'show-certkeys',
@@ -159,8 +159,8 @@ export function flattenRecommendedActions(groups = jpilotRecommendedGroups) {
 
 export const dashboardQuickActions = [
   { label: 'Open JPilot', icon: 'pi pi-comments', to: '/copilot' },
-  { label: 'SSL certificates', icon: 'pi pi-shield', to: '/ssl-csr' },
+  { label: 'SSL certificates', icon: 'pi pi-shield', to: '/netscalers?tab=ssl' },
   { label: 'Add NetScaler', icon: 'pi pi-server', to: '/netscalers' },
-  { label: 'AI providers', icon: 'pi pi-sparkles', to: '/ai-providers' },
-  { label: 'Next-Gen API', icon: 'pi pi-code', to: '/next-gen-api' }
+  { label: 'AI providers', icon: 'pi pi-sparkles', to: '/settings?section=ai-providers' },
+  { label: 'Next-Gen API', icon: 'pi pi-code', to: '/settings?section=nextgen' }
 ]

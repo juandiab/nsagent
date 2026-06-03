@@ -49,7 +49,7 @@
         <div class="stat-card">
           <div class="stat-label">AI Providers</div>
           <div class="stat-value">{{ stats.providers }}</div>
-          <RouterLink to="/ai-providers" class="stat-link">Configure providers →</RouterLink>
+          <RouterLink to="/settings?section=ai-providers" class="stat-link">Configure providers →</RouterLink>
         </div>
       </div>
       <div class="col-12 md:col-4">

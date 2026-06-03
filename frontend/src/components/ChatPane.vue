@@ -132,7 +132,7 @@
           </div>
         </div>
 
-        <p v-if="!ready" class="glass-hint">No enabled AI provider — configure one in AI Providers.</p>
+        <p v-if="!ready" class="glass-hint">No enabled language model — configure one in Settings → AI Providers.</p>
       </div>
     </div>
 

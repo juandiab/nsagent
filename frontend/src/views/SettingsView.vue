@@ -15,7 +15,7 @@
             class="settings-nav-item"
             :class="{ 'is-active': activeSection === section.key }"
           >
-            <a class="settings-nav-link" @click="activeSection = section.key">
+            <a class="settings-nav-link" @click="selectSection(section.key)">
               <i :class="[section.icon, 'settings-nav-icon']" />
               <span>{{ section.label }}</span>
             </a>
@@ -26,7 +26,7 @@
       <!-- Section content -->
       <div class="settings-content">
         <!-- MCP Server -->
-        <section v-show="activeSection === 'mcp'" class="grid">
+        <section v-if="activeSection === 'mcp'" key="mcp" class="grid">
           <div class="col-12 lg:col-8 flex flex-column gap-4">
             <div class="content-panel content-panel-padded">
               <div class="flex align-items-start justify-content-between gap-3 flex-wrap">
@@ -245,8 +245,8 @@
           </div>
         </section>
 
-        <!-- JPilot -->
-        <section v-show="activeSection === 'jpilot'" class="grid">
+        <!-- Chat (JPilot attachments) -->
+        <section v-if="activeSection === 'jpilot'" key="jpilot" class="grid">
           <div class="col-12 lg:col-8 flex flex-column gap-4">
             <div class="content-panel content-panel-padded">
               <h2 class="section-title">Attachments</h2>
@@ -281,92 +281,6 @@
                 </div>
               </div>
             </div>
-
-            <div class="content-panel content-panel-padded">
-              <h2 class="section-title">Web search</h2>
-              <p class="section-copy">
-                JPilot always searches the official Next-Gen API getting started guide. Optionally enable Brave Search for additional web results.
-              </p>
-
-              <div class="flex flex-column gap-4 mt-4">
-                <div class="flex align-items-center justify-content-between gap-3 setting-row">
-                  <div>
-                    <div class="setting-label">Enable web search for Next-Gen API docs</div>
-                    <div class="setting-hint">Adds broader internet results alongside the official guide.</div>
-                  </div>
-                  <ToggleSwitch v-model="platformSettings.allowWebSearch" />
-                </div>
-
-                <div class="flex flex-column gap-2 setting-row">
-                  <label for="braveApiKey" class="setting-label">Brave Search API key</label>
-                  <Password
-                    id="braveApiKey"
-                    v-model="platformSettings.braveSearchApiKey"
-                    class="w-full"
-                    :feedback="false"
-                    toggle-mask
-                    input-class="w-full"
-                    :placeholder="platformSettings.hasBraveSearchApiKey ? 'Saved — enter a new key to replace' : 'BSA...'"
-                  />
-                  <small class="setting-hint">
-                    Get a key from <a href="https://brave.com/search/api/" target="_blank" rel="noopener">Brave Search API</a>.
-                    Stored encrypted on the backend.
-                  </small>
-                </div>
-
-                <div class="flex flex-column gap-2 setting-row">
-                  <div class="setting-label">Allowed domains</div>
-                  <div class="setting-hint">
-                    Web search results are restricted to these domains. The official NetScaler/Citrix
-                    domains are always included; add your own internal doc sites below.
-                  </div>
-                  <div class="domain-chips">
-                    <span v-for="d in lockedDomains" :key="d" class="domain-chip domain-chip-locked">
-                      <i class="pi pi-lock" /> {{ d }}
-                    </span>
-                    <span v-for="d in platformSettings.extraDomains" :key="d" class="domain-chip">
-                      {{ d }}
-                      <button type="button" class="domain-remove" @click="removeDomain(d)">
-                        <i class="pi pi-times" />
-                      </button>
-                    </span>
-                  </div>
-                  <div class="flex gap-2">
-                    <InputText
-                      v-model="newDomain"
-                      class="flex-1"
-                      placeholder="e.g. docs.internal.example.com"
-                      @keydown.enter.prevent="addDomain"
-                    />
-                    <Button label="Add" icon="pi pi-plus" size="small" severity="secondary" outlined @click="addDomain" />
-                  </div>
-                  <small class="setting-hint">Remember to save after editing domains.</small>
-                </div>
-
-                <div class="flex gap-2 pt-2">
-                  <Button
-                    label="Save web search settings"
-                    icon="pi pi-save"
-                    size="small"
-                    :loading="platformSaving"
-                    @click="savePlatformSettings"
-                  />
-                  <Button
-                    label="Test search"
-                    icon="pi pi-bolt"
-                    size="small"
-                    severity="secondary"
-                    outlined
-                    :loading="platformTesting"
-                    @click="testPlatformSearch"
-                  />
-                </div>
-
-                <Message v-if="platformMessage" :severity="platformMessageSeverity" :closable="false">
-                  {{ platformMessage }}
-                </Message>
-              </div>
-            </div>
           </div>
 
           <div class="col-12 lg:col-4">
@@ -375,14 +289,28 @@
               <ul class="info-list m-0 pl-3">
                 <li>Attach NetScaler configs for analysis or troubleshooting.</li>
                 <li>Attach screenshots of errors, dashboards, or topology diagrams.</li>
-                <li>Vision support depends on your default AI provider and model.</li>
+                <li>Vision support depends on your default language model.</li>
               </ul>
             </div>
           </div>
         </section>
 
+        <!-- AI Providers -->
+        <section v-if="activeSection === 'ai-providers'" key="ai-providers" class="flex flex-column gap-4">
+          <AIProvidersPanel />
+          <BraveSearchPanel @usage-changed="refreshUsageDashboard" />
+          <div class="content-panel content-panel-padded">
+            <ModelUsageDashboard ref="usageDashboardRef" />
+          </div>
+        </section>
+
+        <!-- Next-Gen API -->
+        <section v-if="activeSection === 'nextgen'" key="nextgen">
+          <NextGenApiPanel />
+        </section>
+
         <!-- Security -->
-        <section v-show="activeSection === 'security'" class="grid">
+        <section v-if="activeSection === 'security'" key="security" class="grid">
           <div class="col-12 lg:col-8">
             <div class="content-panel content-panel-padded">
               <h2 class="section-title">Security</h2>
@@ -423,7 +351,7 @@
         </section>
 
         <!-- Legal -->
-        <section v-show="activeSection === 'legal'" class="grid">
+        <section v-if="activeSection === 'legal'" key="legal" class="grid">
           <div class="col-12 lg:col-8">
             <div class="content-panel content-panel-padded">
               <h2 class="section-title">Legal</h2>
@@ -456,22 +384,14 @@
             </div>
           </div>
         </section>
-
-        <!-- Usage -->
-        <section v-show="activeSection === 'usage'" class="grid">
-          <div class="col-12 lg:col-8">
-            <div class="content-panel content-panel-padded info-panel">
-              <ModelUsageDashboard ref="usageDashboardRef" />
-            </div>
-          </div>
-        </section>
       </div>
     </div>
   </div>
 </template>
 
 <script setup>
-import { computed, onMounted, reactive, ref } from 'vue'
+import { computed, onMounted, reactive, ref, watch } from 'vue'
+import { useRoute, useRouter } from 'vue-router'
 import Button from 'primevue/button'
 import InputNumber from 'primevue/inputnumber'
 import InputText from 'primevue/inputtext'
@@ -484,42 +404,69 @@ import Tag from 'primevue/tag'
 import ToggleSwitch from 'primevue/toggleswitch'
 import PageHeader from '../components/PageHeader.vue'
 import ModelUsageDashboard from '../components/ModelUsageDashboard.vue'
+import NextGenApiPanel from '../components/NextGenApiPanel.vue'
+import AIProvidersPanel from '../components/AIProvidersPanel.vue'
+import BraveSearchPanel from '../components/BraveSearchPanel.vue'
 import { getCopilotSettings, saveCopilotSettings } from '../services/copilot'
-import {
-  getCopilotPlatformSettings,
-  saveCopilotPlatformSettings,
-  testCopilotPlatformSearch
-} from '../services/copilotPlatform'
 import { getMcpConfig, getMcpStatus, saveMcpConfig } from '../services/mcp'
 import { getSmtpConfig, saveSmtpConfig, testSmtpConfig } from '../services/smtp'
 import api from '../services/api'
 import { getStoredUser } from '../services/auth'
 import { fetchPasskeyStatus, passkeyErrorMessage, registerPasskey } from '../services/webauthn'
 
+const route = useRoute()
+const router = useRouter()
+
 const sections = [
   { key: 'mcp', label: 'MCP Server', icon: 'pi pi-server' },
-  { key: 'jpilot', label: 'JPilot', icon: 'pi pi-comments' },
+  { key: 'jpilot', label: 'Chat', icon: 'pi pi-comments' },
+  { key: 'ai-providers', label: 'AI Providers', icon: 'pi pi-sparkles' },
+  { key: 'nextgen', label: 'Next-Gen API', icon: 'pi pi-code' },
   { key: 'security', label: 'Security', icon: 'pi pi-shield' },
-  { key: 'usage', label: 'Usage', icon: 'pi pi-chart-bar' },
   { key: 'legal', label: 'Legal', icon: 'pi pi-book' }
 ]
+const sectionKeys = new Set(sections.map((section) => section.key))
 const activeSection = ref('mcp')
+
+function applySectionFromQuery() {
+  const section = route.query.section
+  if (section === 'usage') {
+    activeSection.value = 'ai-providers'
+    return
+  }
+  if (typeof section === 'string' && sectionKeys.has(section)) {
+    activeSection.value = section
+  }
+}
+
+function selectSection(key) {
+  activeSection.value = key
+  router.replace({ query: { ...route.query, section: key } })
+}
+
+watch(() => route.query.section, applySectionFromQuery)
+
+const loadedSections = ref(new Set())
+
+async function ensureSectionLoaded(section) {
+  if (section === 'mcp' && !loadedSections.value.has('mcp')) {
+    await Promise.all([loadMcpConfig(), loadSmtpSettings()])
+    loadedSections.value.add('mcp')
+  }
+  if (section === 'security' && !loadedSections.value.has('security')) {
+    await loadPasskeyStatus()
+    loadedSections.value.add('security')
+  }
+}
+
+watch(activeSection, (section) => {
+  ensureSectionLoaded(section)
+})
+
+applySectionFromQuery()
 
 const maxAttachmentOptions = [1, 2, 3, 4, 5, 6, 7, 8, 9, 10]
 const copilotSettings = reactive(getCopilotSettings())
-
-const platformSaving = ref(false)
-const platformTesting = ref(false)
-const platformMessage = ref('')
-const platformMessageSeverity = ref('info')
-const platformSettings = reactive({
-  allowWebSearch: false,
-  hasBraveSearchApiKey: false,
-  braveSearchApiKey: '',
-  extraDomains: []
-})
-const lockedDomains = ref([])
-const newDomain = ref('')
 
 const mcpLoading = ref(true)
 const mcpSaving = ref(false)
@@ -655,85 +602,8 @@ function saveCopilotPrefs() {
   saveCopilotSettings({ ...copilotSettings })
 }
 
-async function loadPlatformSettings() {
-  try {
-    const settings = await getCopilotPlatformSettings()
-    Object.assign(platformSettings, {
-      allowWebSearch: settings.allowWebSearch,
-      hasBraveSearchApiKey: settings.hasBraveSearchApiKey,
-      braveSearchApiKey: '',
-      extraDomains: [...(settings.extraDomains || [])]
-    })
-    lockedDomains.value = settings.lockedDomains || []
-  } catch (error) {
-    platformMessage.value = error.response?.data?.detail || 'Failed to load web search settings'
-    platformMessageSeverity.value = 'error'
-  }
-}
-
-async function savePlatformSettings() {
-  platformSaving.value = true
-  platformMessage.value = ''
-  try {
-    const payload = {
-      allowWebSearch: platformSettings.allowWebSearch,
-      braveSearchApiKey: platformSettings.braveSearchApiKey || null,
-      extraDomains: platformSettings.extraDomains
-    }
-    const saved = await saveCopilotPlatformSettings(payload)
-    Object.assign(platformSettings, {
-      allowWebSearch: saved.allowWebSearch,
-      hasBraveSearchApiKey: saved.hasBraveSearchApiKey,
-      braveSearchApiKey: '',
-      extraDomains: [...(saved.extraDomains || [])]
-    })
-    lockedDomains.value = saved.lockedDomains || []
-    platformMessage.value = 'Web search settings saved.'
-    platformMessageSeverity.value = 'success'
-    usageDashboardRef.value?.refresh?.()
-  } catch (error) {
-    platformMessage.value = error.response?.data?.detail || 'Failed to save web search settings'
-    platformMessageSeverity.value = 'error'
-  } finally {
-    platformSaving.value = false
-  }
-}
-
-function addDomain() {
-  let d = (newDomain.value || '').trim().toLowerCase()
-  d = d.replace(/^https?:\/\//, '').split('/')[0].replace(/^\.+|\.+$/g, '')
-  if (!d) return
-  if (lockedDomains.value.includes(d) || platformSettings.extraDomains.includes(d)) {
-    newDomain.value = ''
-    return
-  }
-  platformSettings.extraDomains.push(d)
-  newDomain.value = ''
-}
-
-function removeDomain(domain) {
-  platformSettings.extraDomains = platformSettings.extraDomains.filter((d) => d !== domain)
-}
-
-async function testPlatformSearch() {
-  platformTesting.value = true
-  platformMessage.value = ''
-  try {
-    const result = await testCopilotPlatformSearch({
-      allowWebSearch: platformSettings.allowWebSearch,
-      braveSearchApiKey: platformSettings.braveSearchApiKey || null
-    })
-    platformMessage.value = result.message
-    platformMessageSeverity.value = result.success ? 'success' : 'error'
-    if (result.success) {
-      usageDashboardRef.value?.refresh?.()
-    }
-  } catch (error) {
-    platformMessage.value = error.response?.data?.detail || 'Brave Search test failed'
-    platformMessageSeverity.value = 'error'
-  } finally {
-    platformTesting.value = false
-  }
+function refreshUsageDashboard() {
+  usageDashboardRef.value?.refresh?.()
 }
 
 async function refreshMcpStatus() {
@@ -886,7 +756,7 @@ async function testSmtpSettings() {
 }
 
 onMounted(async () => {
-  await Promise.all([loadMcpConfig(), loadSmtpSettings(), loadPlatformSettings(), loadPasskeyStatus()])
+  await ensureSectionLoaded(activeSection.value)
 })
 </script>
 
@@ -1044,39 +914,5 @@ onMounted(async () => {
     opacity: 1;
     transform: translateY(0);
   }
-}
-
-.domain-chips {
-  display: flex;
-  flex-wrap: wrap;
-  gap: 0.5rem;
-}
-
-.domain-chip {
-  display: inline-flex;
-  align-items: center;
-  gap: 0.35rem;
-  padding: 0.25rem 0.6rem;
-  border-radius: 999px;
-  font-size: 0.8125rem;
-  background: var(--p-primary-50);
-  color: var(--p-primary-700);
-  border: 1px solid var(--p-primary-200);
-}
-
-.domain-chip-locked {
-  background: var(--p-surface-100);
-  color: var(--p-text-muted-color);
-  border-color: var(--p-content-border-color);
-}
-
-.domain-remove {
-  border: 0;
-  background: transparent;
-  color: inherit;
-  cursor: pointer;
-  padding: 0;
-  display: inline-flex;
-  font-size: 0.7rem;
 }
 </style>
