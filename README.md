@@ -67,49 +67,41 @@ Repository: [github.com/juandiab/nsagent](https://github.com/juandiab/nsagent)
 - Docker and Docker Compose
 - NetScaler ADC with **Next-Gen API** enabled (`enable ns nextgenapi`) for API tools
 - SSH access to the appliance for classic CLI and diagnostic tools (port 22)
-- Python 3.12+ (optional, only to generate a Fernet key locally)
 - SMTP server (optional, for password reset emails)
 
 ## Quick start
 
-1. **Generate an encryption key**
+The web installer handles everything — secrets, TLS certificate, and `.env` are
+generated for you. From the project root:
 
-   ```bash
-   python3 -c "from cryptography.fernet import Fernet; print(Fernet.generate_key().decode())"
-   ```
+```bash
+./install.sh
+```
 
-2. **Configure environment**
+Then:
 
-   ```bash
-   cp .env.example .env
-   ```
+1. Open **https://localhost:9443** (the installer uses a self-signed certificate, so
+   accept the one-time browser warning).
+2. Complete the wizard: admin account, domain, TLS (self-signed or your own cert), and
+   optional SMTP.
+3. On the **Review** step, **save the generated `NSAGENT_ENCRYPTION_KEY`** — it is
+   required to restore or migrate the install and cannot be recovered.
+4. Click **Install JPilot**. The wizard writes `.env` and `nginx/ssl/`, and your
+   terminal automatically launches the full stack.
+5. Open **https://&lt;your-domain&gt;** and sign in with the admin account you created.
 
-   Edit `.env`:
+To reconfigure an existing install (overwrites `.env`):
 
-   | Variable                 | Description                          |
-   |--------------------------|--------------------------------------|
-   | `NSAGENT_ENCRYPTION_KEY` | Fernet key for appliance credentials |
-   | `JWT_SECRET_KEY`         | Secret for session JWTs              |
-   | `ADMIN_USERNAME`         | Initial admin user (seeded once)     |
-   | `ADMIN_PASSWORD`         | Initial admin password               |
-   | `WEBAUTHN_RP_ID`         | WebAuthn RP ID (usually `localhost` or your hostname) |
-   | `WEBAUTHN_ORIGIN`        | Exact UI origin (e.g. `http://localhost:5173`) |
-   | `CORS_ORIGINS`           | Comma-separated allowed browser origins |
-   | `SMTP_*`                 | Optional — required for email password reset |
-   | `PASSWORD_RESET_LOG_CODES` | Dev only: log reset codes to backend logs |
+```bash
+./install.sh --reconfigure
+```
 
-3. **Start the stack**
+> The installer generates `NSAGENT_ENCRYPTION_KEY` (Fernet) and `JWT_SECRET_KEY`
+> automatically and derives the WebAuthn, CORS, and API-URL settings from the domain
+> you choose. See [Manual setup](#manual-setup-advanced) below if you prefer to
+> configure `.env` by hand.
 
-   ```bash
-   docker compose up --build
-   ```
-
-4. **Open the UI**
-
-   - App: [http://localhost:5173](http://localhost:5173) or [http://127.0.0.1:5173](http://127.0.0.1:5173)
-   - Default login: `admin` / `admin` (change via `.env` before first run)
-
-5. **Configure**
+After first login:
 
    - **NetScalers** — add your appliance (name, host, API/SSH user and password).
    - **AI Providers** — add an LLM provider and set it as default.
@@ -119,6 +111,36 @@ Repository: [github.com/juandiab/nsagent](https://github.com/juandiab/nsagent)
    - **Users** (admin) — create users with email (for password reset) and initial passwords.
    - **SSL Certificate Tools** — generate CSR or self-signed cert on an appliance.
    - **JPilot** — select an appliance and ask questions or request changes.
+
+### Manual setup (advanced)
+
+Prefer to configure things by hand instead of the wizard? You can:
+
+1. **Generate an encryption key**
+
+   ```bash
+   python3 -c "from cryptography.fernet import Fernet; print(Fernet.generate_key().decode())"
+   ```
+
+2. **Configure environment** — `cp .env.example .env` and edit:
+
+   | Variable                 | Description                          |
+   |--------------------------|--------------------------------------|
+   | `NSAGENT_ENCRYPTION_KEY` | Fernet key for appliance credentials |
+   | `JWT_SECRET_KEY`         | Secret for session JWTs              |
+   | `ADMIN_USERNAME`         | Initial admin user (seeded once)     |
+   | `ADMIN_PASSWORD`         | Initial admin password               |
+   | `NGINX_HOSTNAME`         | Public hostname for nginx TLS        |
+   | `WEBAUTHN_RP_ID`         | WebAuthn RP ID (usually your hostname or `localhost`) |
+   | `WEBAUTHN_ORIGIN`        | Exact UI origin (e.g. `https://your-domain`) |
+   | `CORS_ORIGINS`           | Comma-separated allowed browser origins |
+   | `SMTP_*`                 | Optional — required for email password reset |
+   | `PASSWORD_RESET_LOG_CODES` | Dev only: log reset codes to backend logs |
+
+3. **Provide TLS certificates** — place `cert.crt` and `cert.key` in `nginx/ssl/`
+   (see [nginx/ssl/README.md](nginx/ssl/README.md)). nginx will not start without them.
+
+4. **Start the stack** — `docker compose up --build`, then open `https://<NGINX_HOSTNAME>`.
 
 ## Authentication
 

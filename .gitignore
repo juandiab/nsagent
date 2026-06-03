@@ -2,6 +2,9 @@
 .env
 .env.local
 
+# Web installer runtime sentinel
+/.installer-complete
+
 # TLS / SSL certificates (local deployment only — never commit private material)
 certs/
 ssl/*

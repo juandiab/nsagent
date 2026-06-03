@@ -1,0 +1,15 @@
+# First-run web installer. Started on its own by install.sh; it writes ./.env and
+# ./nginx/ssl/ on the host (via the bind mount) plus a sentinel file, then exits.
+# It deliberately has no access to the Docker socket — install.sh launches the real
+# stack on the host so the relative bind mounts in docker-compose.yml resolve correctly.
+services:
+  installer:
+    build: ./installer
+    ports:
+      - "9443:9443"
+    volumes:
+      - .:/workspace
+    working_dir: /workspace
+    environment:
+      - WORKSPACE=/workspace
+    restart: "no"
