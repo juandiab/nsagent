@@ -474,4 +474,39 @@ html.app-dark .contact-banner-interactive {
     transform: translateY(0);
   }
 }
+
+@media (max-height: 900px) {
+  .hero-banner {
+    margin-bottom: 2rem !important;
+  }
+
+  .highlights-grid {
+    margin-bottom: 1.5rem !important;
+  }
+
+  .contact-banner {
+    margin-top: 2rem !important;
+  }
+
+  .hero-title {
+    font-size: 1.25rem;
+  }
+
+  .hero-copy {
+    font-size: 0.8125rem;
+  }
+
+  .highlight-card {
+    padding: 0.875rem;
+  }
+
+  .plan-card {
+    padding: 1rem;
+  }
+
+  .plan-features {
+    gap: 0.5rem;
+    margin-top: 0.75rem !important;
+  }
+}
 </style>

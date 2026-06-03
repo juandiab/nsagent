@@ -184,8 +184,9 @@ onMounted(() => {
 
 <style scoped>
 .copilot-page {
-  height: calc(100vh - 3rem);
+  height: calc(100vh - 5rem);
   min-height: 32rem;
+  overflow: hidden;
 }
 
 .stage {

@@ -223,4 +223,14 @@ onMounted(async () => {
     transform: translateY(0);
   }
 }
+
+@media (max-height: 900px) {
+  :global(.grid.mt-4) {
+    margin-top: 0.5rem !important;
+  }
+
+  :global(.nexxus-marketing.mt-5) {
+    margin-top: 1.5rem !important;
+  }
+}
 </style>

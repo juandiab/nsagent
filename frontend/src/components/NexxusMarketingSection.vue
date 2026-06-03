@@ -279,6 +279,12 @@ onMounted(async () => {
 .footer-links a {
   font-size: 0.8125rem;
 }
+
+@media (max-height: 900px) {
+  .blog-card {
+    min-height: 10rem;
+  }
+}
 </style>
 
 <style>
