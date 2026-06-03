@@ -29,6 +29,13 @@ Bump the root [`VERSION`](VERSION) file when tagging a release so in-app update 
 - **Dashboard shortcuts** — recommended JPilot prompts and links (health summary, list IPs/vservers, diagnostics, guided LB).
 - **Model usage dashboard** — Settings → AI Providers shows monthly LLM token/request usage and Brave Search query usage with progress bars (tracked locally per calendar month).
 
+## What's new in v0.09
+
+| Area | Highlights |
+|------|------------|
+| **Settings UX** | Tabs grouped as Platform, People, Personal, and App; setup-first order (AI Providers → JPilot → MCP → Next-Gen → Users → Security → About → Legal). |
+| **Naming** | Settings tab renamed from Chat to JPilot. |
+
 ## What's new in v0.08
 
 | Area | Highlights |
