@@ -403,6 +403,45 @@ Use strong secrets, TLS in front of the UI/API, restrict MongoDB network access,
 for password reset, and set `WEBAUTHN_RP_ID`, `WEBAUTHN_ORIGIN`, and `CORS_ORIGINS` to your
 real hostname.
 
+### MongoDB crashes (production)
+
+The stack pins **`mongo:8.2`** (not `latest`), uses **`restart: unless-stopped`** on all
+services, and a **healthcheck** so `backend-api` and `mcp-server` start only after MongoDB
+responds to `ping`.
+
+**Why 8.2 and not 7.0?** Recent installs used `mongo:latest` (MongoDB **8.2.x**). Existing
+data has feature compatibility version **8.2** — `mongo:7.0` or `mongo:8.0` exit with code
+**62**. Pin **`mongo:8.2`** on existing servers; use **`mongo:7.0`** only for a **new** volume.
+
+Before recreating, confirm the running image:
+
+```bash
+docker inspect nsagent-mongodb-1 --format '{{index .Config.Labels "org.opencontainers.image.version"}} {{.Config.Image}}'
+```
+
+**Check logs for corruption / abrupt shutdown:**
+
+```bash
+docker logs nsagent-mongodb-1 2>&1 | grep -i "fatal\|assert\|crash\|signal\|segfault\|abrupt\|unclean"
+```
+
+**Redeploy after pulling compose changes** (recreate Mongo so the pinned image applies):
+
+```bash
+./compose.sh up -d --force-recreate mongodb
+./compose.sh up -d backend-api mcp-server nginx
+```
+
+**If MongoDB keeps exiting with code 139**, stop the stack and repair the data volume (volume
+name is usually `<project>_nsagent_mongodb_data`, e.g. `nsagent_nsagent_mongodb_data`):
+
+```bash
+docker compose -f docker-compose.prod.yml stop mongodb
+docker run --rm -v nsagent_nsagent_mongodb_data:/data/db mongo:8.2 mongod --repair
+./compose.sh up -d mongodb
+./compose.sh up -d backend-api mcp-server nginx
+```
+
 ### Project layout
 
 ```
