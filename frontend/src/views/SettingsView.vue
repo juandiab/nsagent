@@ -7,20 +7,29 @@
 
     <div class="settings-layout">
       <!-- Section navigation -->
-      <nav class="settings-nav">
-        <ul class="settings-nav-list">
-          <li
-            v-for="section in sections"
-            :key="section.key"
-            class="settings-nav-item"
-            :class="{ 'is-active': activeSection === section.key }"
+      <nav class="settings-nav" aria-label="Settings sections">
+        <div class="settings-nav-list">
+          <div
+            v-for="group in navGroups"
+            :key="group.id"
+            class="settings-nav-cluster"
           >
-            <a class="settings-nav-link" @click="selectSection(section.key)">
-              <i :class="[section.icon, 'settings-nav-icon']" />
-              <span>{{ section.label }}</span>
-            </a>
-          </li>
-        </ul>
+            <span class="settings-nav-cluster-label">{{ group.label }}</span>
+            <ul class="settings-nav-group-tabs">
+              <li
+                v-for="section in group.sections"
+                :key="section.key"
+                class="settings-nav-item"
+                :class="{ 'is-active': activeSection === section.key }"
+              >
+                <a class="settings-nav-link" @click="selectSection(section.key)">
+                  <i :class="[section.icon, 'settings-nav-icon']" />
+                  <span>{{ section.label }}</span>
+                </a>
+              </li>
+            </ul>
+          </div>
+        </div>
       </nav>
 
       <!-- Section content -->
@@ -245,7 +254,7 @@
           </div>
         </section>
 
-        <!-- Chat (JPilot attachments) -->
+        <!-- JPilot (attachments) -->
         <section v-if="activeSection === 'jpilot'" key="jpilot" class="grid">
           <div class="col-12 lg:col-8 flex flex-column gap-4">
             <div class="content-panel content-panel-padded">
@@ -433,22 +442,46 @@ const router = useRouter()
 const currentUser = ref(getStoredUser())
 const isAdmin = computed(() => currentUser.value?.role === 'admin')
 
+const GROUP_LABELS = {
+  platform: 'Platform',
+  people: 'People',
+  personal: 'Personal',
+  app: 'App'
+}
+
 const allSections = [
-  { key: 'mcp', label: 'MCP Server', icon: 'pi pi-server', adminOnly: true },
-  { key: 'jpilot', label: 'Chat', icon: 'pi pi-comments', adminOnly: true },
-  { key: 'ai-providers', label: 'AI Providers', icon: 'pi pi-sparkles', adminOnly: true },
-  { key: 'nextgen', label: 'Next-Gen API', icon: 'pi pi-code', adminOnly: true },
-  { key: 'security', label: 'Security', icon: 'pi pi-shield' },
-  { key: 'about', label: 'About', icon: 'pi pi-info-circle' },
-  { key: 'users', label: 'Users', icon: 'pi pi-users', adminOnly: true },
-  { key: 'legal', label: 'Legal', icon: 'pi pi-book' }
+  { key: 'ai-providers', label: 'AI Providers', icon: 'pi pi-sparkles', adminOnly: true, group: 'platform' },
+  { key: 'jpilot', label: 'JPilot', icon: 'pi pi-comments', adminOnly: true, group: 'platform' },
+  { key: 'mcp', label: 'MCP Server', icon: 'pi pi-server', adminOnly: true, group: 'platform' },
+  { key: 'nextgen', label: 'Next-Gen API', icon: 'pi pi-code', adminOnly: true, group: 'platform' },
+  { key: 'users', label: 'Users', icon: 'pi pi-users', adminOnly: true, group: 'people' },
+  { key: 'security', label: 'Security', icon: 'pi pi-shield', group: 'personal' },
+  { key: 'about', label: 'About', icon: 'pi pi-info-circle', group: 'app' },
+  { key: 'legal', label: 'Legal', icon: 'pi pi-book', group: 'app' }
 ]
 
 const sections = computed(() =>
   allSections.filter((section) => !section.adminOnly || isAdmin.value)
 )
 
-const defaultSection = computed(() => (isAdmin.value ? 'mcp' : 'security'))
+const navGroups = computed(() => {
+  const groups = []
+  for (const section of sections.value) {
+    const last = groups[groups.length - 1]
+    if (last?.id === section.group) {
+      last.sections.push(section)
+    } else {
+      groups.push({
+        id: section.group,
+        label: GROUP_LABELS[section.group] || section.group,
+        sections: [section]
+      })
+    }
+  }
+  return groups
+})
+
+const defaultSection = computed(() => (isAdmin.value ? 'ai-providers' : 'security'))
 const sectionKeys = computed(() => new Set(sections.value.map((section) => section.key)))
 const activeSection = ref(defaultSection.value)
 
@@ -831,6 +864,39 @@ onMounted(async () => {
 }
 
 .settings-nav-list {
+  display: flex;
+  flex-direction: row;
+  align-items: flex-end;
+  gap: 0;
+  min-width: min-content;
+  padding-bottom: 0.15rem;
+}
+
+.settings-nav-cluster {
+  display: flex;
+  flex-direction: column;
+  gap: 0.35rem;
+  flex-shrink: 0;
+}
+
+.settings-nav-cluster + .settings-nav-cluster {
+  margin-left: 0.75rem;
+  padding-left: 0.75rem;
+  border-left: 1px solid var(--p-content-border-color);
+}
+
+.settings-nav-cluster-label {
+  font-size: 0.625rem;
+  font-weight: 600;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: var(--p-text-muted-color);
+  padding: 0 0.5rem;
+  line-height: 1;
+  opacity: 0.85;
+}
+
+.settings-nav-group-tabs {
   list-style: none;
   margin: 0;
   padding: 0;

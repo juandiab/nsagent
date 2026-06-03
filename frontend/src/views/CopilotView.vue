@@ -39,7 +39,7 @@
             </button>
           </div>
         </div>
-        <Button v-tooltip.top="'Chat settings'" icon="pi pi-cog" text rounded @click="router.push('/settings?section=jpilot')" />
+        <Button v-tooltip.top="'JPilot settings'" icon="pi pi-cog" text rounded @click="router.push('/settings?section=jpilot')" />
       </template>
     </PageHeader>
 
