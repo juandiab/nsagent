@@ -58,20 +58,32 @@ trap cleanup EXIT INT TERM
 echo "Building and starting the setup wizard..."
 $DC -f "$INSTALLER_COMPOSE" up -d --build
 
-cat <<'BANNER'
+INSTALLER_URL="https://localhost:9443"
 
-  ┌──────────────────────────────────────────────────────────┐
-  │  JPilot setup is ready.                                    │
-  │                                                            │
-  │   ▶  Open  https://localhost:9443                          │
-  │                                                            │
-  │  It uses a self-signed certificate, so your browser will   │
-  │  show a security warning the first time — that is expected │
-  │  for the installer. Accept it to continue.                 │
-  └──────────────────────────────────────────────────────────┘
+# Emit an OSC 8 terminal hyperlink (clickable) when writing to a TTY; fall back
+# to the plain URL otherwise. The visible text is the URL itself, so it reads
+# fine even on terminals that don't support OSC 8.
+osc8_link() {
+  if [ -t 1 ]; then
+    printf '\033]8;;%s\033\\%s\033]8;;\033\\' "$1" "$1"
+  else
+    printf '%s' "$1"
+  fi
+}
 
-Waiting for you to finish the wizard (Ctrl-C to abort)...
-BANNER
+printf '\n'
+printf '  ┌──────────────────────────────────────────────────────────┐\n'
+printf '  │  JPilot setup is ready.                                    │\n'
+printf '  └──────────────────────────────────────────────────────────┘\n'
+printf '\n'
+printf '   ▶  Open  '
+osc8_link "$INSTALLER_URL"
+printf '\n\n'
+printf '  It uses a self-signed certificate, so your browser will show a\n'
+printf '  security warning the first time — that is expected for the\n'
+printf '  installer. Accept it to continue.\n'
+printf '\n'
+printf 'Waiting for you to finish the wizard (Ctrl-C to abort)...\n'
 
 # ---- wait for the wizard to finish -----------------------------------------
 while [ ! -f "$SENTINEL" ]; do
@@ -90,13 +102,11 @@ $DC up -d --build
 
 rm -f "$SENTINEL"
 
-cat <<EOF
-
-  ✅ JPilot is starting at  https://$DOMAIN
-
-  • The first boot may take a few seconds while services come up.
-  • Sign in with the admin account you just created.
-  • View logs with:   $DC logs -f
-  • Stop with:        $DC down
-
-EOF
+printf '\n  ✅ JPilot is starting at  '
+osc8_link "https://$DOMAIN"
+printf '\n\n'
+printf '  • The first boot may take a few seconds while services come up.\n'
+printf '  • Sign in with the admin account you just created.\n'
+printf '  • View logs with:   %s logs -f\n' "$DC"
+printf '  • Stop with:        %s down\n' "$DC"
+printf '\n'

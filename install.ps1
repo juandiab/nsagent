@@ -20,6 +20,13 @@ $InstallerCompose  = 'docker-compose.installer.yml'
 
 function Fail($msg) { Write-Host "  $msg" -ForegroundColor Red; exit 1 }
 
+# Build an OSC 8 terminal hyperlink (clickable) when output is a real console;
+# fall back to the plain URL otherwise. Windows Terminal supports OSC 8.
+function Format-Link($url) {
+  $esc = [char]27
+  if (-not [Console]::IsOutputRedirected) { "$esc]8;;$url$esc\$url$esc]8;;$esc\" } else { $url }
+}
+
 # ---- locate docker compose -------------------------------------------------
 $dc = $null
 try { docker compose version *> $null; if ($LASTEXITCODE -eq 0) { $dc = @('docker','compose') } } catch {}
@@ -59,13 +66,13 @@ try {
   Write-Host ""
   Write-Host "  +----------------------------------------------------------+"
   Write-Host "  |  JPilot setup is ready.                                  |"
-  Write-Host "  |                                                          |"
-  Write-Host "  |   >  Open  https://localhost:9443                        |"
-  Write-Host "  |                                                          |"
-  Write-Host "  |  It uses a self-signed certificate, so your browser will |"
-  Write-Host "  |  show a security warning the first time - that is        |"
-  Write-Host "  |  expected for the installer. Accept it to continue.      |"
   Write-Host "  +----------------------------------------------------------+"
+  Write-Host ""
+  Write-Host "   >  Open  $(Format-Link 'https://localhost:9443')"
+  Write-Host ""
+  Write-Host "  It uses a self-signed certificate, so your browser will show a"
+  Write-Host "  security warning the first time - that is expected for the"
+  Write-Host "  installer. Accept it to continue."
   Write-Host ""
   Write-Host "Waiting for you to finish the wizard (Ctrl-C to abort)..."
 
@@ -91,7 +98,7 @@ Compose 'up' '-d' '--build'
 if (Test-Path $Sentinel) { Remove-Item $Sentinel -Force }
 
 Write-Host ""
-Write-Host "  JPilot is starting at  https://$domain" -ForegroundColor Green
+Write-Host "  JPilot is starting at  $(Format-Link "https://$domain")" -ForegroundColor Green
 Write-Host ""
 Write-Host "  * The first boot may take a few seconds while services come up."
 Write-Host "  * Sign in with the admin account you just created."
