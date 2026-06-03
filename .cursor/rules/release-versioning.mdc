@@ -1,0 +1,17 @@
+---
+description: Bump VERSION, README, git tag, and GitHub release on every release push
+alwaysApply: true
+---
+
+# JPilot release versioning
+
+When finishing a user-facing change set that should ship:
+
+1. Bump the root `VERSION` file (semver, e.g. `0.07` → `0.08`).
+2. Update `README.md`: **Current release** line and add a **What's new in vX.Y** section.
+3. Commit with a concise message describing the release.
+4. Create an annotated git tag matching the version (`v0.08`).
+5. Push the branch and tags: `git push origin main --tags`.
+6. Publish a GitHub Release for that tag (`gh release create vX.Y --title "vX.Y" --notes "..."`) so `/releases/latest` works for in-app update checks.
+
+Do not push release-worthy work without updating `VERSION` and tagging. Patch/minor increments follow existing tags on `main`.

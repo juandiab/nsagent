@@ -6,7 +6,9 @@ Repository: [github.com/juandiab/nsagent](https://github.com/juandiab/nsagent)
 
 > **Disclaimer:** JPilot is an independent project and is not affiliated with, endorsed by, or sponsored by Citrix Systems, Inc. NetScaler is a trademark of Citrix Systems, Inc.
 
-**Current release:** `v0.06` — consolidated Settings hub (MCP, Chat, AI Providers, Next-Gen API, Security, Legal), SSL tools under NetScalers, slimmer navigation, MCP catalog sync, and nginx rate-limit fix.
+**Current release:** `v0.07` — in-app update checks against GitHub, Settings → About with rebuild instructions, prod/dev deploy mode in the installer, and prod Docker stack.
+
+Bump the root [`VERSION`](VERSION) file when tagging a release so in-app update checks match GitHub.
 
 ## Features
 
@@ -26,6 +28,15 @@ Repository: [github.com/juandiab/nsagent](https://github.com/juandiab/nsagent)
 - **Optional Brave Search** — domain-restricted web augmentation when local memory/docs are weak (Settings → AI Providers).
 - **Dashboard shortcuts** — recommended JPilot prompts and links (health summary, list IPs/vservers, diagnostics, guided LB).
 - **Model usage dashboard** — Settings → AI Providers shows monthly LLM token/request usage and Brave Search query usage with progress bars (tracked locally per calendar month).
+
+## What's new in v0.07
+
+| Area | Highlights |
+|------|------------|
+| **Updates** | Settings → About checks GitHub for new versions; banner when an update is available; copy-paste rebuild instructions for macOS/Linux and Windows. |
+| **Versioning** | Root `VERSION` file baked into the backend; compares against GitHub tags (falls back when no GitHub Release is published). |
+| **Deploy modes** | Installer lets you pick production (compiled) or development (hot reload); `compose.sh` / `compose.ps1` pick the right stack from `.env`. |
+| **Production stack** | `docker-compose.prod.yml` — compiled frontend in nginx, no reload or source bind mounts on API services. |
 
 ## What's new in v0.06
 

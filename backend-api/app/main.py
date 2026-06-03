@@ -6,7 +6,7 @@ from fastapi.middleware.cors import CORSMiddleware
 from app.config import settings
 from app.database import close_mongo_connection, connect_to_mongo, get_database
 from app.dependencies import get_current_user
-from app.routers import ai_providers, appliance_ops, appliances, auth, copilot, health, mcp, ssl_csr, users, webauthn
+from app.routers import ai_providers, appliance_ops, appliances, auth, copilot, health, mcp, ssl_csr, system, users, webauthn
 from app.services.mcp_client import push_config_to_mcp_server
 from app.services.mcp_config_service import ensure_default_settings, get_mcp_settings
 from app.services.ai_provider_service import migrate_lm_studio_endpoints
@@ -58,3 +58,4 @@ app.include_router(appliance_ops.router, dependencies=protected)
 app.include_router(appliances.router, dependencies=protected)
 app.include_router(ssl_csr.router, dependencies=protected)
 app.include_router(ai_providers.router, dependencies=protected)
+app.include_router(system.router, dependencies=protected)

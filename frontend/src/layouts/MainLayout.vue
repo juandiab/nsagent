@@ -56,6 +56,18 @@
     </aside>
 
     <main class="main-content flex-1 flex flex-column min-h-screen overflow-auto">
+      <div v-if="updateBannerVisible" class="update-banner">
+        <Message severity="warn" :closable="true" @close="dismissUpdateBanner">
+          <span>
+            JPilot <strong>{{ updateInfo.latest_display_version }}</strong> is available
+            (installed {{ updateInfo.display_version }}).
+            <RouterLink to="/settings?section=about" class="update-banner-link">
+              View update instructions
+            </RouterLink>
+          </span>
+        </Message>
+      </div>
+
       <router-view v-slot="{ Component, route }">
         <Transition name="page-fade" mode="out-in">
           <component :is="Component" :key="route.path" />
@@ -79,16 +91,20 @@
 </template>
 
 <script setup>
-import { computed, onMounted, ref } from 'vue'
+import { computed, onMounted, onUnmounted, ref } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
 import Avatar from 'primevue/avatar'
 import ConfirmDialog from 'primevue/confirmdialog'
 import Menu from 'primevue/menu'
+import Message from 'primevue/message'
 import Toast from 'primevue/toast'
 import NetScalerLogo from '../components/NetScalerLogo.vue'
 import api from '../services/api'
 import { clearAuth, getStoredUser } from '../services/auth'
+import { checkForUpdates } from '../services/system'
 import { getTheme, toggleTheme } from '../services/theme'
+
+const DISMISS_KEY = 'jpilot_update_dismissed'
 
 const route = useRoute()
 const router = useRouter()
@@ -96,6 +112,44 @@ const userMenu = ref()
 const currentUser = ref(getStoredUser())
 const theme = ref(getTheme())
 const currentYear = new Date().getFullYear()
+const updateInfo = ref(null)
+const updateBannerDismissed = ref(false)
+
+const updateBannerVisible = computed(() =>
+  Boolean(updateInfo.value?.update_available) && !updateBannerDismissed.value
+)
+
+function isUpdateDismissed(version) {
+  try {
+    return sessionStorage.getItem(DISMISS_KEY) === version
+  } catch {
+    return false
+  }
+}
+
+function dismissUpdateBanner() {
+  updateBannerDismissed.value = true
+  try {
+    sessionStorage.setItem(DISMISS_KEY, updateInfo.value?.latest_display_version || '1')
+  } catch {
+    // Ignore storage failures.
+  }
+}
+
+async function loadUpdateStatus(force = false) {
+  try {
+    const info = await checkForUpdates(force)
+    updateInfo.value = info
+    updateBannerDismissed.value = isUpdateDismissed(info.latest_display_version)
+  } catch {
+    updateInfo.value = null
+  }
+}
+
+function onUpdateAvailableEvent(event) {
+  updateInfo.value = event.detail
+  updateBannerDismissed.value = isUpdateDismissed(event.detail?.latest_display_version)
+}
 
 function onToggleTheme() {
   theme.value = toggleTheme()
@@ -152,7 +206,14 @@ onMounted(async () => {
   } catch {
     clearAuth()
     router.push('/login')
+    return
   }
+  window.addEventListener('jpilot-update-available', onUpdateAvailableEvent)
+  await loadUpdateStatus(false)
+})
+
+onUnmounted(() => {
+  window.removeEventListener('jpilot-update-available', onUpdateAvailableEvent)
 })
 
 function isActive(path) {
@@ -279,6 +340,17 @@ function isActive(path) {
 .main-content {
   padding: 0 0.5rem 2rem;
   gap: 2rem;
+}
+
+.update-banner {
+  padding-top: 0.25rem;
+}
+
+.update-banner-link {
+  margin-left: 0.35rem;
+  color: inherit;
+  font-weight: 600;
+  text-decoration: underline;
 }
 
 .app-legal {

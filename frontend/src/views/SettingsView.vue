@@ -356,6 +356,11 @@
           <UsersPanel />
         </section>
 
+        <!-- About / updates -->
+        <section v-if="activeSection === 'about'" key="about">
+          <UpdatesPanel @update-status="onUpdateStatus" />
+        </section>
+
         <!-- Legal -->
         <section v-if="activeSection === 'legal'" key="legal" class="grid">
           <div class="col-12 lg:col-8">
@@ -414,6 +419,7 @@ import NextGenApiPanel from '../components/NextGenApiPanel.vue'
 import AIProvidersPanel from '../components/AIProvidersPanel.vue'
 import BraveSearchPanel from '../components/BraveSearchPanel.vue'
 import UsersPanel from '../components/UsersPanel.vue'
+import UpdatesPanel from '../components/UpdatesPanel.vue'
 import { getCopilotSettings, saveCopilotSettings } from '../services/copilot'
 import { getMcpConfig, getMcpStatus, saveMcpConfig } from '../services/mcp'
 import { getSmtpConfig, saveSmtpConfig, testSmtpConfig } from '../services/smtp'
@@ -433,6 +439,7 @@ const allSections = [
   { key: 'ai-providers', label: 'AI Providers', icon: 'pi pi-sparkles', adminOnly: true },
   { key: 'nextgen', label: 'Next-Gen API', icon: 'pi pi-code', adminOnly: true },
   { key: 'security', label: 'Security', icon: 'pi pi-shield' },
+  { key: 'about', label: 'About', icon: 'pi pi-info-circle' },
   { key: 'users', label: 'Users', icon: 'pi pi-users', adminOnly: true },
   { key: 'legal', label: 'Legal', icon: 'pi pi-book' }
 ]
@@ -485,6 +492,12 @@ async function ensureSectionLoaded(section) {
   if (section === 'security' && !loadedSections.value.has('security')) {
     await loadPasskeyStatus()
     loadedSections.value.add('security')
+  }
+}
+
+function onUpdateStatus(info) {
+  if (info?.update_available) {
+    window.dispatchEvent(new CustomEvent('jpilot-update-available', { detail: info }))
   }
 }
 
