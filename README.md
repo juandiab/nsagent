@@ -6,7 +6,7 @@ Repository: [github.com/juandiab/nsagent](https://github.com/juandiab/nsagent)
 
 > **Disclaimer:** JPilot is an independent project and is not affiliated with, endorsed by, or sponsored by Citrix Systems, Inc. NetScaler is a trademark of Citrix Systems, Inc.
 
-**Current release:** `v0.18` — Settings layout polish, directional tab transitions, and shell footer alignment.
+**Current release:** `v0.19` — About update instructions via `upgrade.sh`; Settings full-width sections.
 
 Bump the root [`VERSION`](VERSION) file when tagging a release so in-app update checks match GitHub.
 
@@ -29,6 +29,13 @@ Bump the root [`VERSION`](VERSION) file when tagging a release so in-app update 
 - **Optional Brave Search** — domain-restricted web augmentation when local memory/docs are weak (Settings → AI Providers).
 - **Dashboard shortcuts** — recommended JPilot prompts and links (health summary, list IPs/vservers, diagnostics, guided LB).
 - **Model usage dashboard** — Settings → AI Providers shows monthly LLM token/request usage and Brave Search query usage with progress bars (tracked locally per calendar month).
+
+## What's new in v0.19
+
+| Area | Highlights |
+|------|------------|
+| **About / updates** | Upgrade steps and `./scripts/upgrade.sh` / `upgrade.ps1` commands show only when a newer release is available. |
+| **Settings** | Security, Legal, and About use full-width layout like other sections. |
 
 ## What's new in v0.18
 

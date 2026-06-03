@@ -78,20 +78,14 @@ def _build_instructions(latest_tag: str | None) -> UpdateInstructions:
             "Your data in MongoDB and your .env file are kept across upgrades."
         ),
         steps=[
-            "On the host machine, open a terminal in your JPilot project directory "
-            "(the folder that contains compose.sh or compose.ps1).",
-            f"Pull the latest release: git fetch --tags origin && git checkout {tag}",
-            "Rebuild and restart the stack with the compose helper for your install.",
+            "On the host machine, open a terminal in your JPilot project directory.",
+            f"Check out the release: git fetch --tags origin && git checkout {tag}",
+            "Run ./scripts/upgrade.sh (macOS/Linux) or .\\scripts\\upgrade.ps1 (Windows).",
+            "When prompted, choose 1 for development or 2 for production.",
             "Sign in again and confirm the version under Settings → About.",
         ],
-        commands_linux_mac=[
-            f"git fetch --tags origin && git checkout {tag}",
-            "./compose.sh up -d --build",
-        ],
-        commands_windows=[
-            f"git fetch --tags origin; git checkout {tag}",
-            ".\\compose.ps1 up -d --build",
-        ],
+        commands_linux_mac=["./scripts/upgrade.sh"],
+        commands_windows=[".\\scripts\\upgrade.ps1"],
     )
 
 

@@ -330,8 +330,7 @@
           </section>
   
           <!-- Security -->
-          <section v-if="activeSection === 'security'" class="grid">
-            <div class="col-12 lg:col-8">
+          <section v-if="activeSection === 'security'" class="settings-section-full">
               <div class="content-panel content-panel-padded">
                 <h2 class="section-title">Security</h2>
                 <p class="section-copy">
@@ -368,7 +367,6 @@
                   </Message>
                 </div>
               </div>
-            </div>
           </section>
   
           <!-- Users (admin) -->
@@ -382,8 +380,7 @@
           </section>
   
           <!-- Legal -->
-          <section v-if="activeSection === 'legal'" class="grid">
-            <div class="col-12 lg:col-8">
+          <section v-if="activeSection === 'legal'" class="settings-section-full">
               <div class="content-panel content-panel-padded">
                 <h2 class="section-title">Legal</h2>
                 <p class="section-copy">Policies and agreements that govern your use of JPilot.</p>
@@ -413,7 +410,6 @@
   
                 <p class="section-copy mt-4">© {{ new Date().getFullYear() }} Nexxus-Tech SAS · Bogotá D.C., Colombia · contact@nexxus-tech.com</p>
               </div>
-            </div>
           </section>
             </div>
           </Transition>
@@ -905,6 +901,10 @@ onMounted(async () => {
 }
 
 .settings-section-panel {
+  width: 100%;
+}
+
+.settings-section-full {
   width: 100%;
 }
 
