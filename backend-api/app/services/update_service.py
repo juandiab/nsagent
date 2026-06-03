@@ -14,7 +14,7 @@ _DEFAULT_REPO = "juandiab/nsagent"
 _CACHE_TTL = dt.timedelta(hours=1)
 
 _version_paths = (
-    Path("/app/VERSION"),
+    Path("/usr/share/jpilot/VERSION"),
     Path(__file__).resolve().parents[3] / "VERSION",
 )
 

@@ -38,7 +38,7 @@ services:
       - "host.docker.internal:host-gateway"
     volumes:
       - ./backend-api:/app
-      - ./VERSION:/app/VERSION:ro
+      - ./VERSION:/usr/share/jpilot/VERSION:ro
       - ./netscaler_nextgen_api_memory.md:/app/app/resources/netscaler_nextgen_api_memory.md:ro
       - ./netscaler_adc_cli_memory.md:/app/app/resources/netscaler_adc_cli_memory.md:ro
     environment:
