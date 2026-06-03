@@ -41,13 +41,12 @@
       <section class="panel step" data-step="0">
         <h1>Welcome to JPilot</h1>
         <p class="muted">This wizard configures everything needed to run the platform: an admin
-          account, your domain, TLS, and optional email. Secrets are generated for you. It takes
-          about a minute.</p>
+          account, your domain, and TLS. Secrets are generated for you. It takes
+          under a minute.</p>
         <ul class="checklist">
           <li>Create the admin login</li>
           <li>Pick the domain JPilot will be served from</li>
           <li>Use your own TLS certificate or generate a self-signed one</li>
-          <li>(Optional) Configure SMTP for password-reset emails</li>
         </ul>
         <div class="actions"><span></span><button class="btn primary" data-next>Get started</button></div>
       </section>
@@ -121,38 +120,11 @@
           <p class="field-ok hidden" id="certOk"></p>
           <p class="field-error hidden" id="certErr"></p>
         </div>
-        <div class="actions"><button class="btn ghost" data-back>Back</button><button class="btn primary" data-next>Continue</button></div>
-      </section>
-
-      <!-- SMTP -->
-      <section class="panel step hidden" data-step="4">
-        <h1>Email <span class="opt">(optional)</span></h1>
-        <p class="muted">Used to send password-reset codes. Skip this if you don't need it yet —
-          you can configure it later in Settings.</p>
-        <label class="toggle">
-          <input type="checkbox" id="smtp_enabled" />
-          <span>Configure SMTP now</span>
-        </label>
-        <div id="smtpFields" class="hidden">
-          <div class="grid2">
-            <label>SMTP host<input type="text" id="smtp_host" placeholder="smtp.example.com" /></label>
-            <label>Port<input type="number" id="smtp_port" value="587" /></label>
-          </div>
-          <div class="grid2">
-            <label>Username<input type="text" id="smtp_username" autocomplete="off" /></label>
-            <label>Password<input type="password" id="smtp_password" autocomplete="new-password" /></label>
-          </div>
-          <label>From address<input type="email" id="smtp_from_address" placeholder="noreply@example.com" /></label>
-          <div class="grid2">
-            <label class="toggle"><input type="checkbox" id="smtp_use_tls" checked /><span>Use STARTTLS</span></label>
-            <label class="toggle"><input type="checkbox" id="smtp_use_ssl" /><span>Use SSL</span></label>
-          </div>
-        </div>
         <div class="actions"><button class="btn ghost" data-back>Back</button><button class="btn primary" data-next>Review</button></div>
       </section>
 
       <!-- Review -->
-      <section class="panel step hidden" data-step="5">
+      <section class="panel step hidden" data-step="4">
         <h1>Review &amp; install</h1>
         <dl class="review" id="reviewList"></dl>
         <p class="field-error hidden" id="installErr"></p>

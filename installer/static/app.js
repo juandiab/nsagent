@@ -1,6 +1,6 @@
 "use strict";
 
-const STEP_NAMES = ["Welcome", "Admin", "Domain", "TLS", "Email", "Review"];
+const STEP_NAMES = ["Welcome", "Admin", "Domain", "TLS", "Review"];
 const $ = (id) => document.getElementById(id);
 const show = (el) => el.classList.remove("hidden");
 const hide = (el) => el.classList.add("hidden");
@@ -64,7 +64,6 @@ function fail(el, msg) {
 // ---------------------------------------------------------------- collect
 function collect() {
   const mode = document.querySelector('input[name="cert_mode"]:checked').value;
-  const smtpOn = $("smtp_enabled").checked;
   return {
     reconfigure: state.reconfigure,
     admin_username: $("admin_username").value.trim() || "admin",
@@ -76,13 +75,6 @@ function collect() {
     certificate: mode === "custom" ? $("certificate").value : "",
     chain: mode === "custom" ? $("chain").value : "",
     private_key: mode === "custom" ? $("private_key").value : "",
-    smtp_host: smtpOn ? $("smtp_host").value.trim() : "",
-    smtp_port: smtpOn ? Number($("smtp_port").value) || 587 : 587,
-    smtp_username: smtpOn ? $("smtp_username").value.trim() : "",
-    smtp_password: smtpOn ? $("smtp_password").value : "",
-    smtp_from_address: smtpOn ? $("smtp_from_address").value.trim() : "",
-    smtp_use_tls: smtpOn ? $("smtp_use_tls").checked : true,
-    smtp_use_ssl: smtpOn ? $("smtp_use_ssl").checked : false,
   };
 }
 
@@ -94,7 +86,6 @@ function renderReview() {
     ["Domain", `https://${d.domain}`],
     ["Display name", d.app_name],
     ["TLS certificate", d.cert_mode === "custom" ? "Custom (provided)" : "Self-signed (generated)"],
-    ["SMTP", d.smtp_host ? `${d.smtp_host}:${d.smtp_port}` : "Not configured"],
     ["Encryption key", "Generated on install"],
     ["JWT secret", "Generated on install"],
   ];
@@ -187,7 +178,7 @@ function wire() {
   document.querySelectorAll("[data-next]").forEach((b) =>
     b.addEventListener("click", () => {
       if (!validateStep(state.step)) return;
-      if (state.step === 4) renderReview();
+      if (state.step === 3) renderReview();
       gotoStep(state.step + 1);
     }));
   document.querySelectorAll("[data-back]").forEach((b) =>
@@ -206,9 +197,6 @@ function wire() {
   $("validateCert").addEventListener("click", validateCert);
   ["certificate", "private_key", "chain"].forEach((id) =>
     $(id).addEventListener("input", () => { state.certValidated = false; hide($("certOk")); }));
-
-  $("smtp_enabled").addEventListener("change", (e) =>
-    $("smtpFields").classList.toggle("hidden", !e.target.checked));
 
   $("installBtn").addEventListener("click", install);
   $("guardContinue").addEventListener("click", () => {
