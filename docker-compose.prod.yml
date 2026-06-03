@@ -3,6 +3,8 @@
 #   docker compose -f docker-compose.yml -f docker-compose.prod.yml up -d --build
 # or ./compose.sh up -d --build when NSAGENT_DEPLOY_MODE=prod in .env
 services:
+  frontend: !reset null
+
   nginx:
     build:
       context: .

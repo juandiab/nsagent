@@ -75,21 +75,22 @@ html.app-dark .stat-card:hover {
   );
   border: 1px solid var(--p-content-border-color);
   border-radius: var(--content-radius);
-  padding: 2rem;
+  padding: 1rem 1.25rem;
 }
 
 .welcome-panel h2 {
-  font-size: 1.5rem;
+  font-size: 1.125rem;
   font-weight: 700;
-  margin: 0 0 0.5rem;
+  margin: 0 0 0.25rem;
   letter-spacing: -0.02em;
 }
 
 .welcome-panel p {
   margin: 0;
+  font-size: 0.8125rem;
   color: var(--p-text-muted-color);
   max-width: 36rem;
-  line-height: 1.6;
+  line-height: 1.45;
 }
 
 html.app-dark .welcome-panel {
@@ -102,11 +103,15 @@ html.app-dark .welcome-panel {
 
 @media (max-height: 900px) {
   .welcome-panel {
-    padding: 1rem;
+    padding: 0.75rem 1rem;
   }
 
   .welcome-panel h2 {
-    font-size: 1.25rem;
+    font-size: 1rem;
+  }
+
+  .welcome-panel p {
+    font-size: 0.75rem;
   }
 }
 

@@ -6,7 +6,7 @@ Repository: [github.com/juandiab/nsagent](https://github.com/juandiab/nsagent)
 
 > **Disclaimer:** JPilot is an independent project and is not affiliated with, endorsed by, or sponsored by Citrix Systems, Inc. NetScaler is a trademark of Citrix Systems, Inc.
 
-**Current release:** `v0.14` — viewport-fit layout for Dashboard, Plans, and JPilot on 1080p and iPad Pro landscape.
+**Current release:** `v0.15` — Dashboard and Plans layout refresh; simpler Docker Compose dev/prod commands.
 
 Bump the root [`VERSION`](VERSION) file when tagging a release so in-app update checks match GitHub.
 
@@ -30,6 +30,14 @@ Bump the root [`VERSION`](VERSION) file when tagging a release so in-app update 
 - **Dashboard shortcuts** — recommended JPilot prompts and links (health summary, list IPs/vservers, diagnostics, guided LB).
 - **Model usage dashboard** — Settings → AI Providers shows monthly LLM token/request usage and Brave Search query usage with progress bars (tracked locally per calendar month).
 
+## What's new in v0.15
+
+| Area | Highlights |
+|------|------------|
+| **Docker Compose** | Dev: `docker compose up -d --build` (no profiles). Prod: `docker compose -f docker-compose.yml -f docker-compose.prod.yml up -d --build`. Production overlay removes the Vite `frontend` service via compose merge. |
+| **Dashboard** | Smaller welcome panel; removed page title/subtitle; appliances + AI providers stacked left, quick actions + platform status right; blog carousel pinned above the legal footer (duplicate marketing footer removed). |
+| **Plans** | Removed page title/subtitle; plan cards first; compact platform highlights in a 2×3 grid (left two-thirds) beside **Need Enterprise?** (right one-third). |
+
 ## What's new in v0.14
 
 | Area | Highlights |
@@ -41,7 +49,7 @@ Bump the root [`VERSION`](VERSION) file when tagging a release so in-app update 
 
 | Area | Highlights |
 |------|------------|
-| **Production compose** | `docker-compose.prod.yml` is now an **overlay** on `docker-compose.yml` (use both `-f` flags or `./compose.sh`). Clears dev bind mounts, drops the dev frontend via profile, and fixes nginx `depends_on` merging. |
+| **Production compose** | `docker-compose.prod.yml` is an **overlay** on `docker-compose.yml` (use both `-f` flags or `./compose.sh` with `NSAGENT_DEPLOY_MODE=prod`). Clears dev bind mounts, removes the Vite frontend service, and serves the built UI from nginx. |
 | **Startup order** | MCP and backend healthchecks; API waits for healthy MongoDB **and** MCP before starting; nginx waits for a healthy backend. |
 | **MCP URL migration** | Stored MCP settings that point at `localhost` are rewritten to `http://mcp-server:8001` on startup (fixes MCP calls from inside Docker). |
 | **MongoDB connect** | Backend verifies MongoDB with an admin `ping` and a 5s server-selection timeout during startup. |
@@ -393,8 +401,8 @@ Set `NSAGENT_DEPLOY_MODE=dev` in `.env` (or pick **Development** in the installe
 bind-mounted into containers; **Uvicorn `--reload`** and **Vite HMR** pick up changes without rebuild.
 
 ```bash
-./compose.sh up
-# or explicitly: docker compose --profile dev up --build
+docker compose up -d --build
+# or: ./compose.sh up -d --build
 ```
 
 Health checks (dev stack exposes service ports via containers):

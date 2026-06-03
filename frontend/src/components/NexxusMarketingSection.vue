@@ -1,5 +1,5 @@
 <template>
-  <section class="nexxus-marketing mt-5">
+  <section class="nexxus-marketing" :class="{ 'nexxus-marketing-pinned': pinned, 'mt-5': !pinned }">
     <div class="blog-panel content-panel-padded">
       <div class="blog-panel-header flex flex-column md:flex-row md:align-items-end md:justify-content-between gap-3 mb-4">
         <div>
@@ -61,25 +61,17 @@
         </template>
       </Carousel>
     </div>
-
-    <footer class="site-footer mt-4">
-      <div class="site-footer-inner flex flex-column md:flex-row md:align-items-center md:justify-content-between gap-3">
-        <p class="copyright m-0">
-          &copy; {{ currentYear }}
-          <a :href="NEXXUS_TECH.websiteUrl" target="_blank" rel="noopener noreferrer">{{ NEXXUS_TECH.name }}</a>.
-          All rights reserved. JPilot is developed and maintained by Nexxus Tech.
-        </p>
-        <nav class="footer-links flex flex-wrap gap-3" aria-label="Nexxus Tech links">
-          <a :href="NEXXUS_TECH.websiteUrl" target="_blank" rel="noopener noreferrer">Website</a>
-          <a :href="NEXXUS_TECH.blogUrl" target="_blank" rel="noopener noreferrer">Blog</a>
-          <a :href="NEXXUS_TECH.contactUrl" target="_blank" rel="noopener noreferrer">Contact</a>
-        </nav>
-      </div>
-    </footer>
   </section>
 </template>
 
 <script setup>
+defineProps({
+  pinned: {
+    type: Boolean,
+    default: false
+  }
+})
+
 import { onMounted, ref } from 'vue'
 import Carousel from 'primevue/carousel'
 import ProgressSpinner from 'primevue/progressspinner'
@@ -89,7 +81,6 @@ import { fetchNexxusBlogArticles } from '../services/nexxusBlog'
 
 const articles = ref([])
 const loading = ref(true)
-const currentYear = new Date().getFullYear()
 
 const carouselResponsive = [
   { breakpoint: '960px', numVisible: 2, numScroll: 1 },
@@ -112,6 +103,10 @@ onMounted(async () => {
 </script>
 
 <style scoped>
+.nexxus-marketing-pinned {
+  margin-top: auto;
+}
+
 .blog-panel {
   background: var(--p-content-background);
   border: 1px solid var(--p-content-border-color);
@@ -252,34 +247,6 @@ onMounted(async () => {
   transform: translateX(2px);
 }
 
-.site-footer {
-  padding: 1.25rem 0 0.5rem;
-  border-top: 1px solid var(--p-content-border-color);
-}
-
-.copyright {
-  font-size: 0.8125rem;
-  color: var(--p-text-muted-color);
-  line-height: 1.5;
-  max-width: 42rem;
-}
-
-.copyright a,
-.footer-links a {
-  color: var(--p-primary-color);
-  text-decoration: none;
-  font-weight: 500;
-}
-
-.copyright a:hover,
-.footer-links a:hover {
-  text-decoration: underline;
-}
-
-.footer-links a {
-  font-size: 0.8125rem;
-}
-
 @media (max-height: 900px) {
   .blog-card {
     min-height: 10rem;
@@ -331,19 +298,6 @@ html.app-dark .nexxus-marketing .blog-card-date {
 
 html.app-dark .nexxus-marketing .blog-card-read {
   color: #cffafe;
-}
-
-html.app-dark .nexxus-marketing .copyright {
-  color: #a5d8f0;
-}
-
-html.app-dark .nexxus-marketing .footer-links a,
-html.app-dark .nexxus-marketing .copyright a {
-  color: #67e8f9;
-}
-
-html.app-dark .nexxus-marketing .site-footer {
-  border-top-color: #0891b2;
 }
 
 html.app-dark .nexxus-marketing .blog-carousel .p-carousel-prev-button,

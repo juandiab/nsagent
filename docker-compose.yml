@@ -15,7 +15,6 @@ services:
       - backend-api
 
   frontend:
-    profiles: ["dev"]
     build:
       context: .
       dockerfile: frontend/Dockerfile

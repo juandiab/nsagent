@@ -1,10 +1,5 @@
 <template>
   <div class="page">
-    <PageHeader
-      title="Plans"
-      subtitle="Free core platform · Enterprise add-ons from Nexxus Tech"
-    />
-
     <div class="hero-banner content-panel content-panel-padded mb-5">
       <p class="hero-eyebrow m-0">JPilot by Nexxus Tech</p>
       <h2 class="hero-title m-0 mt-2">Free, unlimited, on-premises</h2>
@@ -15,21 +10,7 @@
       </p>
     </div>
 
-    <div class="grid highlights-grid mb-5">
-      <div
-        v-for="item in PLATFORM_HIGHLIGHTS"
-        :key="item.title"
-        class="col-12 sm:col-6 lg:col-4"
-      >
-        <div class="highlight-card h-full">
-          <i :class="['highlight-icon', item.icon]" />
-          <h3 class="highlight-title">{{ item.title }}</h3>
-          <p class="highlight-copy m-0">{{ item.description }}</p>
-        </div>
-      </div>
-    </div>
-
-    <div class="grid plan-grid">
+    <div class="grid plan-grid mb-5">
       <div
         v-for="plan in PRICING_PLANS"
         :key="plan.id"
@@ -97,37 +78,53 @@
       </div>
     </div>
 
-    <div class="content-panel content-panel-padded contact-banner contact-banner-interactive mt-5">
-      <div class="flex flex-column md:flex-row md:align-items-center md:justify-content-between gap-4">
-        <div>
-          <h3 class="panel-heading m-0">Need Enterprise?</h3>
-          <p class="section-copy m-0 mt-2">
-            Nexxus Tech can add SSO, custom runbooks, WAF/GSLB programs, engineer-led rollouts,
-            migrations, health checks, and security enablements for F5, NetScaler, NGINX, and CVAD
-            — on-premises, AWS, or Azure.
-          </p>
+    <section class="pricing-bottom">
+      <div class="pricing-highlights">
+        <div
+          v-for="item in PLATFORM_HIGHLIGHTS"
+          :key="item.title"
+          class="highlight-card flex align-items-start gap-2"
+        >
+          <i :class="['highlight-icon', item.icon]" />
+          <div class="highlight-body min-w-0">
+            <h3 class="highlight-title">{{ item.title }}</h3>
+            <p class="highlight-copy m-0">{{ item.description }}</p>
+          </div>
         </div>
-        <Button
-          as="a"
-          :href="NEXXUS_TECH.contactUrl"
-          target="_blank"
-          rel="noopener noreferrer"
-          label="Contact us"
-          icon="pi pi-arrow-up-right"
-          icon-pos="right"
-          severity="success"
-          raised
-          class="contact-banner-btn contact-cta-btn flex-shrink-0"
-        />
       </div>
-    </div>
+      <div
+        class="content-panel content-panel-padded contact-banner contact-banner-interactive contact-banner-side"
+      >
+        <div class="contact-banner-inner flex flex-column h-full justify-content-between gap-3">
+          <div>
+            <h3 class="panel-heading m-0">Need Enterprise?</h3>
+            <p class="section-copy contact-banner-copy m-0 mt-2">
+              Nexxus Tech can add SSO, custom runbooks, WAF/GSLB programs, engineer-led rollouts,
+              migrations, health checks, and security enablements for F5, NetScaler, NGINX, and CVAD
+              — on-premises, AWS, or Azure.
+            </p>
+          </div>
+          <Button
+            as="a"
+            :href="NEXXUS_TECH.contactUrl"
+            target="_blank"
+            rel="noopener noreferrer"
+            label="Contact us"
+            icon="pi pi-arrow-up-right"
+            icon-pos="right"
+            severity="success"
+            raised
+            class="contact-banner-btn contact-cta-btn w-full"
+          />
+        </div>
+      </div>
+    </section>
   </div>
 </template>
 
 <script setup>
 import Button from 'primevue/button'
 import Tag from 'primevue/tag'
-import PageHeader from '../components/PageHeader.vue'
 import { NEXXUS_TECH } from '../config/nexxusTech'
 import { PLATFORM_HIGHLIGHTS, PRICING_PLANS } from '../config/pricingPlans'
 </script>
@@ -164,31 +161,67 @@ import { PLATFORM_HIGHLIGHTS, PRICING_PLANS } from '../config/pricingPlans'
   font-weight: 600;
 }
 
+.pricing-bottom {
+  display: grid;
+  grid-template-columns: minmax(0, 2fr) minmax(0, 1fr);
+  gap: 1rem;
+  align-items: stretch;
+  width: 100%;
+}
+
+.pricing-highlights {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  grid-template-rows: repeat(3, minmax(0, auto));
+  gap: 0.5rem;
+  min-width: 0;
+}
+
+.contact-banner-side {
+  height: 100%;
+  min-height: 100%;
+}
+
+.contact-banner-copy {
+  max-width: none;
+}
+
+.contact-banner-side .section-copy {
+  font-size: 0.8125rem;
+  line-height: 1.5;
+}
+
 .highlight-card {
   background: var(--p-content-background);
   border: 1px solid var(--p-content-border-color);
-  border-radius: var(--content-radius);
-  padding: 1.25rem;
+  border-radius: calc(var(--content-radius) * 0.85);
+  padding: 0.5rem 0.625rem;
 }
 
 .highlight-icon {
-  font-size: 1.25rem;
+  flex-shrink: 0;
+  font-size: 0.875rem;
+  line-height: 1;
   color: var(--p-primary-color);
-  margin-bottom: 0.75rem;
-  display: block;
+  margin-top: 0.1rem;
 }
 
 .highlight-title {
-  margin: 0 0 0.35rem;
-  font-size: 0.9375rem;
+  margin: 0 0 0.125rem;
+  font-size: 0.75rem;
   font-weight: 600;
+  line-height: 1.25;
   color: var(--p-text-color);
 }
 
 .highlight-copy {
-  font-size: 0.8125rem;
-  line-height: 1.55;
+  font-size: 0.6875rem;
+  line-height: 1.35;
   color: var(--p-text-muted-color);
+  display: -webkit-box;
+  -webkit-line-clamp: 2;
+  -webkit-box-orient: vertical;
+  overflow: hidden;
 }
 
 .plan-card {
@@ -458,6 +491,10 @@ html.app-dark .contact-banner-interactive {
 }
 
 @media (max-width: 768px) {
+  .pricing-bottom {
+    grid-template-columns: 1fr;
+  }
+
   .contact-banner-btn {
     white-space: normal;
     width: 100%;
@@ -480,12 +517,25 @@ html.app-dark .contact-banner-interactive {
     margin-bottom: 2rem !important;
   }
 
-  .highlights-grid {
-    margin-bottom: 1.5rem !important;
+  .highlight-card {
+    padding: 0.375rem 0.5rem;
   }
 
-  .contact-banner {
-    margin-top: 2rem !important;
+  .highlight-icon {
+    font-size: 0.75rem;
+  }
+
+  .highlight-title {
+    font-size: 0.6875rem;
+  }
+
+  .highlight-copy {
+    font-size: 0.625rem;
+    line-height: 1.3;
+  }
+
+  .contact-banner-side .section-copy {
+    font-size: 0.75rem;
   }
 
   .hero-title {
@@ -494,10 +544,6 @@ html.app-dark .contact-banner-interactive {
 
   .hero-copy {
     font-size: 0.8125rem;
-  }
-
-  .highlight-card {
-    padding: 0.875rem;
   }
 
   .plan-card {

@@ -68,11 +68,13 @@
         </Message>
       </div>
 
-      <router-view v-slot="{ Component, route }">
-        <Transition name="page-fade" mode="out-in">
-          <component :is="Component" :key="route.path" />
-        </Transition>
-      </router-view>
+      <div class="main-view">
+        <router-view v-slot="{ Component, route }">
+          <Transition name="page-fade" mode="out-in">
+            <component :is="Component" :key="route.path" class="route-page" />
+          </Transition>
+        </router-view>
+      </div>
 
       <footer class="app-legal">
         <span class="app-legal-copy">© {{ currentYear }} Nexxus Tech</span>
@@ -340,6 +342,20 @@ function isActive(path) {
 .main-content {
   padding: 0 0.5rem 2rem;
   gap: 2rem;
+}
+
+.main-view {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  min-height: 0;
+}
+
+.main-view :deep(.route-page) {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  min-height: 0;
 }
 
 .update-banner {

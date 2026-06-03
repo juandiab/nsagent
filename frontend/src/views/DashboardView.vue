@@ -1,12 +1,7 @@
 <template>
   <div class="page">
-    <PageHeader
-      title="Dashboard"
-      subtitle="Overview of your JPilot platform"
-    />
-
-    <div class="welcome-panel mb-5">
-      <div class="welcome-panel-inner flex flex-column lg:flex-row lg:align-items-center lg:justify-content-between gap-4">
+    <div class="welcome-panel mb-3">
+      <div class="welcome-panel-inner flex flex-column lg:flex-row lg:align-items-center lg:justify-content-between gap-2">
         <div class="welcome-copy">
           <p class="welcome-eyebrow m-0">
             Developed by
@@ -32,14 +27,15 @@
             label="Contact us to customize this solution for you"
             icon="pi pi-envelope"
             icon-pos="right"
+            size="small"
             class="contact-cta-btn"
           />
         </div>
       </div>
     </div>
 
-    <div class="grid">
-      <div class="col-12 md:col-6">
+    <div class="grid dashboard-main-grid">
+      <div class="col-12 md:col-6 dashboard-column">
         <div class="stat-card">
           <div class="stat-label">Appliances</div>
           <div class="stat-value">{{ stats.netscalers + stats.otherAppliances }}</div>
@@ -48,8 +44,6 @@
           </p>
           <RouterLink to="/appliances" class="stat-link">Manage inventory →</RouterLink>
         </div>
-      </div>
-      <div class="col-12 md:col-6">
         <div class="stat-card">
           <div class="stat-label">AI Providers</div>
           <div class="stat-value">{{ stats.providers }}</div>
@@ -57,10 +51,7 @@
           <span v-else class="empty-hint">Admin configuration</span>
         </div>
       </div>
-    </div>
-
-    <div class="grid mt-4">
-      <div class="col-12 md:col-8">
+      <div class="col-12 md:col-6 dashboard-column">
         <div class="content-panel content-panel-padded quick-panel">
           <h3 class="panel-heading">Quick actions</h3>
           <div class="flex flex-wrap gap-3 mt-3">
@@ -76,8 +67,6 @@
             />
           </div>
         </div>
-      </div>
-      <div class="col-12 md:col-4">
         <div class="content-panel content-panel-padded status-panel">
           <h3 class="panel-heading">Platform status</h3>
           <ul class="status-list m-0 mt-3 p-0 list-none">
@@ -95,7 +84,7 @@
       </div>
     </div>
 
-    <NexxusMarketingSection />
+    <NexxusMarketingSection pinned />
   </div>
 </template>
 
@@ -105,7 +94,6 @@ import { useRouter } from 'vue-router'
 import Button from 'primevue/button'
 import Tag from 'primevue/tag'
 import NexxusMarketingSection from '../components/NexxusMarketingSection.vue'
-import PageHeader from '../components/PageHeader.vue'
 import { NEXXUS_TECH } from '../config/nexxusTech'
 import { isNetScalerVendor } from '../config/applianceVendors'
 import api from '../services/api'
@@ -154,6 +142,12 @@ onMounted(async () => {
   animation: page-in 0.35s ease;
 }
 
+.dashboard-column {
+  display: flex;
+  flex-direction: column;
+  gap: 1rem;
+}
+
 .panel-heading {
   font-size: 0.9375rem;
   font-weight: 600;
@@ -187,10 +181,10 @@ onMounted(async () => {
 }
 
 .welcome-eyebrow {
-  font-size: 0.8125rem;
+  font-size: 0.75rem;
   font-weight: 600;
   color: var(--p-text-muted-color);
-  margin-bottom: 0.5rem !important;
+  margin-bottom: 0.25rem !important;
 }
 
 .welcome-eyebrow a {
@@ -225,12 +219,8 @@ onMounted(async () => {
 }
 
 @media (max-height: 900px) {
-  :global(.grid.mt-4) {
-    margin-top: 0.5rem !important;
-  }
-
-  :global(.nexxus-marketing.mt-5) {
-    margin-top: 1.5rem !important;
+  .dashboard-column {
+    gap: 0.5rem;
   }
 }
 </style>
