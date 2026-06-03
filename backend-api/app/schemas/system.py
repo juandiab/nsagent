@@ -21,6 +21,7 @@ class UpdateCheckResponse(BaseModel):
     update_available: bool = False
     release_url: str | None = None
     release_name: str | None = None
+    release_notes: str | None = None
     checked_at: str
     check_error: str | None = None
     update_instructions: UpdateInstructions

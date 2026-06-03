@@ -125,10 +125,12 @@ async def _fetch_latest_version_info(repo: str) -> dict[str, Any]:
             release = release_response.json()
             tag = str(release.get("tag_name") or "").strip()
             if tag:
+                body = release.get("body")
                 return {
                     "tag": tag,
                     "release_url": release.get("html_url"),
                     "release_name": release.get("name"),
+                    "release_notes": str(body).strip() if body else None,
                 }
 
         if release_response.status_code not in (404,):
@@ -145,10 +147,21 @@ async def _fetch_latest_version_info(repo: str) -> dict[str, Any]:
             raise ValueError("No version tags found on GitHub.")
 
         display_tag = latest_tag if latest_tag.startswith(("v", "V")) else f"v{latest_tag}"
+        release_notes: str | None = None
+        tag_release = await client.get(
+            f"https://api.github.com/repos/{repo}/releases/tags/{latest_tag}",
+            headers=headers,
+        )
+        if tag_release.status_code == 200:
+            body = tag_release.json().get("body")
+            if body:
+                release_notes = str(body).strip()
+
         return {
             "tag": latest_tag,
             "release_url": f"https://github.com/{repo}/tree/{display_tag}",
             "release_name": display_tag,
+            "release_notes": release_notes,
         }
 
 
@@ -168,6 +181,7 @@ async def check_for_updates(*, force: bool = False, repo: str = _DEFAULT_REPO) -
     latest_version: str | None = None
     release_url: str | None = None
     release_name: str | None = None
+    release_notes: str | None = None
     update_available = False
 
     try:
@@ -177,6 +191,7 @@ async def check_for_updates(*, force: bool = False, repo: str = _DEFAULT_REPO) -
             latest_version = _normalize_version(tag)
             release_url = latest.get("release_url")
             release_name = latest.get("release_name") or _display_version(latest_version)
+            release_notes = latest.get("release_notes")
             update_available = is_newer_version(latest_version, current)
     except httpx.HTTPStatusError as exc:
         check_error = f"GitHub returned HTTP {exc.response.status_code}."
@@ -193,6 +208,7 @@ async def check_for_updates(*, force: bool = False, repo: str = _DEFAULT_REPO) -
         update_available=update_available,
         release_url=release_url,
         release_name=release_name,
+        release_notes=release_notes if update_available else None,
         checked_at=now.isoformat(),
         check_error=check_error,
         update_instructions=_build_instructions(latest_version),
