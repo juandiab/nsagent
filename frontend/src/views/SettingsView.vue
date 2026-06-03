@@ -98,6 +98,15 @@
                   <Message v-if="mcpMessage" :severity="mcpMessageSeverity" :closable="false">
                     {{ mcpMessage }}
                   </Message>
+
+                  <div class="mcp-status-inline">
+                    <h3 class="info-title">MCP status</h3>
+                    <ul class="info-list mcp-status-list m-0 pl-0 list-none">
+                      <li><strong>URL:</strong> {{ mcpStatus.serverUrl || '—' }}</li>
+                      <li><strong>Enabled tools:</strong> {{ mcpStatus.enabledToolCount }} / {{ mcpStatus.toolCount }}</li>
+                      <li><strong>Status:</strong> {{ mcpStatus.message }}</li>
+                    </ul>
+                  </div>
                 </div>
               </div>
               </div>
@@ -247,15 +256,6 @@
                 </div>
               </div>
               </div>
-            </div>
-
-            <div class="content-panel content-panel-padded info-panel mcp-status-panel">
-              <h3 class="info-title">MCP status</h3>
-              <ul class="info-list mcp-status-list m-0 pl-0 list-none">
-                <li><strong>URL:</strong> {{ mcpStatus.serverUrl || '—' }}</li>
-                <li><strong>Enabled tools:</strong> {{ mcpStatus.enabledToolCount }} / {{ mcpStatus.toolCount }}</li>
-                <li><strong>Status:</strong> {{ mcpStatus.message }}</li>
-              </ul>
             </div>
           </section>
   
@@ -954,10 +954,27 @@ onMounted(async () => {
   width: 100%;
 }
 
+.mcp-status-inline {
+  margin-top: 0.25rem;
+  padding-top: 1rem;
+  border-top: 1px solid var(--p-content-border-color);
+}
+
+.mcp-status-inline .info-title {
+  margin-bottom: 0.5rem;
+}
+
 .mcp-status-list {
   display: flex;
   flex-wrap: wrap;
-  gap: 0.75rem 1.5rem;
+  gap: 0.5rem 1.25rem;
+  font-size: 0.8125rem;
+  color: var(--p-text-muted-color);
+}
+
+.mcp-status-list strong {
+  color: var(--p-text-color);
+  font-weight: 600;
 }
 
 .smtp-fields-grid {
