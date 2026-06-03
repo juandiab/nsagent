@@ -140,6 +140,27 @@ def _exclude_credentials(passkeys: list[dict[str, Any]]) -> list[PublicKeyCreden
     return descriptors
 
 
+def _allow_credentials_for_authentication(
+    passkeys: list[dict[str, Any]],
+) -> list[PublicKeyCredentialDescriptor]:
+    """Build allowCredentials for sign-in, enabling cross-device (QR) use on other machines."""
+    descriptors: list[PublicKeyCredentialDescriptor] = []
+    for item in passkeys:
+        credential_id = item.get("credentialId")
+        if not credential_id:
+            continue
+        transports = _parse_transports(item.get("transports"))
+        if AuthenticatorTransport.HYBRID not in transports:
+            transports.append(AuthenticatorTransport.HYBRID)
+        descriptors.append(
+            PublicKeyCredentialDescriptor(
+                id=base64url_to_bytes(credential_id),
+                transports=transports,
+            )
+        )
+    return descriptors
+
+
 async def begin_registration(
     db: AsyncIOMotorDatabase,
     user: dict[str, Any],
@@ -213,6 +234,8 @@ async def finish_registration(
 async def begin_authentication(
     db: AsyncIOMotorDatabase,
     user: dict[str, Any],
+    *,
+    prefer_cross_device: bool = False,
 ) -> dict[str, Any]:
     passkeys = await list_user_passkeys(db, user["_id"])
     if not passkeys:
@@ -220,7 +243,7 @@ async def begin_authentication(
 
     options = generate_authentication_options(
         rp_id=settings.webauthn_rp_id,
-        allow_credentials=_exclude_credentials(passkeys),
+        allow_credentials=_allow_credentials_for_authentication(passkeys),
         user_verification=UserVerificationRequirement.PREFERRED,
     )
     await _store_challenge(
@@ -230,7 +253,10 @@ async def begin_authentication(
         challenge=options.challenge,
         flow="authentication",
     )
-    return _public_key_options_dict(options)
+    options_dict = _public_key_options_dict(options)
+    if prefer_cross_device:
+        options_dict["hints"] = ["hybrid"]
+    return options_dict
 
 
 async def finish_authentication(

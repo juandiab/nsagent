@@ -30,9 +30,12 @@ export async function registerPasskey(username, label = '', recoveryToken = null
   return data
 }
 
-export async function loginWithPasskey(username) {
+export async function loginWithPasskey(username, { preferCrossDevice = false } = {}) {
   const cleaned = username.trim().toLowerCase()
-  const { data: options } = await api.post('/auth/webauthn/login/begin', { username: cleaned })
+  const { data: options } = await api.post('/auth/webauthn/login/begin', {
+    username: cleaned,
+    preferCrossDevice
+  })
   const credential = await startAuthentication({ optionsJSON: options })
   const { data } = await api.post('/auth/webauthn/login/finish', {
     username: cleaned,

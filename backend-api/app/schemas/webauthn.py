@@ -17,6 +17,10 @@ class WebAuthnRegisterFinishRequest(WebAuthnUsernameRequest):
     recoveryToken: str | None = Field(default=None, max_length=2048)
 
 
+class WebAuthnLoginBeginRequest(WebAuthnUsernameRequest):
+    preferCrossDevice: bool = False
+
+
 class WebAuthnLoginFinishRequest(WebAuthnUsernameRequest):
     credential: dict[str, Any]
 

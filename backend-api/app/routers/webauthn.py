@@ -6,6 +6,7 @@ from motor.motor_asyncio import AsyncIOMotorDatabase
 from app.dependencies import get_current_user, get_db, get_optional_current_user, require_admin
 from app.schemas.auth import MessageResponse
 from app.schemas.webauthn import (
+    WebAuthnLoginBeginRequest,
     WebAuthnLoginFinishRequest,
     WebAuthnRegisterBeginRequest,
     WebAuthnRegisterFinishRequest,
@@ -152,12 +153,16 @@ async def register_finish(
 
 @router.post("/login/begin")
 async def login_begin(
-    payload: WebAuthnUsernameRequest,
+    payload: WebAuthnLoginBeginRequest,
     db: AsyncIOMotorDatabase = Depends(get_db),
 ) -> dict[str, Any]:
     user = await _resolve_user(db, payload.username)
     try:
-        return await begin_authentication(db, user)
+        return await begin_authentication(
+            db,
+            user,
+            prefer_cross_device=payload.preferCrossDevice,
+        )
     except ValueError as exc:
         raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail=str(exc)) from exc
 

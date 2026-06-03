@@ -6,7 +6,7 @@ Repository: [github.com/juandiab/nsagent](https://github.com/juandiab/nsagent)
 
 > **Disclaimer:** JPilot is an independent project and is not affiliated with, endorsed by, or sponsored by Citrix Systems, Inc. NetScaler is a trademark of Citrix Systems, Inc.
 
-**Current release:** `v0.21` — MCP status inline under MCP Server settings.
+**Current release:** `v0.22` — cross-device passkey sign-in (QR / phone) on the login page.
 
 Bump the root [`VERSION`](VERSION) file when tagging a release so in-app update checks match GitHub.
 
@@ -29,6 +29,13 @@ Bump the root [`VERSION`](VERSION) file when tagging a release so in-app update 
 - **Optional Brave Search** — domain-restricted web augmentation when local memory/docs are weak (Settings → AI Providers).
 - **Dashboard shortcuts** — recommended JPilot prompts and links (health summary, list IPs/vservers, diagnostics, guided LB).
 - **Model usage dashboard** — Settings → AI Providers shows monthly LLM token/request usage and Brave Search query usage with progress bars (tracked locally per calendar month).
+
+## What's new in v0.22
+
+| Area | Highlights |
+|------|------------|
+| **Passkey login** | Cross-device sign-in for passkey-only accounts: hybrid transport hints on the server, a **Sign in from your phone** panel under the passkey button, and auto-start of the QR flow once terms are accepted. |
+| **WebAuthn API** | `POST /auth/webauthn/login/begin` accepts optional `preferCrossDevice` to prioritize the browser’s QR / phone passkey dialog. |
 
 ## What's new in v0.21
 

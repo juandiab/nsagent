@@ -25,7 +25,7 @@
       <form
         class="flex flex-column gap-4"
         v-animateonscroll="{ enterClass: 'anim-rise anim-delay-2' }"
-        @submit.prevent="status?.passkeyRequired ? handlePasskeyLogin() : handlePasswordLogin()"
+        @submit.prevent="status?.passkeyRequired ? handlePasskeyLogin(false) : handlePasswordLogin()"
       >
         <div class="flex flex-column gap-2">
           <label for="username" class="field-label">Username</label>
@@ -76,10 +76,47 @@
           label="Sign in with passkey"
           icon="pi pi-shield"
           class="w-full"
-          :loading="loadingPasskey"
-          :disabled="!agreed"
-          @click="handlePasskeyLogin"
+          :loading="loadingPasskey && passkeyMode === 'local'"
+          :disabled="!agreed || loadingPasskey"
+          @click="handlePasskeyLogin(false)"
         />
+
+        <div
+          v-if="status?.passkeyRequired"
+          class="cross-device-panel"
+          v-animateonscroll="{ enterClass: 'anim-rise anim-delay-3' }"
+        >
+          <div class="cross-device-panel-header">
+            <i class="pi pi-mobile" aria-hidden="true"></i>
+            <span>Sign in from your phone</span>
+          </div>
+          <p class="cross-device-copy">
+            Passkey saved on another device? We will open a QR code so you can scan it with a phone
+            that has this passkey (for example via iCloud Keychain or Google Password Manager).
+          </p>
+          <div class="cross-device-qr-area" :class="{ active: crossDeviceActive }">
+            <div class="qr-placeholder" aria-hidden="true">
+              <span v-for="cell in qrPattern" :key="cell" :class="{ filled: cell }"></span>
+            </div>
+            <p v-if="crossDeviceActive" class="cross-device-status">
+              Scan the QR code in your browser&rsquo;s passkey dialog with your phone camera.
+            </p>
+            <p v-else class="cross-device-status muted">
+              The scannable QR code opens when you start phone sign-in below.
+            </p>
+          </div>
+          <Button
+            type="button"
+            label="Show QR code"
+            icon="pi pi-qrcode"
+            class="w-full"
+            severity="secondary"
+            outlined
+            :loading="loadingPasskey && passkeyMode === 'cross-device'"
+            :disabled="!agreed || loadingPasskey"
+            @click="handlePasskeyLogin(true)"
+          />
+        </div>
 
         <Button
           v-else
@@ -93,7 +130,7 @@
 
         <template v-if="status?.passkeyRequired">
           <small class="field-hint text-center">
-            Use Touch ID, Face ID, Windows Hello, or a security key.
+            On this computer, use Touch ID, Face ID, or Windows Hello if your passkey is synced here.
           </small>
         </template>
 
@@ -132,7 +169,7 @@
             outlined
             :loading="loadingPasskey"
             :disabled="!agreed"
-            @click="handlePasskeyLogin"
+            @click="handlePasskeyLogin(false)"
           />
           <small class="field-hint text-center">
             Available after you register a passkey in Settings.
@@ -169,6 +206,7 @@ import {
   loginWithPasskey,
   passkeyErrorMessage
 } from '../services/webauthn'
+import { WebAuthnAbortService } from '@simplewebauthn/browser'
 
 const router = useRouter()
 const route = useRoute()
@@ -178,9 +216,22 @@ const password = ref('')
 const agreed = ref(false)
 const loading = ref(false)
 const loadingPasskey = ref(false)
+const passkeyMode = ref('local')
+const crossDeviceActive = ref(false)
+const crossDeviceAutoStarted = ref(false)
 const errorMessage = ref('')
 const status = ref(null)
 let statusTimer = null
+
+const qrPattern = [
+  true, true, true, false, true, true, true,
+  true, false, true, false, true, false, true,
+  true, true, true, false, false, true, true,
+  false, true, false, true, true, false, true,
+  true, false, true, true, true, false, true,
+  true, true, true, false, true, false, true,
+  false, false, true, false, true, true, true
+]
 
 async function refreshStatus() {
   const cleaned = username.value.trim()
@@ -197,6 +248,8 @@ async function refreshStatus() {
 
 watch(username, (value) => {
   clearTimeout(statusTimer)
+  crossDeviceAutoStarted.value = false
+  crossDeviceActive.value = false
   if (!value.trim()) {
     status.value = null
     return
@@ -204,6 +257,13 @@ watch(username, (value) => {
   statusTimer = setTimeout(() => {
     refreshStatus()
   }, 300)
+})
+
+watch([agreed, () => status.value?.passkeyRequired], ([isAgreed, passkeyRequired]) => {
+  if (isAgreed && passkeyRequired && !crossDeviceAutoStarted.value) {
+    crossDeviceAutoStarted.value = true
+    handlePasskeyLogin(true)
+  }
 })
 
 onMounted(() => {
@@ -214,6 +274,7 @@ onMounted(() => {
 
 onBeforeUnmount(() => {
   clearTimeout(statusTimer)
+  WebAuthnAbortService.cancelCeremony()
 })
 
 async function handlePasswordLogin() {
@@ -234,19 +295,26 @@ async function handlePasswordLogin() {
   }
 }
 
-async function handlePasskeyLogin() {
+async function handlePasskeyLogin(preferCrossDevice = false) {
   errorMessage.value = ''
+  passkeyMode.value = preferCrossDevice ? 'cross-device' : 'local'
+  crossDeviceActive.value = preferCrossDevice
   loadingPasskey.value = true
   try {
     await refreshStatus()
     if (!status.value?.hasPasskey) {
       errorMessage.value = 'No passkey registered for this account yet.'
+      crossDeviceActive.value = false
       return
     }
-    await loginWithPasskey(username.value)
+    await loginWithPasskey(username.value, { preferCrossDevice })
     router.push(route.query.redirect || '/')
   } catch (error) {
     errorMessage.value = passkeyErrorMessage(error)
+    crossDeviceActive.value = false
+    if (preferCrossDevice) {
+      crossDeviceAutoStarted.value = false
+    }
   } finally {
     loadingPasskey.value = false
   }
@@ -342,6 +410,7 @@ async function handlePasskeyLogin() {
 
 .anim-delay-1 { animation-delay: 120ms; }
 .anim-delay-2 { animation-delay: 240ms; }
+.anim-delay-3 { animation-delay: 360ms; }
 
 @keyframes panel-in {
   from {
@@ -475,5 +544,91 @@ async function handlePasskeyLogin() {
 
 .reset-link:hover {
   text-decoration: underline;
+}
+
+.cross-device-panel {
+  display: flex;
+  flex-direction: column;
+  gap: 0.875rem;
+  padding: 1rem;
+  border: 1px solid var(--p-content-border-color);
+  border-radius: 0.75rem;
+  background: color-mix(in srgb, var(--p-primary-color) 5%, var(--p-content-background));
+}
+
+.cross-device-panel-header {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  font-size: 0.875rem;
+  font-weight: 600;
+}
+
+.cross-device-panel-header .pi {
+  color: var(--p-primary-color);
+}
+
+.cross-device-copy {
+  margin: 0;
+  font-size: 0.8125rem;
+  line-height: 1.45;
+  color: var(--p-text-muted-color);
+}
+
+.cross-device-qr-area {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 0.75rem;
+  padding: 0.875rem;
+  border-radius: 0.625rem;
+  border: 1px dashed var(--p-content-border-color);
+  background: var(--p-content-background);
+}
+
+.cross-device-qr-area.active {
+  border-color: color-mix(in srgb, var(--p-primary-color) 45%, var(--p-content-border-color));
+  box-shadow: 0 0 0 1px color-mix(in srgb, var(--p-primary-color) 12%, transparent);
+}
+
+.qr-placeholder {
+  display: grid;
+  grid-template-columns: repeat(7, 1fr);
+  gap: 0.18rem;
+  width: 5.5rem;
+  aspect-ratio: 1;
+  padding: 0.35rem;
+  border-radius: 0.35rem;
+  background: #fff;
+}
+
+.qr-placeholder span {
+  border-radius: 0.1rem;
+  background: color-mix(in srgb, var(--p-text-color) 8%, #fff);
+}
+
+.qr-placeholder span.filled {
+  background: var(--p-text-color);
+}
+
+.cross-device-qr-area.active .qr-placeholder {
+  animation: qr-pulse 1.6s ease-in-out infinite;
+}
+
+.cross-device-status {
+  margin: 0;
+  font-size: 0.8125rem;
+  line-height: 1.45;
+  text-align: center;
+  color: var(--p-text-color);
+}
+
+.cross-device-status.muted {
+  color: var(--p-text-muted-color);
+}
+
+@keyframes qr-pulse {
+  0%, 100% { opacity: 1; transform: scale(1); }
+  50% { opacity: 0.82; transform: scale(0.98); }
 }
 </style>
