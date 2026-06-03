@@ -403,6 +403,8 @@ bind-mounted into containers; **Uvicorn `--reload`** and **Vite HMR** pick up ch
 ```bash
 docker compose up -d --build
 # or: ./compose.sh up -d --build
+# pull main and optionally rebuild dev and/or prod:
+./scripts/upgrade.sh
 ```
 
 Health checks (dev stack exposes service ports via containers):
@@ -424,6 +426,10 @@ stack with `docker-compose.prod.yml`: the frontend is compiled into the nginx im
 services run without reload or source bind mounts.
 
 ```bash
+./scripts/prod-up.sh
+# pull main and optionally rebuild stacks:
+./scripts/upgrade.sh
+# or with NSAGENT_DEPLOY_MODE=prod in .env:
 ./compose.sh up -d --build
 # or explicitly:
 docker compose -f docker-compose.yml -f docker-compose.prod.yml up -d --build
@@ -491,6 +497,8 @@ docker run --rm -v nsagent_nsagent_mongodb_data:/data/db mongo:8.2 mongod --repa
 ├── docker-compose.yml
 ├── docker-compose.prod.yml
 ├── compose.sh              # picks dev/prod compose from .env
+├── scripts/prod-up.sh      # production build + up (from repo root)
+├── scripts/upgrade.sh      # git pull + optional dev/prod rebuild
 ├── netscaler_nextgen_api_memory.md
 ├── netscaler_adc_cli_memory.md
 └── .env.example
