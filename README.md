@@ -1,10 +1,10 @@
-# NSAgent
+# JPilot
 
 **JPilot** — an AI-assisted management platform for Citrix NetScaler ADC appliances. Register appliances, configure AI providers, and use the JPilot chat that reads and writes configuration through the **NetScaler Next-Gen API**, **read-only NITRO**, and **SSH CLI** — with official documentation baked into memory files so the assistant does not invent syntax.
 
 Repository: [github.com/juandiab/nsagent](https://github.com/juandiab/nsagent)
 
-> **Disclaimer:** NSAgent is an independent project and is not affiliated with, endorsed by, or sponsored by Citrix Systems, Inc. NetScaler is a trademark of Citrix Systems, Inc.
+> **Disclaimer:** JPilot is an independent project and is not affiliated with, endorsed by, or sponsored by Citrix Systems, Inc. NetScaler is a trademark of Citrix Systems, Inc.
 
 **Current release:** `v0.05` — guided LB forms, memory gates, SSL CSR tools, password reset, expanded LLM providers, CLI reference upgrades, and JPilot UX improvements.
 
@@ -345,6 +345,6 @@ For production images, remove bind-mount volume lines for `frontend`, `backend-a
 
 ## License
 
-**JPilot / NSAgent** distributed via Docker or installer is **proprietary software** licensed under the [EULA](frontend/src/legal/eula.md) (Nexxus-Tech SAS). Open-source **third-party** components are listed in [THIRD_PARTY_NOTICES.txt](THIRD_PARTY_NOTICES.txt) (regenerate with `./scripts/generate-third-party-notices.sh`).
+**JPilot** distributed via Docker or installer is **proprietary software** licensed under the [EULA](frontend/src/legal/eula.md) (Nexxus-Tech SAS). Open-source **third-party** components are listed in [THIRD_PARTY_NOTICES.txt](THIRD_PARTY_NOTICES.txt) (regenerate with `./scripts/generate-third-party-notices.sh`).
 
 The repository `LICENSE` file applies only where expressly stated for specific open-source artifacts; it does not grant rights to the commercial product.
