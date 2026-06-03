@@ -6,7 +6,7 @@ Repository: [github.com/juandiab/nsagent](https://github.com/juandiab/nsagent)
 
 > **Disclaimer:** JPilot is an independent project and is not affiliated with, endorsed by, or sponsored by Citrix Systems, Inc. NetScaler is a trademark of Citrix Systems, Inc.
 
-**Current release:** `v0.10` — Settings tab caching and nginx API rate-limit fix; login page polish and page transitions.
+**Current release:** `v0.11` — nginx auth/login rate limit raised to 15 requests per minute.
 
 Bump the root [`VERSION`](VERSION) file when tagging a release so in-app update checks match GitHub.
 
@@ -28,6 +28,12 @@ Bump the root [`VERSION`](VERSION) file when tagging a release so in-app update 
 - **Optional Brave Search** — domain-restricted web augmentation when local memory/docs are weak (Settings → AI Providers).
 - **Dashboard shortcuts** — recommended JPilot prompts and links (health summary, list IPs/vservers, diagnostics, guided LB).
 - **Model usage dashboard** — Settings → AI Providers shows monthly LLM token/request usage and Brave Search query usage with progress bars (tracked locally per calendar month).
+
+## What's new in v0.11
+
+| Area | Highlights |
+|------|------------|
+| **Auth** | nginx `/api/auth` rate limit raised from 5 to **15 requests/minute** (burst 15) for login, passkey, and recovery flows. |
 
 ## What's new in v0.10
 
