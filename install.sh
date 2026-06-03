@@ -102,11 +102,45 @@ $DC up -d --build
 
 rm -f "$SENTINEL"
 
+APP_URL="https://$DOMAIN"
+
 printf '\n  ✅ JPilot is starting at  '
-osc8_link "https://$DOMAIN"
+osc8_link "$APP_URL"
 printf '\n\n'
 printf '  • The first boot may take a few seconds while services come up.\n'
 printf '  • Sign in with the admin account you just created.\n'
 printf '  • View logs with:   %s logs -f\n' "$DC"
 printf '  • Stop with:        %s down\n' "$DC"
 printf '\n'
+
+# ---- open the app in a browser (best effort) -------------------------------
+# Only auto-open when the app is reachable on this machine (localhost). For a
+# custom domain the operator usually browses from elsewhere, so we just leave
+# the clickable link above. Set JPILOT_NO_OPEN=1 to disable entirely.
+open_url() {
+  case "$(uname -s 2>/dev/null)" in
+    Darwin) command -v open     >/dev/null 2>&1 && open "$1"     >/dev/null 2>&1 ;;
+    Linux)  command -v xdg-open >/dev/null 2>&1 && xdg-open "$1" >/dev/null 2>&1 ;;
+  esac
+}
+
+if [ -z "${JPILOT_NO_OPEN:-}" ]; then
+  case "$DOMAIN" in
+    localhost|127.*|::1)
+      printf '  Waiting for JPilot to be ready'
+      _n=0; _opened=0
+      while [ "$_n" -lt 60 ]; do
+        if curl -sk -o /dev/null --max-time 2 "https://localhost/" 2>/dev/null; then
+          printf ' done.\n  Opening your browser...\n\n'
+          open_url "$APP_URL"; _opened=1
+          break
+        fi
+        printf '.'; sleep 2; _n=$((_n + 1))
+      done
+      if [ "$_opened" -eq 0 ]; then
+        printf '\n  Still starting — open the link above when ready.\n\n'
+      fi
+      ;;
+    *) : ;;                                 # custom domain: rely on the printed link
+  esac
+fi

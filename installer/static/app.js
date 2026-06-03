@@ -160,8 +160,10 @@ function showDone(data) {
   $("sec_jwt").textContent = data.secrets.JWT_SECRET_KEY;
   $("doneMsg").innerHTML =
     `Your terminal is now launching JPilot at <code>${escapeHtml(data.app_url)}</code>. ` +
-    `This installer is shutting down — once the stack is up, open that address and sign in. ` +
-    `Passkeys can be enrolled afterwards from <strong>Settings</strong>.`;
+    `The first boot takes about a minute — use the button below once it's up, and sign ` +
+    `in with the admin account you created. Passkeys can be enrolled afterwards from ` +
+    `<strong>Settings</strong>.`;
+  $("openApp").href = data.app_url;
   const blob = new Blob(
     [`NSAGENT_ENCRYPTION_KEY=${data.secrets.NSAGENT_ENCRYPTION_KEY}\n` +
      `JWT_SECRET_KEY=${data.secrets.JWT_SECRET_KEY}\n`],

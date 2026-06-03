@@ -105,3 +105,23 @@ Write-Host "  * Sign in with the admin account you just created."
 Write-Host "  * View logs with:   $($dc -join ' ') logs -f"
 Write-Host "  * Stop with:        $($dc -join ' ') down"
 Write-Host ""
+
+# ---- open the app in a browser (best effort) -------------------------------
+# Only auto-open for a local install; set $env:JPILOT_NO_OPEN=1 to disable.
+if ((-not $env:JPILOT_NO_OPEN) -and ($domain -eq 'localhost' -or $domain -like '127.*' -or $domain -eq '::1')) {
+  [System.Net.ServicePointManager]::ServerCertificateValidationCallback = { $true }
+  Write-Host -NoNewline "  Waiting for JPilot to be ready"
+  $opened = $false
+  for ($i = 0; $i -lt 60; $i++) {
+    try {
+      Invoke-WebRequest -Uri 'https://localhost/' -TimeoutSec 2 -UseBasicParsing *> $null
+      Write-Host " done.`n  Opening your browser..."
+      Start-Process "https://$domain"
+      $opened = $true
+      break
+    } catch { Write-Host -NoNewline '.'; Start-Sleep -Seconds 2 }
+  }
+  if (-not $opened) { Write-Host "`n  Still starting - open the link above when ready." }
+  [System.Net.ServicePointManager]::ServerCertificateValidationCallback = $null
+  Write-Host ""
+}
