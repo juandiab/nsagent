@@ -26,6 +26,8 @@ from app.schemas.copilot import (
     CopilotSettings,
     CopilotStatusResponse,
 )
+from app.schemas.model_usage import ModelUsageDashboardResponse, UsageLimitsUpdate
+from app.services.model_usage_service import get_usage_dashboard, update_usage_limits
 from app.services.copilot_appliance_service import connect_appliance, list_copilot_appliances
 
 router = APIRouter(prefix="/copilot", tags=["copilot"])
@@ -71,7 +73,27 @@ async def test_platform_search(
     if not api_key:
         return TestConnectionResponse(success=False, message="Brave Search API key is not configured")
     success, message = await test_brave_search(api_key)
+    if success:
+        from app.services.model_usage_service import record_brave_search_usage
+
+        await record_brave_search_usage(db, queries=1)
     return TestConnectionResponse(success=success, message=message)
+
+
+@router.get("/usage-dashboard", response_model=ModelUsageDashboardResponse)
+async def read_usage_dashboard(
+    db: AsyncIOMotorDatabase = Depends(get_db),
+) -> ModelUsageDashboardResponse:
+    return await get_usage_dashboard(db)
+
+
+@router.put("/usage-limits", response_model=ModelUsageDashboardResponse)
+async def save_usage_limits(
+    payload: UsageLimitsUpdate,
+    db: AsyncIOMotorDatabase = Depends(get_db),
+) -> ModelUsageDashboardResponse:
+    await update_usage_limits(db, payload)
+    return await get_usage_dashboard(db)
 
 
 @router.get("/status", response_model=CopilotStatusResponse)

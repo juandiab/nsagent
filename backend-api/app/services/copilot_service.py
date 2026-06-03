@@ -596,6 +596,9 @@ async def _web_search_block(db, query: str, topic_hint: str, local_weak: bool) -
             allowed_domains=runtime["allowedDomains"],
             topic_hint=topic_hint,
         )
+        from app.services.model_usage_service import record_brave_search_usage
+
+        await record_brave_search_usage(db, queries=1)
         return {"webSearchEnabled": True, "webResults": json.loads(raw)}
     except Exception as exc:  # never let a search-provider hiccup break the tool
         return {"webSearchEnabled": True, "webSearchError": str(exc)}

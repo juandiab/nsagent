@@ -25,6 +25,7 @@ Repository: [github.com/juandiab/nsagent](https://github.com/juandiab/nsagent)
 - **NetScaler diagnostics** — ICMP ping/traceroute, TCP port reachability via telnet from the appliance shell, and read-only `nsconmsg` performance/event collection.
 - **Optional Brave Search** — domain-restricted web augmentation when local memory/docs are weak (Settings → Platform).
 - **Dashboard shortcuts** — recommended JPilot prompts and links (health summary, list IPs/vservers, diagnostics, guided LB).
+- **Model usage dashboard** — Settings sidebar shows monthly LLM token/request usage and Brave Search query usage with progress bars (tracked locally per calendar month).
 
 ## What's new in v0.05
 
@@ -283,6 +284,8 @@ JPilot search tools read these before executing NetScaler write operations. Bloc
 | `GET/PUT` | `/copilot/platform-settings` | Platform settings (Brave Search, web search toggle) |
 | `POST` | `/copilot/platform-settings/test` | Test Brave Search API key |
 | `POST` | `/copilot/chat` | JPilot chat with tool traces and optional `inputForm` |
+| `GET` | `/copilot/usage-dashboard` | LLM and Brave Search usage vs monthly limits |
+| `PUT` | `/copilot/usage-limits` | Update monthly usage caps (optional) |
 | `GET` | `/copilot/status` | JPilot readiness (default provider) |
 | `POST` | `/ssl/generate-csr` | Generate CSR or self-signed cert on appliance |
 

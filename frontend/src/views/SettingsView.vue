@@ -240,6 +240,10 @@
           </ul>
         </div>
 
+        <div class="content-panel content-panel-padded info-panel mb-4">
+          <ModelUsageDashboard ref="usageDashboardRef" />
+        </div>
+
         <div class="content-panel content-panel-padded info-panel">
           <h3 class="info-title">Attachment tips</h3>
           <ul class="info-list m-0 pl-3">
@@ -264,6 +268,7 @@ import Select from 'primevue/select'
 import Tag from 'primevue/tag'
 import ToggleSwitch from 'primevue/toggleswitch'
 import PageHeader from '../components/PageHeader.vue'
+import ModelUsageDashboard from '../components/ModelUsageDashboard.vue'
 import { getCopilotSettings, saveCopilotSettings } from '../services/copilot'
 import {
   getCopilotPlatformSettings,
@@ -317,6 +322,8 @@ const mcpStatus = reactive({
 const passkeyRegistering = ref(false)
 const passkeyMessage = ref('')
 const passkeyMessageSeverity = ref('info')
+const usageDashboardRef = ref(null)
+
 const passkeyStatus = reactive({
   username: '',
   hasPasskey: false,
@@ -397,6 +404,7 @@ async function savePlatformSettings() {
     lockedDomains.value = saved.lockedDomains || []
     platformMessage.value = 'Web search settings saved.'
     platformMessageSeverity.value = 'success'
+    usageDashboardRef.value?.refresh?.()
   } catch (error) {
     platformMessage.value = error.response?.data?.detail || 'Failed to save web search settings'
     platformMessageSeverity.value = 'error'
@@ -431,6 +439,9 @@ async function testPlatformSearch() {
     })
     platformMessage.value = result.message
     platformMessageSeverity.value = result.success ? 'success' : 'error'
+    if (result.success) {
+      usageDashboardRef.value?.refresh?.()
+    }
   } catch (error) {
     platformMessage.value = error.response?.data?.detail || 'Brave Search test failed'
     platformMessageSeverity.value = 'error'

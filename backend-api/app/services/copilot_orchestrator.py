@@ -39,6 +39,7 @@ from app.services.copilot_form import (
     parse_input_form,
     to_response_input_form,
 )
+from app.services.model_usage_service import UsageAccumulator, flush_usage_accumulator, record_provider_usage
 from app.services.copilot_memory_gate import (
     CLI_MEMORY_SEARCH_TOOL,
     MEMORY_SEARCH_TOOL,
@@ -486,6 +487,8 @@ async def run_copilot_chat(
         system_prompt += auto_response
 
     provider_name = provider["providerName"]
+    provider_id_str = str(provider["_id"])
+    usage_accumulator = UsageAccumulator()
 
     if provider_type == "Anthropic":
         content = await _run_anthropic_loop(
@@ -499,7 +502,9 @@ async def run_copilot_chat(
             enabled_tools,
             system_prompt,
             appliance_name,
+            provider_type,
             provider_name,
+            usage_accumulator,
         )
     elif provider_type == "Gemini":
         content = await _run_gemini_loop(
@@ -513,7 +518,9 @@ async def run_copilot_chat(
             enabled_tools,
             system_prompt,
             appliance_name,
+            provider_type,
             provider_name,
+            usage_accumulator,
         )
     elif provider_type in {"OpenAI", "Grok", "DeepSeek", "LM Studio", "OpenAI-Compatible"}:
         if provider_type == "LM Studio":
@@ -538,9 +545,14 @@ async def run_copilot_chat(
             base_url_candidates,
             provider_type,
             provider_name,
+            usage_accumulator,
         )
     else:
         raise ValueError(f"Unsupported provider type: {provider_type}")
+
+    await flush_usage_accumulator(db, provider_id_str, usage_accumulator)
+    if usage_accumulator.requests == 0 and (content or "").strip():
+        await record_provider_usage(db, provider_id=provider_id_str, tokens=0, requests=1)
 
     logger.info(
         "chat_complete provider=%s model=%s toolCalls=%d names=%s",
@@ -584,6 +596,7 @@ async def _run_openai_loop(
     base_url_candidates: list[str] | None = None,
     provider_type: str = "OpenAI-Compatible",
     provider_name: str = "",
+    usage_accumulator: UsageAccumulator | None = None,
 ) -> str:
     messages: list[dict[str, Any]] = [{"role": "system", "content": system_prompt}]
     for item in history:
@@ -613,6 +626,8 @@ async def _run_openai_loop(
             provider_name=provider_name,
         )
         fallback_candidates = None
+        if usage_accumulator is not None:
+            usage_accumulator.add_llm_response(provider_type, data)
         choice = data["choices"][0]["message"]
         tool_calls = choice.get("tool_calls") or []
 
@@ -677,7 +692,9 @@ async def _run_gemini_loop(
     enabled_tools: list[dict[str, Any]],
     system_prompt: str,
     appliance_name: str,
+    provider_type: str = "Gemini",
     provider_name: str = "",
+    usage_accumulator: UsageAccumulator | None = None,
 ) -> str:
     contents: list[dict[str, Any]] = []
     for item in history:
@@ -703,6 +720,8 @@ async def _run_gemini_loop(
             tools=tools,
             provider_name=provider_name,
         )
+        if usage_accumulator is not None:
+            usage_accumulator.add_llm_response(provider_type, data)
 
         candidate = (data.get("candidates") or [{}])[0]
         content = candidate.get("content", {})
@@ -761,7 +780,9 @@ async def _run_anthropic_loop(
     enabled_tools: list[dict[str, Any]],
     system_prompt: str,
     appliance_name: str,
+    provider_type: str = "Anthropic",
     provider_name: str = "",
+    usage_accumulator: UsageAccumulator | None = None,
 ) -> str:
     messages: list[dict[str, Any]] = []
     for item in history:
@@ -786,6 +807,8 @@ async def _run_anthropic_loop(
             tools=tools,
             provider_name=provider_name,
         )
+        if usage_accumulator is not None:
+            usage_accumulator.add_llm_response(provider_type, data)
 
         content_blocks = data.get("content", [])
         tool_uses = [block for block in content_blocks if block.get("type") == "tool_use"]
