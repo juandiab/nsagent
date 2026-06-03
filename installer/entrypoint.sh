@@ -16,5 +16,6 @@ if [ ! -f "$CERT" ] || [ ! -f "$KEY" ]; then
 fi
 
 exec uvicorn app:app \
+    --app-dir /installer \
     --host 0.0.0.0 --port 9443 \
     --ssl-keyfile "$KEY" --ssl-certfile "$CERT"

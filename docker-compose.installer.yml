@@ -9,7 +9,6 @@ services:
       - "9443:9443"
     volumes:
       - .:/workspace
-    working_dir: /workspace
     environment:
       - WORKSPACE=/workspace
     restart: "no"
