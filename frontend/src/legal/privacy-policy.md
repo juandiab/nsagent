@@ -1,10 +1,10 @@
 # Privacy Policy
 
-**Last updated: June 2, 2026**
+**Last updated: June 3, 2026**
 
 This Privacy Policy explains how **Nexxus-Tech SAS** ("Nexxus Tech", "Nexxus", "we", "us", or "our") collects, uses, discloses, and protects information in connection with **JPilot** (also referred to as "NSAgent"), our AI assistant for NetScaler / Citrix ADC administration (the "Service").
 
-Nexxus Tech is registered at **Bogotá D.C., Colombia**. For any privacy question, contact us at **contact@nexxus-tech.com**.
+Nexxus Tech is registered at **Carrera 13A # 28-21, Bogotá D.C., Colombia**. For any privacy question, contact us at **contact@nexxus-tech.com**.
 
 ---
 
@@ -16,6 +16,8 @@ JPilot is offered in two ways, and our role differs accordingly:
 - **Self-hosted.** When you (or your organization) install JPilot on your own infrastructure using our Docker installer, **you are the data controller**. Nexxus does not host, access, or receive your data, and this Policy applies only to the software itself and to any optional services you choose to contact (for example, an AI provider). Your administrator is responsible for how the deployment is configured and secured.
 
 This Policy describes the maximum set of data the Service can process. Your actual experience depends on your deployment type and configuration.
+
+JPilot is available **worldwide** for business and professional use (except where prohibited by law). Referral sources such as LinkedIn do not change this Policy.
 
 ## 2. Information we process
 
@@ -45,7 +47,17 @@ JPilot connects to the AI provider **you configure**. When you send a prompt, th
 
 **Web sources.** By default the Service enables only the **official vendor documentation sites**. Any additional URL or source you add is enabled at your own risk, including exposure to prompt-injection or similar attacks via retrieved content.
 
-For hosted deployments, we may rely on the following categories of subprocessors: cloud/hosting infrastructure (**Hetzner Online GmbH**), database hosting (MongoDB), the AI providers listed above (as configured), **Brave Search** (only if web search is enabled), and an email/SMTP provider (e.g., Google) for transactional email. A current list is available on request.
+For hosted deployments, we may rely on the following **subprocessors** (categories and primary providers):
+
+| Category | Provider (region) | Purpose |
+|----------|-------------------|---------|
+| Cloud hosting | Hetzner Online GmbH (EU/Germany) | Infrastructure |
+| Database | MongoDB (deployment-dependent) | Data storage |
+| AI (as configured by you) | OpenAI, Anthropic, Google, xAI, DeepSeek, or your endpoint | Inference |
+| Web search (optional) | Brave Search | Search results |
+| Email (optional) | Your SMTP provider (e.g., Google) | Transactional email |
+
+We update this list as subprocessors change. Enterprise customers may request a **Data Processing Agreement (DPA)** that describes processing, subprocessors, and security measures in more detail.
 
 ## 5. Disclosure of information
 
@@ -63,20 +75,49 @@ We use encryption of secrets at rest, hashed passwords, optional passkey (WebAut
 
 ## 8. International transfers
 
-For hosted deployments, your information may be processed in countries other than your own, including the United States and Colombia. Where required, we use appropriate safeguards for cross-border transfers.
+For hosted deployments, your information may be processed in countries other than your own, including **Colombia**, the **European Union** (via our hosting provider), and—when you configure them—**the United States** or other countries through your chosen AI, email, or search providers.
 
-## 9. Your rights
+Where **UK GDPR** or **EU GDPR** requires safeguards for transfers outside the UK/EEA, we rely on appropriate mechanisms such as **Standard Contractual Clauses (SCCs)** and/or the UK **International Data Transfer Agreement (IDTA)** or **UK Addendum**, as applicable, together with supplementary measures where appropriate. Details are available on request for Enterprise customers under a DPA.
 
-Depending on your location and applicable law—including **Colombia's Ley 1581 de 2012 (Habeas Data)** and U.S. state privacy laws such as the **CCPA/CPRA**—you may have rights to access, correct, update, delete, or obtain a copy of your personal data, to withdraw consent, and to lodge a complaint with a supervisory authority (in Colombia, the **Superintendencia de Industria y Comercio**). To exercise these rights, contact **contact@nexxus-tech.com**. In self-hosted deployments, direct these requests to your organization's administrator.
+**Your responsibility for third-party transfers.** When you configure a US or other non-EEA AI or email provider, **you direct those transfers** by your configuration and prompts. You are responsible for ensuring that choice complies with your policies and law.
 
-## 10. Children's privacy
+## 9. Legal bases (EEA, UK, and similar regimes)
+
+For hosted deployments where GDPR or UK GDPR applies, we process personal data on these bases:
+
+| Processing | Legal basis |
+|------------|-------------|
+| Account, authentication, operating the Service | **Contract** (necessary to provide the Service you request) |
+| Security, abuse prevention, logs | **Legitimate interests** (protecting the Service and users) |
+| Compliance with law | **Legal obligation** |
+| Optional features you enable (e.g., certain emails, passkeys) | **Contract** and/or **consent** where required |
+
+We do **not** use your operational content to train our own models. Marketing cookies and cross-site tracking are **not** used.
+
+## 10. Your rights
+
+Depending on your location and applicable law—including **EU/UK GDPR**, **Colombia's Ley 1581 de 2012 (Habeas Data)**, **UAE PDPL** (where applicable), and U.S. state privacy laws such as **CCPA/CPRA**—you may have rights to **access**, **correct**, **delete**, **restrict** or **object** to processing, **portability**, and to **withdraw consent** where processing is consent-based.
+
+To exercise rights for hosted accounts, contact **contact@nexxus-tech.com**. We respond within the timeframes required by applicable law (for example, **one month** under GDPR, extendable where permitted). In self-hosted deployments, **your organization is the data controller**—direct requests to your administrator; Nexxus does not hold your operational data.
+
+**Supervisory authorities.** You may lodge a complaint with a regulator, including:
+
+- **Colombia:** Superintendencia de Industria y Comercio (SIC)
+- **UK:** Information Commissioner's Office (ICO) — [ico.org.uk](https://ico.org.uk)
+- **EU:** Your local data protection authority
+
+## 11. Security incidents
+
+If we become aware of a personal-data breach affecting hosted account data that we control, we will notify you and, where required by law, regulators **without undue delay** and in line with applicable breach-notification rules. Self-hosted deployments are **your responsibility** to monitor and notify.
+
+## 12. Children's privacy
 
 The Service is not directed to individuals under **18**, and we do not knowingly collect their personal data.
 
-## 11. Changes to this Policy
+## 13. Changes to this Policy
 
 We may update this Policy from time to time. Material changes will be indicated by updating the "Last updated" date and, where appropriate, by additional notice.
 
-## 12. Contact
+## 14. Contact
 
 Questions or requests: **contact@nexxus-tech.com** — **Nexxus-Tech SAS**, **Bogotá D.C., Colombia**.

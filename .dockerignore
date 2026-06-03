@@ -1,0 +1,11 @@
+.git
+.gitignore
+**/__pycache__
+**/.pytest_cache
+**/.venv
+**/node_modules
+.env
+*.md
+!THIRD_PARTY_NOTICES.txt
+agent-transcripts
+.cursor

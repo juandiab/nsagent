@@ -4,7 +4,9 @@
 # stack on the host so the relative bind mounts in docker-compose.yml resolve correctly.
 services:
   installer:
-    build: ./installer
+    build:
+      context: .
+      dockerfile: installer/Dockerfile
     ports:
       - "9443:9443"
     volumes:

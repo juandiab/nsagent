@@ -1,6 +1,6 @@
 # Terms of Service
 
-**Last updated: June 2, 2026**
+**Last updated: June 3, 2026**
 
 These Terms of Service ("Terms") govern your access to and use of **JPilot** (also referred to as "NSAgent"), an AI assistant for NetScaler / Citrix ADC administration (the "Service"), provided by **Nexxus-Tech SAS** ("Nexxus Tech", "Nexxus", "we", "us", or "our"). By creating an account, installing, or using the Service, you agree to these Terms. If you do not agree, do not use the Service.
 
@@ -32,6 +32,8 @@ We recommend deploying and using the Service only in **controlled environments w
 ## 3. Accounts and eligibility
 
 You must be at least **18 years old** and provide accurate registration information. You are responsible for your account, your credentials, and all activity under your account. Notify us promptly of any unauthorized use. We may provision, suspend, or remove accounts as needed to operate the Service or enforce these Terms.
+
+**Business and professional use.** The Service is intended for **business and professional use** by individuals and organizations that administer infrastructure. If you use the Service as a consumer in a jurisdiction that grants non-waivable consumer rights, those rights remain unaffected by these Terms.
 
 ## 4. Acceptable use
 
@@ -93,7 +95,9 @@ THE SERVICE IS PROVIDED **"AS IS" AND "AS AVAILABLE," WITHOUT WARRANTIES OF ANY 
 
 ## 14. Limitation of liability
 
-TO THE FULLEST EXTENT PERMITTED BY LAW, NEXXUS AND ITS SUPPLIERS WILL NOT BE LIABLE FOR ANY INDIRECT, INCIDENTAL, SPECIAL, CONSEQUENTIAL, OR PUNITIVE DAMAGES, OR FOR LOSS OF PROFITS, DATA, GOODWILL, OR SERVICE INTERRUPTION, OR FOR ANY DAMAGE TO OR OUTAGE OF SYSTEMS YOU CONNECT, ARISING FROM OR RELATED TO THE SERVICE. OUR TOTAL AGGREGATE LIABILITY FOR ANY CLAIM WILL NOT EXCEED THE GREATER OF (A) THE AMOUNTS YOU PAID TO NEXXUS FOR THE SERVICE IN THE **TWELVE (12) MONTHS** BEFORE THE EVENT GIVING RISE TO THE CLAIM, OR (B) **USD $100**. Some jurisdictions do not allow certain limitations, so some of the above may not apply to you.
+TO THE FULLEST EXTENT PERMITTED BY LAW, NEXXUS AND ITS SUPPLIERS WILL NOT BE LIABLE FOR ANY INDIRECT, INCIDENTAL, SPECIAL, CONSEQUENTIAL, OR PUNITIVE DAMAGES, OR FOR LOSS OF PROFITS, DATA, GOODWILL, OR SERVICE INTERRUPTION, OR FOR ANY DAMAGE TO OR OUTAGE OF SYSTEMS YOU CONNECT, ARISING FROM OR RELATED TO THE SERVICE. OUR TOTAL AGGREGATE LIABILITY FOR ANY CLAIM WILL NOT EXCEED THE GREATER OF (A) THE AMOUNTS YOU PAID TO NEXXUS FOR THE SERVICE IN THE **TWELVE (12) MONTHS** BEFORE THE EVENT GIVING RISE TO THE CLAIM, OR (B) **USD $100**.
+
+**Mandatory rights.** Nothing in these Terms excludes or limits liability that **cannot be excluded or limited under applicable law**, including mandatory consumer, data-protection, or personal-injury rights where you are located. Where a limitation is unenforceable, it applies only to the extent permitted.
 
 ## 15. Indemnification
 
@@ -107,12 +111,13 @@ We may suspend or terminate access for violation of these Terms, legal requireme
 
 You may not use, export, or re-export the Service in violation of applicable U.S., Colombian, or other export-control or sanctions laws. You represent that you are not located in, or a national or resident of, an embargoed jurisdiction, and that you are not on any restricted- or denied-party list.
 
-## 18. Governing law and disputes
+## 18. Availability, governing law, and disputes
 
-JPilot is offered in the United States and Colombia.
+**Worldwide availability.** JPilot is offered **worldwide** for business and professional use, except where prohibited by law or export/sanctions rules (see Section 17). Marketing or access channels (including LinkedIn or other referrals) do not change these Terms.
 
-- If you are located in **Colombia**, these Terms are governed by the laws of the **Republic of Colombia**, and disputes are subject to the competent courts of **Bogotá D.C., Colombia**.
-- If you are located in the **United States** or elsewhere, these Terms are governed by the laws of the **State of Delaware**, United States, without regard to conflict-of-laws rules, and disputes are subject to the state and federal courts located in **Wilmington, Delaware**.
+**Governing law.** These Terms are governed by the laws of the **Republic of Colombia**, without regard to conflict-of-laws rules, except that mandatory laws of your country of residence or establishment may apply to the extent they cannot be waived by contract.
+
+**Disputes.** Before filing a claim, you agree to contact us at **contact@nexxus-tech.com** and allow **thirty (30) days** to try to resolve the matter informally. Subject to mandatory local rules, exclusive jurisdiction and venue for disputes that are not resolved informally lie in the **competent courts of Bogotá D.C., Colombia**. You and Nexxus each waive any right to participate in a class or representative action **to the extent such waiver is permitted** by applicable law.
 
 For Enterprise customers, the governing law and dispute-resolution terms in the Enterprise Agreement control.
 
@@ -126,4 +131,4 @@ We may update these Terms from time to time. Material changes take effect upon p
 
 ## 21. Contact
 
-**Nexxus-Tech SAS** — **Bogotá D.C., Colombia** — **contact@nexxus-tech.com**.
+**Nexxus-Tech SAS** — **Carrera 13A # 28-21, Bogotá D.C., Colombia** — **contact@nexxus-tech.com**.

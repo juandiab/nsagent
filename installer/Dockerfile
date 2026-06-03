@@ -7,10 +7,11 @@ RUN apt-get update \
 
 WORKDIR /installer
 
-COPY requirements.txt .
+COPY installer/requirements.txt .
 RUN pip install --no-cache-dir -r requirements.txt
 
-COPY . .
+COPY installer/ .
+COPY THIRD_PARTY_NOTICES.txt /usr/share/jpilot/THIRD_PARTY_NOTICES.txt
 RUN chmod +x /installer/entrypoint.sh
 
 EXPOSE 9443

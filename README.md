@@ -345,6 +345,6 @@ For production images, remove bind-mount volume lines for `frontend`, `backend-a
 
 ## License
 
-[MIT](LICENSE) — see [LICENSE](LICENSE) for details.
+**JPilot / NSAgent** distributed via Docker or installer is **proprietary software** licensed under the [EULA](frontend/src/legal/eula.md) (Nexxus-Tech SAS). Open-source **third-party** components are listed in [THIRD_PARTY_NOTICES.txt](THIRD_PARTY_NOTICES.txt) (regenerate with `./scripts/generate-third-party-notices.sh`).
 
-Copyright (c) 2026 [juandiab](https://github.com/juandiab).
+The repository `LICENSE` file applies only where expressly stated for specific open-source artifacts; it does not grant rights to the commercial product.

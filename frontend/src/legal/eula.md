@@ -1,6 +1,6 @@
 # End-User License Agreement (EULA)
 
-**Last updated: June 2, 2026**
+**Last updated: June 3, 2026**
 
 This End-User License Agreement ("EULA") is a legal agreement between you (an individual or a single entity, "you") and **Nexxus-Tech SAS** ("Nexxus Tech", "Nexxus", "we", "us", or "our") for the **JPilot** software, also referred to as "NSAgent," including its components, installers, and accompanying documentation (the "Software").
 
@@ -28,7 +28,9 @@ You will not, except as expressly permitted by this EULA or applicable law:
 
 ## 3. Ownership
 
-The Software is **licensed, not sold**. Nexxus and its licensors retain all right, title, and interest in and to the Software, including all intellectual property rights. No rights are granted except as expressly stated in this EULA. Third-party and open-source components included with the Software are licensed under their own terms, which control for those components.
+The Software is **licensed, not sold**. Nexxus and its licensors retain all right, title, and interest in and to the Software, including all intellectual property rights. No rights are granted except as expressly stated in this EULA.
+
+**Third-party and open-source components** included with the Software (including Docker images) are licensed under their own terms, which control for those components. Attribution and license information is in **`THIRD_PARTY_NOTICES.txt`** at the root of the installation directory (the folder containing `docker-compose.yml` after install). Regenerate or request an updated notices file from **contact@nexxus-tech.com**.
 
 ## 4. Self-hosting responsibilities
 
@@ -73,10 +75,14 @@ THE SOFTWARE IS PROVIDED **"AS IS" WITHOUT WARRANTY OF ANY KIND**, EXPRESS OR IM
 
 TO THE FULLEST EXTENT PERMITTED BY LAW, NEXXUS WILL NOT BE LIABLE FOR ANY INDIRECT, INCIDENTAL, SPECIAL, CONSEQUENTIAL, OR PUNITIVE DAMAGES, OR FOR LOSS OF PROFITS, DATA, OR GOODWILL, OR FOR DAMAGE TO OR OUTAGE OF SYSTEMS YOU CONNECT, ARISING FROM OR RELATED TO THE SOFTWARE. NEXXUS'S TOTAL AGGREGATE LIABILITY WILL NOT EXCEED THE GREATER OF THE AMOUNTS YOU PAID FOR THE APPLICABLE LICENSE IN THE **TWELVE (12) MONTHS** PRECEDING THE CLAIM OR **USD $100**.
 
+Nothing in this EULA excludes or limits liability that **cannot be excluded or limited under applicable law**, including mandatory consumer or personal-injury rights where you are located.
+
 ## 13. Export control; governing law
 
-You may not use or export the Software in violation of applicable U.S., Colombian, or other export-control or sanctions laws. This EULA is governed by the laws of the **Republic of Colombia** (for licensees located in Colombia) or the **State of Delaware**, United States (for licensees located in the United States or elsewhere), consistent with the governing-law provisions of the Terms of Service. For Enterprise licensees, the Enterprise Agreement controls.
+You may not use or export the Software in violation of applicable export-control or sanctions laws.
+
+**Governing law.** This EULA is governed by the laws of the **Republic of Colombia**, without regard to conflict-of-laws rules, except that mandatory laws of your country of residence or establishment may apply to the extent they cannot be waived by contract. Subject to mandatory local rules, exclusive jurisdiction and venue lie in the **competent courts of Bogotá D.C., Colombia**. For Enterprise licensees, the Enterprise Agreement controls.
 
 ## 14. Contact
 
-**Nexxus-Tech SAS** — **Bogotá D.C., Colombia** — **contact@nexxus-tech.com**.
+**Nexxus-Tech SAS** — **Carrera 13A # 28-21, Bogotá D.C., Colombia** — **contact@nexxus-tech.com**.

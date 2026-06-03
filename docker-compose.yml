@@ -14,7 +14,9 @@ services:
       - backend-api
 
   frontend:
-    build: ./frontend
+    build:
+      context: .
+      dockerfile: frontend/Dockerfile
     volumes:
       - ./frontend:/app
       - /app/node_modules
@@ -27,7 +29,9 @@ services:
       - backend-api
 
   backend-api:
-    build: ./backend-api
+    build:
+      context: .
+      dockerfile: backend-api/Dockerfile
     extra_hosts:
       - "host.docker.internal:host-gateway"
     volumes:
@@ -61,7 +65,9 @@ services:
       - mcp-server
 
   mcp-server:
-    build: ./mcp-server
+    build:
+      context: .
+      dockerfile: mcp-server/Dockerfile
     volumes:
       - ./mcp-server:/app
     environment:

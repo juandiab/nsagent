@@ -58,4 +58,4 @@ We may update this AUP from time to time. Material changes take effect upon post
 
 ## 8. Contact
 
-**Nexxus-Tech SAS** — **Bogotá D.C., Colombia** — **contact@nexxus-tech.com**.
+**Nexxus-Tech SAS** — **Carrera 13A # 28-21, Bogotá D.C., Colombia** — **contact@nexxus-tech.com**.
