@@ -1,5 +1,5 @@
 #!/usr/bin/env sh
-# Pull latest main, then optionally rebuild dev and/or production Docker stacks.
+# Pull latest main, then rebuild either the development or production Docker stack.
 #
 #   ./scripts/upgrade.sh
 #
@@ -26,13 +26,6 @@ compose() {
   exit 1
 }
 
-yes_answer() {
-  case $(printf '%s' "$1" | tr '[:upper:]' '[:lower:]') in
-    y|yes) return 0 ;;
-    *) return 1 ;;
-  esac
-}
-
 stop_dev_frontend() {
   compose -f docker-compose.yml stop frontend 2>/dev/null || true
   compose -f docker-compose.yml rm -f frontend 2>/dev/null || true
@@ -41,35 +34,37 @@ stop_dev_frontend() {
 echo "==> Pulling latest from origin/main..."
 git pull origin main
 
-printf '%s' "Update development stack (docker compose build && up -d)? [y/N] "
-read -r dev_answer
+echo ""
+echo "Which stack do you want to rebuild?"
+echo "  1) Development  (docker compose build && up -d)"
+echo "  2) Production   (prod compose build && up -d)"
+echo "  q) Skip rebuild (git pull only)"
+printf '%s' "Choice [1/2/q]: "
+read -r choice
 
-printf '%s' "Update production stack (prod compose build && up -d)? [y/N] "
-read -r prod_answer
-
-updated=0
-
-if yes_answer "$dev_answer"; then
-  echo "==> Rebuilding development stack..."
-  # shellcheck disable=SC2086
-  compose $COMPOSE_DEV build
-  # shellcheck disable=SC2086
-  compose $COMPOSE_DEV up -d
-  updated=1
-fi
-
-if yes_answer "$prod_answer"; then
-  echo "==> Rebuilding production stack..."
-  stop_dev_frontend
-  # shellcheck disable=SC2086
-  compose $COMPOSE_PROD build
-  # shellcheck disable=SC2086
-  compose $COMPOSE_PROD up -d
-  updated=1
-fi
-
-if [ "$updated" -eq 0 ]; then
-  echo "No stacks were rebuilt."
-else
-  echo "Upgrade finished."
-fi
+case $(printf '%s' "$choice" | tr '[:upper:]' '[:lower:]') in
+  1|dev|development)
+    echo "==> Rebuilding development stack..."
+    # shellcheck disable=SC2086
+    compose $COMPOSE_DEV build
+    # shellcheck disable=SC2086
+    compose $COMPOSE_DEV up -d
+    echo "Upgrade finished (development)."
+    ;;
+  2|prod|production)
+    echo "==> Rebuilding production stack..."
+    stop_dev_frontend
+    # shellcheck disable=SC2086
+    compose $COMPOSE_PROD build
+    # shellcheck disable=SC2086
+    compose $COMPOSE_PROD up -d
+    echo "Upgrade finished (production)."
+    ;;
+  q|quit|skip|'')
+    echo "No stack was rebuilt."
+    ;;
+  *)
+    echo "Invalid choice. No stack was rebuilt." >&2
+    exit 1
+    ;;
+esac

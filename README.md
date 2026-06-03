@@ -6,7 +6,7 @@ Repository: [github.com/juandiab/nsagent](https://github.com/juandiab/nsagent)
 
 > **Disclaimer:** JPilot is an independent project and is not affiliated with, endorsed by, or sponsored by Citrix Systems, Inc. NetScaler is a trademark of Citrix Systems, Inc.
 
-**Current release:** `v0.16` — `prod-up` and `upgrade` scripts for production deploy and pull-and-rebuild workflows.
+**Current release:** `v0.17` — `upgrade` script uses a single dev-or-prod picker after `git pull`.
 
 Bump the root [`VERSION`](VERSION) file when tagging a release so in-app update checks match GitHub.
 
@@ -34,7 +34,7 @@ Bump the root [`VERSION`](VERSION) file when tagging a release so in-app update 
 
 | Area | Highlights |
 |------|------------|
-| **Deploy scripts** | `./scripts/prod-up.sh` — production `build` + `up -d` from repo root. `./scripts/upgrade.sh` — `git pull origin main`, then optional dev and/or prod stack rebuild. PowerShell equivalents included. |
+| **Deploy scripts** | `./scripts/prod-up.sh` — production `build` + `up -d` from repo root. `./scripts/upgrade.sh` — `git pull origin main`, then choose dev **or** prod to rebuild. PowerShell equivalents included. |
 
 ## What's new in v0.15
 
@@ -409,7 +409,7 @@ bind-mounted into containers; **Uvicorn `--reload`** and **Vite HMR** pick up ch
 ```bash
 docker compose up -d --build
 # or: ./compose.sh up -d --build
-# pull main and optionally rebuild dev and/or prod:
+# pull main, then pick dev or prod to rebuild:
 ./scripts/upgrade.sh
 ```
 
@@ -504,7 +504,7 @@ docker run --rm -v nsagent_nsagent_mongodb_data:/data/db mongo:8.2 mongod --repa
 ├── docker-compose.prod.yml
 ├── compose.sh              # picks dev/prod compose from .env
 ├── scripts/prod-up.sh      # production build + up (from repo root)
-├── scripts/upgrade.sh      # git pull + optional dev/prod rebuild
+├── scripts/upgrade.sh      # git pull + dev or prod rebuild (picker)
 ├── netscaler_nextgen_api_memory.md
 ├── netscaler_adc_cli_memory.md
 └── .env.example
