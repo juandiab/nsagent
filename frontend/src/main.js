@@ -4,6 +4,7 @@ import Aura from '@primevue/themes/aura'
 import ConfirmationService from 'primevue/confirmationservice'
 import ToastService from 'primevue/toastservice'
 import Tooltip from 'primevue/tooltip'
+import AnimateOnScroll from 'primevue/animateonscroll'
 import 'primeicons/primeicons.css'
 import 'primeflex/primeflex.css'
 import './assets/styles/global.css'
@@ -24,6 +25,7 @@ app.use(PrimeVue, {
   }
 })
 app.directive('tooltip', Tooltip)
+app.directive('animateonscroll', AnimateOnScroll)
 app.use(ConfirmationService)
 app.use(ToastService)
 app.use(router)

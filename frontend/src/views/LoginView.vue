@@ -1,7 +1,20 @@
 <template>
   <div class="login-page flex align-items-center justify-content-center min-h-screen">
-    <div class="login-panel">
-      <div class="login-brand flex flex-column align-items-center mb-5">
+    <!-- Animated background orbs -->
+    <div class="login-bg" aria-hidden="true">
+      <div class="login-bg-orb orb-1"></div>
+      <div class="login-bg-orb orb-2"></div>
+      <div class="login-bg-orb orb-3"></div>
+    </div>
+
+    <div
+      class="login-panel"
+      v-animateonscroll="{ enterClass: 'anim-panel-in' }"
+    >
+      <div
+        class="login-brand flex flex-column align-items-center mb-5"
+        v-animateonscroll="{ enterClass: 'anim-rise anim-delay-1' }"
+      >
         <NetScalerLogo />
         <h1 class="login-title m-0 mt-3">JPilot</h1>
         <p class="login-subtitle m-0 mt-2">
@@ -9,7 +22,11 @@
         </p>
       </div>
 
-      <form class="flex flex-column gap-4" @submit.prevent="status?.passkeyRequired ? handlePasskeyLogin() : handlePasswordLogin()">
+      <form
+        class="flex flex-column gap-4"
+        v-animateonscroll="{ enterClass: 'anim-rise anim-delay-2' }"
+        @submit.prevent="status?.passkeyRequired ? handlePasskeyLogin() : handlePasswordLogin()"
+      >
         <div class="flex flex-column gap-2">
           <label for="username" class="field-label">Username</label>
           <InputText
@@ -240,9 +257,120 @@ async function handlePasskeyLogin() {
 .login-page {
   position: relative;
   padding: 1.5rem;
-  background:
-    radial-gradient(circle at top right, color-mix(in srgb, var(--p-primary-100) 50%, transparent), transparent 40%),
-    var(--p-surface-0);
+  background: var(--p-surface-ground);
+}
+
+/* Background orb layer — no filter:blur to avoid WebKit compositing bugs */
+.login-bg {
+  position: absolute;
+  inset: 0;
+  pointer-events: none;
+  z-index: 0;
+  overflow: hidden;
+}
+
+.login-bg-orb {
+  position: absolute;
+  border-radius: 50%;
+}
+
+/* Soft edge achieved via gradient stopping early, no filter needed */
+.orb-1 {
+  width: 70vmax;
+  height: 70vmax;
+  top: -30vmax;
+  right: -20vmax;
+  background: radial-gradient(circle, color-mix(in srgb, var(--p-primary-color) 18%, transparent) 0%, transparent 55%);
+  animation: orb-drift-1 18s ease-in-out infinite;
+}
+
+.orb-2 {
+  width: 60vmax;
+  height: 60vmax;
+  bottom: -25vmax;
+  left: -15vmax;
+  background: radial-gradient(circle, color-mix(in srgb, var(--p-primary-color) 14%, transparent) 0%, transparent 55%);
+  animation: orb-drift-2 22s ease-in-out infinite;
+}
+
+.orb-3 {
+  width: 40vmax;
+  height: 40vmax;
+  top: 30%;
+  left: 30%;
+  background: radial-gradient(circle, color-mix(in srgb, var(--p-primary-color) 10%, transparent) 0%, transparent 55%);
+  animation: orb-drift-3 15s ease-in-out infinite;
+}
+
+@keyframes orb-drift-1 {
+  0%, 100% { transform: translate(0, 0) scale(1); }
+  33%       { transform: translate(-5%, 7%) scale(1.06); }
+  66%       { transform: translate(4%, -4%) scale(0.96); }
+}
+
+@keyframes orb-drift-2 {
+  0%, 100% { transform: translate(0, 0) scale(1); }
+  40%       { transform: translate(7%, -8%) scale(1.08); }
+  75%       { transform: translate(-3%, 5%) scale(0.94); }
+}
+
+@keyframes orb-drift-3 {
+  0%, 100% { transform: translate(0, 0) scale(1); }
+  50%       { transform: translate(-8%, 6%) scale(1.1); }
+}
+
+/* Dark mode: richer orbs since background is dark */
+:global(.app-dark) .orb-1 {
+  background: radial-gradient(circle, color-mix(in srgb, var(--p-primary-color) 32%, transparent) 0%, transparent 55%);
+}
+:global(.app-dark) .orb-2 {
+  background: radial-gradient(circle, color-mix(in srgb, var(--p-primary-color) 26%, transparent) 0%, transparent 55%);
+}
+:global(.app-dark) .orb-3 {
+  background: radial-gradient(circle, color-mix(in srgb, var(--p-primary-color) 20%, transparent) 0%, transparent 55%);
+}
+
+
+/* Entrance animations (PrimeVue AnimateOnScroll enterClass targets) */
+.anim-panel-in {
+  animation: panel-in 700ms cubic-bezier(0.22, 1, 0.36, 1) backwards;
+}
+
+.anim-rise {
+  animation: rise-in 600ms cubic-bezier(0.22, 1, 0.36, 1) backwards;
+}
+
+.anim-delay-1 { animation-delay: 120ms; }
+.anim-delay-2 { animation-delay: 240ms; }
+
+@keyframes panel-in {
+  from {
+    opacity: 0;
+    transform: translateY(24px) scale(0.97);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0) scale(1);
+  }
+}
+
+@keyframes rise-in {
+  from {
+    opacity: 0;
+    transform: translateY(16px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .login-bg-orb,
+  .anim-panel-in,
+  .anim-rise {
+    animation: none;
+  }
 }
 
 .agree-label {
@@ -258,6 +386,7 @@ async function handlePasskeyLogin() {
 
 .login-legal {
   position: absolute;
+  z-index: 1;
   bottom: 1.25rem;
   left: 0;
   right: 0;
@@ -281,12 +410,24 @@ async function handlePasskeyLogin() {
 }
 
 .login-panel {
+  position: relative;
+  z-index: 1;
   width: min(100%, 24rem);
   padding: 2.5rem 2rem;
   background: var(--p-content-background);
   border: 1px solid var(--p-content-border-color);
   border-radius: 1rem;
-  box-shadow: 0 12px 40px rgba(0, 0, 0, 0.06);
+  box-shadow:
+    0 12px 40px rgba(0, 0, 0, 0.08),
+    0 0 0 1px color-mix(in srgb, var(--p-primary-color) 12%, transparent),
+    0 0 32px color-mix(in srgb, var(--p-primary-color) 14%, transparent);
+}
+
+:global(.app-dark) .login-panel {
+  box-shadow:
+    0 18px 50px rgba(0, 0, 0, 0.5),
+    0 0 0 1px color-mix(in srgb, var(--p-primary-color) 22%, transparent),
+    0 0 48px color-mix(in srgb, var(--p-primary-color) 28%, transparent);
 }
 
 .login-title {

@@ -164,3 +164,145 @@ html.app-dark .chat-pane {
   --glass-border: rgba(255, 255, 255, 0.12);
   --glass-field: rgba(255, 255, 255, 0.06);
 }
+
+/* ---------------------------------------------------------------------------
+   Page transitions (router-view) — used by both App.vue and MainLayout.vue.
+   Must be global (not scoped) so Vue's <Transition> can apply them to the
+   child component's root element.
+   --------------------------------------------------------------------------- */
+.page-fade-enter-active,
+.page-fade-leave-active {
+  transition: opacity 0.2s ease, transform 0.2s ease;
+}
+
+.page-fade-enter-from {
+  opacity: 0;
+  transform: translateY(8px);
+}
+
+.page-fade-leave-to {
+  opacity: 0;
+  transform: translateY(-4px);
+}
+
+/* ---------------------------------------------------------------------------
+   PrimeVue component animation overrides.
+   These class names come from PrimeVue's animation system (primevue.org/guides/animations).
+   Overriding them globally gives all components a consistent, polished feel
+   that works in both light and dark mode (animations are color-neutral).
+   --------------------------------------------------------------------------- */
+
+/* Anchored overlays: Select, AutoComplete, DatePicker, Menu, Password, etc. */
+.p-anchored-overlay-enter-active {
+  animation: pv-overlay-in 200ms cubic-bezier(0.16, 1, 0.3, 1);
+}
+.p-anchored-overlay-leave-active {
+  animation: pv-overlay-out 150ms ease-in;
+}
+@keyframes pv-overlay-in {
+  from { opacity: 0; transform: translateY(6px) scale(0.98); }
+}
+@keyframes pv-overlay-out {
+  to   { opacity: 0; transform: translateY(4px) scale(0.98); }
+}
+
+/* Dialog */
+.p-dialog-enter-active {
+  animation: pv-dialog-in 260ms cubic-bezier(0.16, 1, 0.3, 1);
+}
+.p-dialog-leave-active {
+  animation: pv-dialog-out 180ms ease-in;
+}
+@keyframes pv-dialog-in {
+  from { opacity: 0; transform: translateY(-10px) scale(0.97); }
+}
+@keyframes pv-dialog-out {
+  to   { opacity: 0; transform: translateY(6px) scale(0.97); }
+}
+
+/* Drawer */
+.p-drawer-enter-active {
+  animation: pv-drawer-in 280ms cubic-bezier(0.16, 1, 0.3, 1);
+}
+.p-drawer-leave-active {
+  animation: pv-drawer-out 200ms ease-in;
+}
+@keyframes pv-drawer-in {
+  from { opacity: 0; transform: translateX(-12px); }
+}
+@keyframes pv-drawer-out {
+  to   { opacity: 0; transform: translateX(-8px); }
+}
+
+/* Modal overlay mask */
+.p-overlay-mask-enter-active {
+  animation: pv-mask-in 200ms ease;
+}
+.p-overlay-mask-leave-active {
+  animation: pv-mask-out 180ms ease;
+}
+@keyframes pv-mask-in  { from { opacity: 0; } }
+@keyframes pv-mask-out { to   { opacity: 0; } }
+
+/* Message (inline alerts) */
+.p-message-enter-active {
+  animation: pv-message-in 240ms cubic-bezier(0.16, 1, 0.3, 1);
+}
+.p-message-leave-active {
+  animation: pv-message-out 160ms ease-in;
+}
+@keyframes pv-message-in {
+  from { opacity: 0; transform: translateY(-6px) scale(0.99); }
+}
+@keyframes pv-message-out {
+  to   { opacity: 0; transform: translateY(-4px) scale(0.99); }
+}
+
+/* Toast notifications */
+.p-toast-message-enter-active {
+  animation: pv-toast-in 300ms cubic-bezier(0.16, 1, 0.3, 1);
+}
+.p-toast-message-leave-active {
+  animation: pv-toast-out 200ms ease-in;
+}
+@keyframes pv-toast-in  { from { opacity: 0; transform: translateX(16px); } }
+@keyframes pv-toast-out { to   { opacity: 0; transform: translateX(16px); } }
+
+/* Collapsibles: Accordion, Panel, Fieldset, Stepper, PanelMenu */
+.p-collapsible-enter-active {
+  animation: pv-expand 280ms cubic-bezier(0.16, 1, 0.3, 1);
+}
+.p-collapsible-leave-active {
+  animation: pv-collapse 200ms cubic-bezier(0.7, 0, 1, 0.6);
+}
+@keyframes pv-expand {
+  from { opacity: 0; grid-template-rows: 0fr; transform: scaleY(0.96); }
+  to   { opacity: 1; grid-template-rows: 1fr; transform: scaleY(1); }
+}
+@keyframes pv-collapse {
+  from { opacity: 1; grid-template-rows: 1fr; transform: scaleY(1); }
+  to   { opacity: 0; grid-template-rows: 0fr; transform: scaleY(0.96); }
+}
+
+/* Respect reduced-motion preferences */
+@media (prefers-reduced-motion: reduce) {
+  .page-fade-enter-active,
+  .page-fade-leave-active,
+  .p-anchored-overlay-enter-active,
+  .p-anchored-overlay-leave-active,
+  .p-dialog-enter-active,
+  .p-dialog-leave-active,
+  .p-drawer-enter-active,
+  .p-drawer-leave-active,
+  .p-overlay-mask-enter-active,
+  .p-overlay-mask-leave-active,
+  .p-message-enter-active,
+  .p-message-leave-active,
+  .p-toast-message-enter-active,
+  .p-toast-message-leave-active,
+  .p-collapsible-enter-active,
+  .p-collapsible-leave-active {
+    animation-duration: 0s !important;
+    transition-duration: 0s !important;
+  }
+}

@@ -32,10 +32,11 @@
         </div>
       </nav>
 
-      <!-- Section content -->
+      <!-- Section content (KeepAlive avoids remounting panels and refetching APIs when switching tabs) -->
       <div class="settings-content">
-        <!-- MCP Server -->
-        <section v-if="activeSection === 'mcp'" key="mcp" class="grid">
+        <KeepAlive>
+          <div :key="activeSection" class="settings-section-panel">
+        <section v-if="activeSection === 'mcp'" class="grid">
           <div class="col-12 lg:col-8 flex flex-column gap-4">
             <div class="content-panel content-panel-padded">
               <div class="flex align-items-start justify-content-between gap-3 flex-wrap">
@@ -255,7 +256,7 @@
         </section>
 
         <!-- JPilot (attachments) -->
-        <section v-if="activeSection === 'jpilot'" key="jpilot" class="grid">
+        <section v-if="activeSection === 'jpilot'" class="grid">
           <div class="col-12 lg:col-8 flex flex-column gap-4">
             <div class="content-panel content-panel-padded">
               <h2 class="section-title">Attachments</h2>
@@ -305,7 +306,7 @@
         </section>
 
         <!-- AI Providers -->
-        <section v-if="activeSection === 'ai-providers'" key="ai-providers" class="flex flex-column gap-4">
+        <section v-if="activeSection === 'ai-providers'" class="flex flex-column gap-4">
           <AIProvidersPanel />
           <BraveSearchPanel @usage-changed="refreshUsageDashboard" />
           <div class="content-panel content-panel-padded">
@@ -314,12 +315,12 @@
         </section>
 
         <!-- Next-Gen API -->
-        <section v-if="activeSection === 'nextgen'" key="nextgen">
+        <section v-if="activeSection === 'nextgen'">
           <NextGenApiPanel />
         </section>
 
         <!-- Security -->
-        <section v-if="activeSection === 'security'" key="security" class="grid">
+        <section v-if="activeSection === 'security'" class="grid">
           <div class="col-12 lg:col-8">
             <div class="content-panel content-panel-padded">
               <h2 class="section-title">Security</h2>
@@ -361,17 +362,17 @@
         </section>
 
         <!-- Users (admin) -->
-        <section v-if="activeSection === 'users'" key="users">
+        <section v-if="activeSection === 'users'">
           <UsersPanel />
         </section>
 
         <!-- About / updates -->
-        <section v-if="activeSection === 'about'" key="about">
+        <section v-if="activeSection === 'about'">
           <UpdatesPanel @update-status="onUpdateStatus" />
         </section>
 
         <!-- Legal -->
-        <section v-if="activeSection === 'legal'" key="legal" class="grid">
+        <section v-if="activeSection === 'legal'" class="grid">
           <div class="col-12 lg:col-8">
             <div class="content-panel content-panel-padded">
               <h2 class="section-title">Legal</h2>
@@ -404,6 +405,8 @@
             </div>
           </div>
         </section>
+          </div>
+        </KeepAlive>
       </div>
     </div>
   </div>

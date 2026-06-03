@@ -6,7 +6,7 @@ Repository: [github.com/juandiab/nsagent](https://github.com/juandiab/nsagent)
 
 > **Disclaimer:** JPilot is an independent project and is not affiliated with, endorsed by, or sponsored by Citrix Systems, Inc. NetScaler is a trademark of Citrix Systems, Inc.
 
-**Current release:** `v0.09` — grouped Settings navigation (Platform, People, Personal, App) and reordered tabs for setup flow.
+**Current release:** `v0.10` — Settings tab caching and nginx API rate-limit fix; login page polish and page transitions.
 
 Bump the root [`VERSION`](VERSION) file when tagging a release so in-app update checks match GitHub.
 
@@ -28,6 +28,15 @@ Bump the root [`VERSION`](VERSION) file when tagging a release so in-app update 
 - **Optional Brave Search** — domain-restricted web augmentation when local memory/docs are weak (Settings → AI Providers).
 - **Dashboard shortcuts** — recommended JPilot prompts and links (health summary, list IPs/vservers, diagnostics, guided LB).
 - **Model usage dashboard** — Settings → AI Providers shows monthly LLM token/request usage and Brave Search query usage with progress bars (tracked locally per calendar month).
+
+## What's new in v0.10
+
+| Area | Highlights |
+|------|------------|
+| **Fix** | Settings sections cached with `KeepAlive` so switching tabs no longer remounts panels and refetches `/api/ai-providers`, platform settings, and usage dashboard on every visit. |
+| **Fix** | Production nginx API rate limit aligned with dev (`30r/s`, burst 60) — fixes 503 errors when jumping between Settings tabs (was `20r/m` in prod templates). |
+| **UI** | Login page visual refresh (animated background, scroll-in animations). |
+| **UI** | Global page fade transitions on route changes. |
 
 ## What's new in v0.09
 
