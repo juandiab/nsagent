@@ -82,7 +82,17 @@ body {
 .steps li.active .dot { border-color: var(--primary); background: var(--primary); color: var(--primary-contrast); }
 .steps li.done { color: var(--text); opacity: .85; }
 .steps li.done .dot { border-color: var(--primary); background: var(--primary); color: var(--primary-contrast); }
-.rail-foot { font-size: 11px; color: var(--surface-700); margin-top: 20px; }
+.rail-foot { margin-top: 20px; }
+.rail-links { display: flex; flex-wrap: wrap; gap: 14px; margin-bottom: 8px; }
+.rail-links a { font-size: 12px; font-weight: 600; color: var(--primary); text-decoration: none; }
+.rail-links a:hover { text-decoration: underline; }
+.rail-copy { font-size: 11px; color: var(--text-muted); margin: 0; }
+.rail-copy a { color: var(--text-muted); text-decoration: none; }
+.rail-copy a:hover { color: var(--primary); }
+
+.contact-note { font-size: 13px; color: var(--text-muted); margin: 18px 0 0; }
+.contact-note a { color: var(--primary); text-decoration: none; font-weight: 600; }
+.contact-note a:hover { text-decoration: underline; }
 
 /* Stage */
 .stage { padding: 44px 48px; display: flex; flex-direction: column; }
