@@ -41,7 +41,7 @@ fi
 if [ -f .env ] && [ "$RECONFIGURE" -eq 0 ]; then
   echo "A .env file already exists — this looks like a configured install."
   echo "Re-run with '--reconfigure' to overwrite it via the wizard, or start the"
-  echo "stack directly with: $DC up -d"
+  echo "stack directly with: ./compose.sh up -d"
   exit 1
 fi
 
@@ -98,7 +98,7 @@ trap - EXIT INT TERM
 
 # ---- launch the real stack -------------------------------------------------
 echo "Launching JPilot..."
-$DC up -d --build
+./compose.sh up -d --build
 
 rm -f "$SENTINEL"
 
@@ -109,8 +109,8 @@ osc8_link "$APP_URL"
 printf '\n\n'
 printf '  • The first boot may take a few seconds while services come up.\n'
 printf '  • Sign in with the admin account you just created.\n'
-printf '  • View logs with:   %s logs -f\n' "$DC"
-printf '  • Stop with:        %s down\n' "$DC"
+printf '  • View logs with:   ./compose.sh logs -f\n'
+printf '  • Stop with:        ./compose.sh down\n'
 printf '\n'
 
 # ---- open the app in a browser (best effort) -------------------------------

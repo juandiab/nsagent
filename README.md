@@ -123,7 +123,8 @@ starts the setup wizard. Then:
 
 1. Open **https://localhost:9443** (the installer uses a self-signed certificate, so
    accept the one-time browser warning).
-2. Complete the wizard: admin account, domain, and TLS (self-signed or your own cert).
+2. Complete the wizard: admin account, domain, **deploy mode** (production or development),
+   and TLS (self-signed or your own cert).
 3. On the **Review** step, **save the generated `NSAGENT_ENCRYPTION_KEY`** — it is
    required to restore or migrate the install and cannot be recovered.
 4. Click **Install JPilot**. The wizard writes `.env` and `nginx/ssl/`, and your
@@ -173,6 +174,7 @@ Prefer to configure things by hand instead of the wizard? You can:
    | `JWT_SECRET_KEY`         | Secret for session JWTs              |
    | `ADMIN_USERNAME`         | Initial admin user (seeded once)     |
    | `ADMIN_PASSWORD`         | Initial admin password               |
+   | `NSAGENT_DEPLOY_MODE`    | `prod` (compiled, default) or `dev` (hot reload) |
    | `NGINX_HOSTNAME`         | Public hostname for nginx TLS        |
    | `WEBAUTHN_RP_ID`         | WebAuthn RP ID (usually your hostname or `localhost`) |
    | `WEBAUTHN_ORIGIN`        | Exact UI origin (e.g. `https://your-domain`) |
@@ -183,7 +185,7 @@ Prefer to configure things by hand instead of the wizard? You can:
 3. **Provide TLS certificates** — place `cert.crt` and `cert.key` in `nginx/ssl/`
    (see [nginx/ssl/README.md](nginx/ssl/README.md)). nginx will not start without them.
 
-4. **Start the stack** — `docker compose up --build`, then open `https://<NGINX_HOSTNAME>`.
+4. **Start the stack** — `./compose.sh up --build` (reads `NSAGENT_DEPLOY_MODE` from `.env`), then open `https://<NGINX_HOSTNAME>`.
 
 ## Authentication
 
@@ -321,13 +323,15 @@ JPilot search tools read these before executing NetScaler write operations. Bloc
 
 ## Development
 
-Source is bind-mounted into containers; **Uvicorn `--reload`** and **Vite HMR** pick up changes without rebuild.
+Set `NSAGENT_DEPLOY_MODE=dev` in `.env` (or pick **Development** in the installer). Source is
+bind-mounted into containers; **Uvicorn `--reload`** and **Vite HMR** pick up changes without rebuild.
 
 ```bash
-docker compose up
+./compose.sh up
+# or explicitly: docker compose up --build
 ```
 
-Health checks:
+Health checks (dev stack exposes service ports via containers):
 
 - Backend: [http://localhost:8000/health](http://localhost:8000/health)
 - MCP: [http://localhost:8001/health](http://localhost:8001/health)
@@ -336,8 +340,29 @@ Health checks:
 After changing Python dependencies in `requirements.txt`, rebuild the affected image:
 
 ```bash
-docker compose build backend-api mcp-server && docker compose up -d backend-api mcp-server
+./compose.sh build backend-api mcp-server && ./compose.sh up -d backend-api mcp-server
 ```
+
+## Production
+
+Set `NSAGENT_DEPLOY_MODE=prod` in `.env` (the installer default). The stack uses
+`docker-compose.prod.yml`: the frontend is compiled into the nginx image, and API services run
+without reload or source bind mounts.
+
+```bash
+./compose.sh up -d --build
+# or explicitly: docker compose -f docker-compose.prod.yml up -d --build
+```
+
+After changing the domain or `VITE_API_BASE_URL`, rebuild nginx so the UI picks up the new API URL:
+
+```bash
+./compose.sh up -d --build nginx
+```
+
+Use strong secrets, TLS in front of the UI/API, restrict MongoDB network access, configure SMTP
+for password reset, and set `WEBAUTHN_RP_ID`, `WEBAUTHN_ORIGIN`, and `CORS_ORIGINS` to your
+real hostname.
 
 ### Project layout
 
@@ -347,14 +372,12 @@ docker compose build backend-api mcp-server && docker compose up -d backend-api 
 ├── mcp-server/        # MCP NetScaler tool server
 ├── backend-api/tests/ # Backend unit tests (e.g. form heuristics)
 ├── docker-compose.yml
+├── docker-compose.prod.yml
+├── compose.sh              # picks dev/prod compose from .env
 ├── netscaler_nextgen_api_memory.md
 ├── netscaler_adc_cli_memory.md
 └── .env.example
 ```
-
-## Production notes
-
-For production images, remove bind-mount volume lines for `frontend`, `backend-api`, and `mcp-server` in `docker-compose.yml` so containers use code baked into each Dockerfile. Use strong secrets, TLS in front of the UI/API, restrict MongoDB network access, configure SMTP for password reset, and set `WEBAUTHN_RP_ID`, `WEBAUTHN_ORIGIN`, and `CORS_ORIGINS` to your real hostname.
 
 ## License
 

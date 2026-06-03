@@ -54,6 +54,7 @@
         <ul class="checklist">
           <li>Create the admin login</li>
           <li>Pick the domain JPilot will be served from</li>
+          <li>Choose production or development mode</li>
           <li>Use your own TLS certificate or generate a self-signed one</li>
         </ul>
         <div class="actions"><span></span><button class="btn primary" data-next>Get started</button></div>
@@ -96,8 +97,29 @@
         <div class="actions"><button class="btn ghost" data-back>Back</button><button class="btn primary" data-next>Continue</button></div>
       </section>
 
-      <!-- TLS -->
+      <!-- Deploy mode -->
       <section class="panel step hidden" data-step="3">
+        <h1>Deploy mode</h1>
+        <p class="muted">Production builds the UI and runs without hot reload — faster and
+          recommended for real installs. Development keeps source mounted and reloads on
+          change, which is useful when hacking on JPilot locally.</p>
+        <div class="choice">
+          <label class="radio">
+            <input type="radio" name="deploy_mode" value="prod" checked />
+            <span><strong>Production</strong> <span class="opt">(recommended)</span><br />
+              <span class="muted">Compiled frontend, no file watchers. Best for day-to-day use.</span></span>
+          </label>
+          <label class="radio">
+            <input type="radio" name="deploy_mode" value="dev" />
+            <span><strong>Development</strong><br />
+              <span class="muted">Hot reload for frontend and API. Slower startup, higher CPU use.</span></span>
+          </label>
+        </div>
+        <div class="actions"><button class="btn ghost" data-back>Back</button><button class="btn primary" data-next>Continue</button></div>
+      </section>
+
+      <!-- TLS -->
+      <section class="panel step hidden" data-step="4">
         <h1>TLS certificate</h1>
         <p class="muted">nginx terminates HTTPS. Provide your own certificate, or let the installer
           generate a self-signed one to get going.</p>
@@ -132,7 +154,7 @@
       </section>
 
       <!-- Review -->
-      <section class="panel step hidden" data-step="4">
+      <section class="panel step hidden" data-step="5">
         <h1>Review &amp; install</h1>
         <dl class="review" id="reviewList"></dl>
         <p class="field-error hidden" id="installErr"></p>

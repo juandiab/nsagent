@@ -43,7 +43,7 @@ function Compose { param([Parameter(ValueFromRemainingArguments=$true)]$Args)
 if ((Test-Path '.env') -and (-not $Reconfigure)) {
   Write-Host "A .env file already exists - this looks like a configured install."
   Write-Host "Re-run with '-Reconfigure' to overwrite it via the wizard, or start the"
-  Write-Host "stack directly with:  $($dc -join ' ') up -d"
+  Write-Host "stack directly with:  .\compose.ps1 up -d"
   exit 1
 }
 
@@ -93,7 +93,7 @@ finally {
 
 # ---- launch the real stack -------------------------------------------------
 Write-Host "Launching JPilot..."
-Compose 'up' '-d' '--build'
+& "$PSScriptRoot\compose.ps1" up -d --build
 
 if (Test-Path $Sentinel) { Remove-Item $Sentinel -Force }
 
@@ -102,8 +102,8 @@ Write-Host "  JPilot is starting at  $(Format-Link "https://$domain")" -Foregrou
 Write-Host ""
 Write-Host "  * The first boot may take a few seconds while services come up."
 Write-Host "  * Sign in with the admin account you just created."
-Write-Host "  * View logs with:   $($dc -join ' ') logs -f"
-Write-Host "  * Stop with:        $($dc -join ' ') down"
+Write-Host "  * View logs with:   .\compose.ps1 logs -f"
+Write-Host "  * Stop with:        .\compose.ps1 down"
 Write-Host ""
 
 # ---- open the app in a browser (best effort) -------------------------------

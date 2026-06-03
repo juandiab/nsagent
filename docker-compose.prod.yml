@@ -1,29 +1,16 @@
 services:
   nginx:
-    build: ./nginx
+    build:
+      context: .
+      dockerfile: nginx/Dockerfile.prod
+      args:
+        VITE_API_BASE_URL: ${VITE_API_BASE_URL:-https://localhost/api}
     ports:
       - "443:443"
     environment:
-      - NGINX_HOSTNAME=${NGINX_HOSTNAME:-jpilot.nexxus-tech.com}
+      - NGINX_HOSTNAME=${NGINX_HOSTNAME:-localhost}
     volumes:
       - ${SSL_CERTS_PATH:-./nginx/ssl}:/etc/nginx/ssl:ro
-    networks:
-      - nsagent-network
-    depends_on:
-      - frontend
-      - backend-api
-
-  frontend:
-    build:
-      context: .
-      dockerfile: frontend/Dockerfile
-      target: dev
-    volumes:
-      - ./frontend:/app
-      - /app/node_modules
-    environment:
-      - VITE_API_BASE_URL=${VITE_API_BASE_URL:-https://jpilot.nexxus-tech.com/api}
-      - NGINX_HOSTNAME=${NGINX_HOSTNAME:-jpilot.nexxus-tech.com}
     networks:
       - nsagent-network
     depends_on:
@@ -33,11 +20,10 @@ services:
     build:
       context: .
       dockerfile: backend-api/Dockerfile
-      target: dev
+      target: prod
     extra_hosts:
       - "host.docker.internal:host-gateway"
     volumes:
-      - ./backend-api:/app
       - ./netscaler_nextgen_api_memory.md:/app/app/resources/netscaler_nextgen_api_memory.md:ro
       - ./netscaler_adc_cli_memory.md:/app/app/resources/netscaler_adc_cli_memory.md:ro
     environment:
@@ -48,10 +34,10 @@ services:
       - MONGO_URI=mongodb://mongodb:27017
       - MONGO_DB=nsagent
       - MCP_SERVER_URL=http://mcp-server:8001
-      - WEBAUTHN_RP_ID=${WEBAUTHN_RP_ID:-jpilot.nexxus-tech.com}
+      - WEBAUTHN_RP_ID=${WEBAUTHN_RP_ID:-localhost}
       - WEBAUTHN_RP_NAME=${WEBAUTHN_RP_NAME:-NSAgent}
-      - WEBAUTHN_ORIGIN=${WEBAUTHN_ORIGIN:-https://jpilot.nexxus-tech.com}
-      - CORS_ORIGINS=${CORS_ORIGINS:-https://jpilot.nexxus-tech.com}
+      - WEBAUTHN_ORIGIN=${WEBAUTHN_ORIGIN:-https://localhost}
+      - CORS_ORIGINS=${CORS_ORIGINS:-https://localhost}
       - SMTP_HOST=${SMTP_HOST:-}
       - SMTP_PORT=${SMTP_PORT:-587}
       - SMTP_USERNAME=${SMTP_USERNAME:-}
@@ -70,9 +56,7 @@ services:
     build:
       context: .
       dockerfile: mcp-server/Dockerfile
-      target: dev
-    volumes:
-      - ./mcp-server:/app
+      target: prod
     environment:
       - MCP_HOST=0.0.0.0
       - MCP_PORT=8001

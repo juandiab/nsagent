@@ -1,6 +1,6 @@
 "use strict";
 
-const STEP_NAMES = ["Welcome", "Admin", "Domain", "TLS", "Review"];
+const STEP_NAMES = ["Welcome", "Admin", "Domain", "Deploy", "TLS", "Review"];
 const $ = (id) => document.getElementById(id);
 const show = (el) => el.classList.remove("hidden");
 const hide = (el) => el.classList.add("hidden");
@@ -46,7 +46,7 @@ function validateStep(n) {
     if (!re.test(domain)) return fail(err, "Enter a valid hostname (e.g. jpilot.example.com), IP, or 'localhost'.");
     hide(err);
   }
-  if (n === 3) {
+  if (n === 4) {
     const mode = document.querySelector('input[name="cert_mode"]:checked').value;
     if (mode === "custom" && !state.certValidated) {
       return fail($("certErr"), "Validate your certificate before continuing.");
@@ -64,8 +64,10 @@ function fail(el, msg) {
 // ---------------------------------------------------------------- collect
 function collect() {
   const mode = document.querySelector('input[name="cert_mode"]:checked').value;
+  const deployMode = document.querySelector('input[name="deploy_mode"]:checked').value;
   return {
     reconfigure: state.reconfigure,
+    deploy_mode: deployMode,
     admin_username: $("admin_username").value.trim() || "admin",
     admin_password: $("admin_password").value,
     admin_email: $("admin_email").value.trim(),
@@ -81,6 +83,7 @@ function collect() {
 function renderReview() {
   const d = collect();
   const rows = [
+    ["Deploy mode", d.deploy_mode === "dev" ? "Development (hot reload)" : "Production (compiled)"],
     ["Admin username", d.admin_username],
     ["Admin email", d.admin_email || "—"],
     ["Domain", `https://${d.domain}`],
@@ -180,7 +183,7 @@ function wire() {
   document.querySelectorAll("[data-next]").forEach((b) =>
     b.addEventListener("click", () => {
       if (!validateStep(state.step)) return;
-      if (state.step === 3) renderReview();
+      if (state.step === 4) renderReview();
       gotoStep(state.step + 1);
     }));
   document.querySelectorAll("[data-back]").forEach((b) =>

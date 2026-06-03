@@ -52,6 +52,7 @@ class CertCheck(BaseModel):
 
 class InstallRequest(BaseModel):
     reconfigure: bool = False
+    deploy_mode: str = Field(default="prod")  # "prod" | "dev"
     admin_username: str = Field(default="admin")
     admin_password: str
     admin_email: str = ""
@@ -179,6 +180,9 @@ def render_env(req: InstallRequest, encryption_key: str, jwt_secret: str) -> str
         f"ADMIN_USERNAME={_env_value(req.admin_username.strip() or 'admin')}",
         f"ADMIN_PASSWORD={_env_value(req.admin_password)}",
         "",
+        "# Deploy mode: prod = compiled stack (recommended); dev = hot reload for hacking",
+        f"NSAGENT_DEPLOY_MODE={_env_value(req.deploy_mode.strip().lower() or 'prod')}",
+        "",
         "# Public hostname (nginx TLS termination)",
         f"NGINX_HOSTNAME={_env_value(domain)}",
         "SSL_CERTS_PATH=./nginx/ssl",
@@ -236,6 +240,8 @@ def install(req: InstallRequest):
         raise HTTPException(status_code=422, detail=f"'{domain}' is not a valid hostname or IP.")
     if len(req.admin_password) < 8:
         raise HTTPException(status_code=422, detail="Admin password must be at least 8 characters.")
+    if req.deploy_mode.strip().lower() not in ("prod", "dev"):
+        raise HTTPException(status_code=422, detail="deploy_mode must be 'prod' or 'dev'.")
 
     # Resolve certificate material before writing anything.
     if req.cert_mode == "custom":
@@ -269,6 +275,7 @@ def install(req: InstallRequest):
         "ok": True,
         "domain": domain,
         "app_url": f"https://{domain}",
+        "deploy_mode": req.deploy_mode.strip().lower() or "prod",
         "secrets": {
             "NSAGENT_ENCRYPTION_KEY": encryption_key,
             "JWT_SECRET_KEY": jwt_secret,
