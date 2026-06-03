@@ -38,12 +38,24 @@
           {{ errorMessage }}
         </Message>
 
+        <div class="flex align-items-start gap-2">
+          <Checkbox v-model="agreed" :binary="true" input-id="agree" />
+          <label for="agree" class="agree-label">
+            I have read and agree to the
+            <RouterLink to="/legal/terms" target="_blank">Terms of Service</RouterLink>,
+            <RouterLink to="/legal/privacy" target="_blank">Privacy Policy</RouterLink>,
+            <RouterLink to="/legal/acceptable-use" target="_blank">Acceptable Use Policy</RouterLink>, and
+            <RouterLink to="/legal/eula" target="_blank">EULA</RouterLink>.
+          </label>
+        </div>
+
         <Button
           type="submit"
           label="Sign in"
           icon="pi pi-sign-in"
           class="w-full"
           :loading="loading"
+          :disabled="!agreed"
         />
 
         <div class="text-center">
@@ -62,6 +74,7 @@
             severity="secondary"
             outlined
             :loading="loadingPasskey"
+            :disabled="!agreed"
             @click="handlePasskeyLogin"
           />
           <small class="field-hint text-center">
@@ -70,6 +83,16 @@
         </template>
       </form>
     </div>
+
+    <footer class="login-legal">
+      <RouterLink to="/legal/privacy">Privacy Policy</RouterLink>
+      <span aria-hidden="true">·</span>
+      <RouterLink to="/legal/terms">Terms of Service</RouterLink>
+      <span aria-hidden="true">·</span>
+      <RouterLink to="/legal/eula">EULA</RouterLink>
+      <span aria-hidden="true">·</span>
+      <RouterLink to="/legal/acceptable-use">Acceptable Use</RouterLink>
+    </footer>
   </div>
 </template>
 
@@ -77,6 +100,7 @@
 import { onBeforeUnmount, ref, watch } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
 import Button from 'primevue/button'
+import Checkbox from 'primevue/checkbox'
 import InputText from 'primevue/inputtext'
 import Message from 'primevue/message'
 import Password from 'primevue/password'
@@ -94,6 +118,7 @@ const route = useRoute()
 
 const username = ref('')
 const password = ref('')
+const agreed = ref(false)
 const loading = ref(false)
 const loadingPasskey = ref(false)
 const errorMessage = ref('')
@@ -166,10 +191,46 @@ async function handlePasskeyLogin() {
 
 <style scoped>
 .login-page {
+  position: relative;
   padding: 1.5rem;
   background:
     radial-gradient(circle at top right, color-mix(in srgb, var(--p-primary-100) 50%, transparent), transparent 40%),
     var(--p-surface-0);
+}
+
+.agree-label {
+  font-size: 0.8125rem;
+  line-height: 1.4;
+  color: var(--p-text-muted-color);
+}
+
+.agree-label a {
+  color: var(--p-primary-color);
+  text-decoration: none;
+}
+
+.login-legal {
+  position: absolute;
+  bottom: 1.25rem;
+  left: 0;
+  right: 0;
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: center;
+  gap: 0.5rem;
+  padding: 0 1rem;
+  font-size: 0.8125rem;
+  color: var(--p-text-muted-color);
+}
+
+.login-legal a {
+  color: var(--p-text-muted-color);
+  text-decoration: none;
+}
+
+.login-legal a:hover {
+  color: var(--p-primary-color);
 }
 
 .login-panel {

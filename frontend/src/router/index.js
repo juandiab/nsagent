@@ -4,6 +4,7 @@ import { getToken, getStoredUser } from '../services/auth'
 import CopilotView from '../views/CopilotView.vue'
 import DashboardView from '../views/DashboardView.vue'
 import LoginView from '../views/LoginView.vue'
+import LegalView from '../views/LegalView.vue'
 import ResetPasswordView from '../views/ResetPasswordView.vue'
 import NetScalersView from '../views/NetScalersView.vue'
 import AIProvidersView from '../views/AIProvidersView.vue'
@@ -27,6 +28,11 @@ const router = createRouter({
       name: 'reset-password',
       component: ResetPasswordView,
       meta: { public: true }
+    },
+    {
+      path: '/legal/:doc?',
+      name: 'legal',
+      component: LegalView
     },
     {
       path: '/',

@@ -61,6 +61,16 @@
           <component :is="Component" :key="route.path" />
         </Transition>
       </router-view>
+
+      <footer class="app-legal">
+        <span class="app-legal-copy">© {{ currentYear }} Nexxus Tech</span>
+        <nav class="app-legal-links">
+          <RouterLink to="/legal/privacy">Privacy Policy</RouterLink>
+          <RouterLink to="/legal/terms">Terms of Service</RouterLink>
+          <RouterLink to="/legal/eula">EULA</RouterLink>
+          <RouterLink to="/legal/acceptable-use">Acceptable Use</RouterLink>
+        </nav>
+      </footer>
     </main>
 
     <ConfirmDialog />
@@ -85,6 +95,7 @@ const router = useRouter()
 const userMenu = ref()
 const currentUser = ref(getStoredUser())
 const theme = ref(getTheme())
+const currentYear = new Date().getFullYear()
 
 function onToggleTheme() {
   theme.value = toggleTheme()
@@ -277,6 +288,34 @@ function isActive(path) {
 .main-content {
   padding: 0 0.5rem 2rem;
   gap: 2rem;
+}
+
+.app-legal {
+  margin-top: auto;
+  padding: 1.25rem 1rem 0.25rem;
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.75rem;
+  border-top: 1px solid var(--p-content-border-color);
+  font-size: 0.8125rem;
+  color: var(--p-text-muted-color);
+}
+
+.app-legal-links {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 1rem;
+}
+
+.app-legal-links a {
+  color: var(--p-text-muted-color);
+  text-decoration: none;
+}
+
+.app-legal-links a:hover {
+  color: var(--p-primary-color);
 }
 
 .page-fade-enter-active,
