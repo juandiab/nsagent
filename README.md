@@ -72,36 +72,53 @@ Repository: [github.com/juandiab/nsagent](https://github.com/juandiab/nsagent)
 
 ## Quick start
 
-The only prerequisite is **Docker** (Docker Desktop on Mac/Windows, Docker Engine on
-Linux). The installer downloads the project and generates secrets, the TLS certificate,
-and `.env` for you.
+The only prerequisite is **Docker**. The installer downloads the project, generates the
+secrets and TLS certificate, writes `.env`, launches the stack, and opens JPilot in your
+browser. Pick your platform:
 
-**macOS / Linux**
+### Windows
 
-```bash
-curl -fsSL https://raw.githubusercontent.com/juandiab/nsagent/main/get.sh | bash
-```
-
-**Windows (PowerShell)**
+Install [Docker Desktop](https://docs.docker.com/desktop/install/windows-install/) (and
+[Git for Windows](https://git-scm.com/download/win)). Then, in **PowerShell**:
 
 ```powershell
 irm https://raw.githubusercontent.com/juandiab/nsagent/main/get.ps1 | iex
 ```
 
-(Already cloned the repo? Just run `./install.sh` — or `.\install.ps1` on Windows — from
-the project root.)
+### macOS
 
-Then:
+Install [Docker Desktop](https://docs.docker.com/desktop/install/mac-install/) (or let the
+installer set it up via Homebrew). Then, in **Terminal**:
+
+```bash
+curl -fsSL https://raw.githubusercontent.com/juandiab/nsagent/main/get.sh | bash
+```
+
+### Ubuntu / Linux
+
+Docker Engine is required — if it's missing, the installer offers to install it for you.
+Then run:
+
+```bash
+curl -fsSL https://raw.githubusercontent.com/juandiab/nsagent/main/get.sh | bash
+```
+
+---
+
+The script checks for Docker (offering to install it if absent), downloads JPilot, and
+starts the setup wizard. Then:
 
 1. Open **https://localhost:9443** (the installer uses a self-signed certificate, so
    accept the one-time browser warning).
-2. Complete the wizard: admin account, domain, TLS (self-signed or your own cert), and
-   optional SMTP.
+2. Complete the wizard: admin account, domain, and TLS (self-signed or your own cert).
 3. On the **Review** step, **save the generated `NSAGENT_ENCRYPTION_KEY`** — it is
    required to restore or migrate the install and cannot be recovered.
 4. Click **Install JPilot**. The wizard writes `.env` and `nginx/ssl/`, and your
-   terminal automatically launches the full stack.
-5. Open **https://&lt;your-domain&gt;** and sign in with the admin account you created.
+   terminal automatically launches the full stack and opens it in your browser.
+5. Sign in at **https://&lt;your-domain&gt;** with the admin account you created.
+
+> Already cloned the repo? Skip the one-liner and just run `./install.sh` (macOS/Linux) or
+> `.\install.ps1` (Windows) from the project root.
 
 To reconfigure an existing install (overwrites `.env`):
 
