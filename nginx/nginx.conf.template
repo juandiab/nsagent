@@ -32,7 +32,7 @@ http {
                image/svg+xml font/woff2;
 
     limit_req_zone $binary_remote_addr zone=api:10m rate=30r/s;
-    limit_req_zone $binary_remote_addr zone=contact:10m rate=5r/m;
+    limit_req_zone $binary_remote_addr zone=contact:10m rate=15r/m;
 
     resolver 8.8.8.8 8.8.4.4 1.1.1.1 valid=300s;
     resolver_timeout 5s;
@@ -105,7 +105,7 @@ http {
         }
 
         location /api/auth {
-            limit_req zone=contact burst=5 nodelay;
+            limit_req zone=contact burst=15 nodelay;
             rewrite ^/api(/.*)$ $1 break;
             proxy_pass         http://backend-api:8000;
             proxy_http_version 1.1;
