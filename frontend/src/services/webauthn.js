@@ -7,15 +7,26 @@ export async function fetchPasskeyStatus(username) {
   return data
 }
 
-export async function registerPasskey(username, label = '') {
+export async function registerPasskey(username, label = '', recoveryToken = null) {
   const cleaned = username.trim().toLowerCase()
-  const { data: options } = await api.post('/auth/webauthn/register/begin', { username: cleaned })
+  const body = { username: cleaned }
+  if (recoveryToken) {
+    body.recoveryToken = recoveryToken
+  }
+  const { data: options } = await api.post('/auth/webauthn/register/begin', body)
   const credential = await startRegistration({ optionsJSON: options })
-  const { data } = await api.post('/auth/webauthn/register/finish', {
+  const finishBody = {
     username: cleaned,
     credential,
     label
-  })
+  }
+  if (recoveryToken) {
+    finishBody.recoveryToken = recoveryToken
+  }
+  const { data } = await api.post('/auth/webauthn/register/finish', finishBody)
+  if (data.accessToken) {
+    setAuth(data.accessToken, data.user)
+  }
   return data
 }
 

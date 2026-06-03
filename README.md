@@ -18,8 +18,8 @@ Repository: [github.com/juandiab/nsagent](https://github.com/juandiab/nsagent)
 - **Classic + Next-Gen** — list virtual servers from Next-Gen applications and classic `lbvserver`; create apps via Next-Gen or multi-step LB setup via CLI.
 - **Guided load balancer forms** — JPilot can embed interactive `jpilot-form` blocks in chat (VIP, service type, backends, monitors); submissions drive CLI execution after reference lookup.
 - **Smart form routing** — responder, rewrite, transform, and other policy-on-vserver requests do not trigger the LB creation form.
-- **Authentication** — password login for all users; optional passkey (WebAuthn) sign-in after registration in Settings → Security.
-- **Password reset** — admins send email reset codes (SMTP); users complete reset at `/reset-password`.
+- **Authentication** — password login until a passkey is registered; then passkey-only sign-in (password login blocked server-side).
+- **Account recovery** — email OTP via SMTP; self-service at `/account-recovery` or admin-initiated from Users; revokes passkeys and resets password and/or registers a new passkey.
 - **User management** — admin CRUD for users (roles `admin` / `user`), email for resets, initial password on create, passkey count and removal.
 - **SSL certificate tools** — generate CSRs or self-signed certificates on the appliance (UI + API + MCP).
 - **NetScaler diagnostics** — ICMP ping/traceroute, TCP port reachability via telnet from the appliance shell, and read-only `nsconmsg` performance/event collection.
@@ -189,10 +189,10 @@ Prefer to configure things by hand instead of the wizard? You can:
 
 | Flow | Description |
 |------|-------------|
-| **Password login** | Primary sign-in via `POST /auth/login`. Required for all users. |
-| **Passkey login** | Optional on the login screen if the user has registered passkeys. |
-| **Passkey registration** | Authenticated users register in **Settings → Security** (not from the login page). |
-| **Password reset** | Admin sends a code from **Users**; user opens `/reset-password` and confirms via `POST /auth/password-reset/confirm`. |
+| **Password login** | `POST /auth/login` — allowed only while the user has **no** registered passkeys. |
+| **Passkey login** | Required once a passkey exists; `POST /auth/webauthn/login/begin\|finish`. |
+| **Passkey registration** | Authenticated users register in **Settings → Security** (email required on the account). |
+| **Account recovery** | `POST /auth/account-recovery/request` (self-service) or admin from **Users**; user completes at `/account-recovery` via `POST /auth/password-reset/confirm` (removes passkeys; optional new password; optional short-lived token to register a new passkey). |
 | **Bootstrap admin** | Seeded from `ADMIN_USERNAME` / `ADMIN_PASSWORD` on first startup. |
 
 WebAuthn and CORS origins must match how users open the UI (see `.env.example`).
@@ -295,10 +295,11 @@ JPilot search tools read these before executing NetScaler write operations. Bloc
 | Method | Path | Purpose |
 |--------|------|---------|
 | `GET` | `/health` | Health check |
-| `POST` | `/auth/login` | Password login |
+| `POST` | `/auth/login` | Password login (blocked if user has passkeys) |
 | `GET` | `/auth/me` | Current user |
 | `POST` | `/auth/logout` | Logout |
-| `POST` | `/auth/password-reset/confirm` | Complete password reset with emailed code |
+| `POST` | `/auth/account-recovery/request` | Self-service recovery code (generic response) |
+| `POST` | `/auth/password-reset/confirm` | Complete account recovery with emailed code |
 | `POST` | `/auth/webauthn/status` | Passkey availability for username |
 | `POST` | `/auth/webauthn/register/begin\|finish` | Register passkey (authenticated) |
 | `POST` | `/auth/webauthn/login/begin\|finish` | Passkey sign-in |

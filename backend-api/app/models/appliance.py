@@ -8,13 +8,27 @@ def utc_now() -> datetime:
     return datetime.now(timezone.utc)
 
 
+DEFAULT_VENDOR = "netscaler"
+
+
+def normalize_vendor(vendor: str | None) -> str:
+    return vendor or DEFAULT_VENDOR
+
+
+def is_netscaler_appliance(doc: dict[str, Any]) -> bool:
+    return normalize_vendor(doc.get("vendor")) == DEFAULT_VENDOR
+
+
 def serialize_appliance(doc: dict[str, Any]) -> dict[str, Any]:
+    vendor = normalize_vendor(doc.get("vendor"))
     return {
         "id": str(doc["_id"]),
         "name": doc["name"],
         "environment": doc["environment"],
         "enabled": doc["enabled"],
         "notes": doc.get("notes", ""),
+        "vendor": vendor,
+        "copilotEligible": is_netscaler_appliance(doc),
         "createdAt": doc["createdAt"],
         "updatedAt": doc["updatedAt"],
     }
@@ -22,13 +36,18 @@ def serialize_appliance(doc: dict[str, Any]) -> dict[str, Any]:
 
 def build_appliance_document(payload: dict[str, Any], encrypted_fields: dict[str, str]) -> dict[str, Any]:
     now = utc_now()
+    vendor = normalize_vendor(payload.get("vendor"))
+    enabled = payload.get("enabled", True)
+    if vendor != DEFAULT_VENDOR:
+        enabled = False
     return {
         "name": payload["name"],
         "environment": payload["environment"],
+        "vendor": vendor,
         "encryptedHost": encrypted_fields["encryptedHost"],
         "encryptedUsername": encrypted_fields["encryptedUsername"],
         "encryptedPassword": encrypted_fields["encryptedPassword"],
-        "enabled": payload.get("enabled", True),
+        "enabled": enabled,
         "notes": payload.get("notes", ""),
         "createdAt": now,
         "updatedAt": now,

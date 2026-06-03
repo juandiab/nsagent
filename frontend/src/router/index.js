@@ -5,11 +5,10 @@ import CopilotView from '../views/CopilotView.vue'
 import DashboardView from '../views/DashboardView.vue'
 import LoginView from '../views/LoginView.vue'
 import LegalView from '../views/LegalView.vue'
-import ResetPasswordView from '../views/ResetPasswordView.vue'
-import NetScalersView from '../views/NetScalersView.vue'
+import AccountRecoveryView from '../views/AccountRecoveryView.vue'
+import OtherAppliancesView from '../views/OtherAppliancesView.vue'
 import SettingsView from '../views/SettingsView.vue'
 import PricingView from '../views/PricingView.vue'
-import UsersView from '../views/UsersView.vue'
 
 const router = createRouter({
   history: createWebHistory(),
@@ -21,10 +20,14 @@ const router = createRouter({
       meta: { public: true }
     },
     {
-      path: '/reset-password',
-      name: 'reset-password',
-      component: ResetPasswordView,
+      path: '/account-recovery',
+      name: 'account-recovery',
+      component: AccountRecoveryView,
       meta: { public: true }
+    },
+    {
+      path: '/reset-password',
+      redirect: (to) => ({ path: '/account-recovery', query: to.query })
     },
     {
       path: '/legal/:doc?',
@@ -38,11 +41,13 @@ const router = createRouter({
       children: [
         { path: '', name: 'dashboard', component: DashboardView },
         { path: 'copilot', name: 'copilot', component: CopilotView },
-        { path: 'netscalers', name: 'netscalers', component: NetScalersView },
-        { path: 'ssl-csr', redirect: { path: '/netscalers', query: { tab: 'ssl' } } },
+        { path: 'appliances', name: 'appliances', component: OtherAppliancesView },
+        { path: 'netscalers', redirect: (to) => ({ path: '/appliances', query: { ...to.query, tab: to.query.tab || 'inventory' } }) },
+        { path: 'other-appliances', redirect: '/appliances' },
+        { path: 'ssl-csr', redirect: { path: '/appliances', query: { tab: 'ssl' } } },
         { path: 'ai-providers', redirect: { path: '/settings', query: { section: 'ai-providers' } } },
         { path: 'next-gen-api', redirect: { path: '/settings', query: { section: 'nextgen' } } },
-        { path: 'users', name: 'users', component: UsersView, meta: { requiresAdmin: true } },
+        { path: 'users', redirect: { path: '/settings', query: { section: 'users' } } },
         { path: 'plans', name: 'plans', component: PricingView },
         { path: 'settings', name: 'settings', component: SettingsView }
       ]

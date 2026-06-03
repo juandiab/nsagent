@@ -182,4 +182,4 @@ async def request_user_password_reset(
     except RuntimeError as exc:
         raise HTTPException(status_code=status.HTTP_503_SERVICE_UNAVAILABLE, detail=str(exc)) from exc
 
-    return MessageResponse(message=f"Password reset code sent to {masked_email}")
+    return MessageResponse(message=f"Account recovery code sent to {masked_email}")

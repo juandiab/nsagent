@@ -100,14 +100,14 @@ export const jpilotRecommendedGroups = [
         label: 'Open SSL certificate tools',
         icon: 'pi pi-shield',
         type: 'link',
-        to: '/netscalers?tab=ssl'
+        to: '/appliances?tab=ssl'
       },
       {
         id: 'self-signed',
         label: 'Generate a self-signed cert for testing',
         icon: 'pi pi-key',
         type: 'link',
-        to: '/netscalers?tab=ssl'
+        to: '/appliances?tab=ssl'
       },
       {
         id: 'show-certkeys',
@@ -158,9 +158,13 @@ export function flattenRecommendedActions(groups = jpilotRecommendedGroups) {
 }
 
 export const dashboardQuickActions = [
-  { label: 'Open JPilot', icon: 'pi pi-comments', to: '/copilot' },
-  { label: 'SSL certificates', icon: 'pi pi-shield', to: '/netscalers?tab=ssl' },
-  { label: 'Add NetScaler', icon: 'pi pi-server', to: '/netscalers' },
-  { label: 'AI providers', icon: 'pi pi-sparkles', to: '/settings?section=ai-providers' },
-  { label: 'Next-Gen API', icon: 'pi pi-code', to: '/settings?section=nextgen' }
+  { label: 'Open JPilot', icon: 'pi pi-comments', to: '/copilot', adminOnly: false },
+  { label: 'Add NetScaler', icon: 'pi pi-server', to: '/appliances', adminOnly: true },
+  { label: 'SSL certificates', icon: 'pi pi-shield', to: '/appliances?tab=ssl', adminOnly: false },
+  { label: 'Settings', icon: 'pi pi-cog', to: '/settings', adminOnly: false },
+  { label: 'AI providers', icon: 'pi pi-sparkles', to: '/settings?section=ai-providers', adminOnly: true }
 ]
+
+export function getDashboardQuickActions(isAdmin) {
+  return dashboardQuickActions.filter((action) => isAdmin || !action.adminOnly)
+}

@@ -2,7 +2,7 @@ from fastapi import APIRouter, Depends, HTTPException, status
 from motor.motor_asyncio import AsyncIOMotorDatabase
 
 from app.dependencies import get_db
-from app.models.appliance import parse_object_id
+from app.models.appliance import is_netscaler_appliance, parse_object_id
 from app.schemas.test import ApplianceTestPreview, TestConnectionResponse
 from app.services.encryption_service import decrypt_value
 from app.services.mcp_client import (
@@ -23,6 +23,12 @@ async def _credentials_from_appliance(db: AsyncIOMotorDatabase, appliance_id: st
     appliance = await db.appliances.find_one({"_id": object_id})
     if appliance is None:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Appliance not found")
+
+    if not is_netscaler_appliance(appliance):
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="This operation is only available for NetScaler appliances",
+        )
 
     return (
         decrypt_value(appliance["encryptedHost"]),

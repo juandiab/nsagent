@@ -547,7 +547,13 @@ async def resolve_appliance_credentials(db, appliance_name: str) -> tuple[str, s
     if appliance is None:
         raise ValueError(f"Appliance '{appliance_name}' not found in inventory")
 
+    from app.models.appliance import is_netscaler_appliance
     from app.services.encryption_service import decrypt_value
+
+    if not is_netscaler_appliance(appliance):
+        raise ValueError(
+            f"Appliance '{appliance_name}' is not a NetScaler. JPilot tools support NetScaler only."
+        )
 
     return (
         decrypt_value(appliance["encryptedHost"]),
@@ -659,6 +665,7 @@ async def execute_copilot_tool(
                 "enabled": item.get("enabled", True),
             }
             for item in appliances
+            if item.get("vendor", "netscaler") == "netscaler" or "vendor" not in item
         ]
         return json.dumps(items, indent=2)
 

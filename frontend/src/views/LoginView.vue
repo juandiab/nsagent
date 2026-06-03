@@ -4,10 +4,12 @@
       <div class="login-brand flex flex-column align-items-center mb-5">
         <NetScalerLogo />
         <h1 class="login-title m-0 mt-3">JPilot</h1>
-        <p class="login-subtitle m-0 mt-2">Sign in to manage your platform</p>
+        <p class="login-subtitle m-0 mt-2">
+          {{ status?.passkeyRequired ? 'Sign in with your passkey' : 'Sign in to manage your platform' }}
+        </p>
       </div>
 
-      <form class="flex flex-column gap-4" @submit.prevent="handlePasswordLogin">
+      <form class="flex flex-column gap-4" @submit.prevent="status?.passkeyRequired ? handlePasskeyLogin() : handlePasswordLogin()">
         <div class="flex flex-column gap-2">
           <label for="username" class="field-label">Username</label>
           <InputText
@@ -15,24 +17,26 @@
             v-model="username"
             autocomplete="username"
             class="w-full"
-            :disabled="loading"
+            :disabled="loading || loadingPasskey"
             @blur="refreshStatus"
           />
         </div>
 
-        <div class="flex flex-column gap-2">
-          <label for="password" class="field-label">Password</label>
-          <Password
-            id="password"
-            v-model="password"
-            autocomplete="current-password"
-            class="w-full"
-            :feedback="false"
-            toggle-mask
-            input-class="w-full"
-            :disabled="loading"
-          />
-        </div>
+        <template v-if="!status?.passkeyRequired">
+          <div class="flex flex-column gap-2">
+            <label for="password" class="field-label">Password</label>
+            <Password
+              id="password"
+              v-model="password"
+              autocomplete="current-password"
+              class="w-full"
+              :feedback="false"
+              toggle-mask
+              input-class="w-full"
+              :disabled="loading"
+            />
+          </div>
+        </template>
 
         <Message v-if="errorMessage" severity="error" :closable="false">
           {{ errorMessage }}
@@ -50,6 +54,18 @@
         </div>
 
         <Button
+          v-if="status?.passkeyRequired"
+          type="button"
+          label="Sign in with passkey"
+          icon="pi pi-shield"
+          class="w-full"
+          :loading="loadingPasskey"
+          :disabled="!agreed"
+          @click="handlePasskeyLogin"
+        />
+
+        <Button
+          v-else
           type="submit"
           label="Sign in"
           icon="pi pi-sign-in"
@@ -58,13 +74,37 @@
           :disabled="!agreed"
         />
 
-        <div class="text-center">
-          <RouterLink to="/reset-password" class="reset-link">Reset password with email code</RouterLink>
-        </div>
+        <template v-if="status?.passkeyRequired">
+          <small class="field-hint text-center">
+            Use Touch ID, Face ID, Windows Hello, or a security key.
+          </small>
+        </template>
 
-        <template v-if="status?.hasPasskey">
+        <template v-else>
+          <div class="text-center">
+            <RouterLink
+              :to="{ path: '/account-recovery', query: username.trim() ? { username: username.trim() } : {} }"
+              class="reset-link"
+            >
+              Lost access? Recover with email code
+            </RouterLink>
+          </div>
+        </template>
+
+        <template v-if="status?.passkeyRequired">
+          <div class="text-center">
+            <RouterLink
+              :to="{ path: '/account-recovery', query: { username: username.trim().toLowerCase() } }"
+              class="reset-link"
+            >
+              Lost passkey or device? Account recovery
+            </RouterLink>
+          </div>
+        </template>
+
+        <template v-else-if="status?.exists && !status?.hasPasskey">
           <div class="login-divider">
-            <span>or</span>
+            <span>optional</span>
           </div>
           <Button
             type="button"
@@ -78,7 +118,7 @@
             @click="handlePasskeyLogin"
           />
           <small class="field-hint text-center">
-            Use Touch ID, Face ID, Windows Hello, or a security key.
+            Available after you register a passkey in Settings.
           </small>
         </template>
       </form>
@@ -97,7 +137,7 @@
 </template>
 
 <script setup>
-import { onBeforeUnmount, ref, watch } from 'vue'
+import { onBeforeUnmount, onMounted, ref, watch } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
 import Button from 'primevue/button'
 import Checkbox from 'primevue/checkbox'
@@ -116,7 +156,7 @@ import {
 const router = useRouter()
 const route = useRoute()
 
-const username = ref('')
+const username = ref(route.query.username?.toString() || '')
 const password = ref('')
 const agreed = ref(false)
 const loading = ref(false)
@@ -149,6 +189,12 @@ watch(username, (value) => {
   }, 300)
 })
 
+onMounted(() => {
+  if (username.value.trim()) {
+    refreshStatus()
+  }
+})
+
 onBeforeUnmount(() => {
   clearTimeout(statusTimer)
 })
@@ -163,8 +209,9 @@ async function handlePasswordLogin() {
     })
     setAuth(data.accessToken, data.user)
     router.push(route.query.redirect || '/')
-  } catch {
-    errorMessage.value = 'Invalid username or password'
+  } catch (error) {
+    const detail = error.response?.data?.detail
+    errorMessage.value = typeof detail === 'string' ? detail : 'Invalid username or password'
   } finally {
     loading.value = false
   }

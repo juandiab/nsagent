@@ -1,92 +1,93 @@
 <template>
-  <div class="page">
-    <PageHeader
-      title="Users"
-      subtitle="Manage platform accounts and passkeys"
-      searchable
-      v-model:search="searchQuery"
-    >
-      <template #actions>
+  <div class="content-panel content-panel-padded users-panel">
+    <div class="panel-intro flex align-items-start justify-content-between gap-3 flex-wrap">
+      <div>
+        <h2 class="section-title">Users</h2>
+        <p class="section-copy">Manage platform accounts, password resets, and passkeys.</p>
+      </div>
+      <div class="panel-toolbar flex align-items-center gap-2 flex-wrap">
+        <IconField icon-position="left" class="search-field">
+          <InputIcon class="pi pi-search" />
+          <InputText v-model="searchQuery" placeholder="Search users…" />
+        </IconField>
         <Button label="Add user" icon="pi pi-user-plus" size="small" @click="openCreateDialog" />
-      </template>
-    </PageHeader>
-
-    <div class="content-panel">
-      <DataTable
-        class="users-table"
-        :value="filteredUsers"
-        :loading="loading"
-        striped-rows
-        paginator
-        :rows="10"
-        empty-message="No users found."
-      >
-        <Column field="username" header="Username" sortable />
-        <Column field="displayName" header="Display name" sortable />
-        <Column field="email" header="Email" sortable>
-          <template #body="{ data }">
-            {{ data.email || '—' }}
-          </template>
-        </Column>
-        <Column field="role" header="Role" sortable>
-          <template #body="{ data }">
-            <Tag :value="data.role" :severity="data.role === 'admin' ? 'warn' : 'secondary'" />
-          </template>
-        </Column>
-        <Column header="Passkeys">
-          <template #body="{ data }">
-            <Tag
-              :value="data.passkeyCount ? `${data.passkeyCount} registered` : 'Not set up'"
-              :severity="data.passkeyCount ? 'success' : 'danger'"
-            />
-          </template>
-        </Column>
-        <Column headerClass="actions-col" bodyClass="actions-col" style="min-width: 12rem">
-          <template #header>
-            <span class="actions-header">Actions</span>
-          </template>
-          <template #body="{ data }">
-            <div class="actions-cell flex gap-1">
-              <Button
-                v-tooltip="tooltip('Send password reset code')"
-                icon="pi pi-envelope"
-                text
-                rounded
-                size="small"
-                :disabled="!data.email || resettingUserId === data.id"
-                :loading="resettingUserId === data.id"
-                @click="confirmResetPassword(data)"
-              />
-              <Button
-                v-tooltip="tooltip('View passkeys')"
-                icon="pi pi-key"
-                text
-                rounded
-                size="small"
-                @click="openPasskeysDialog(data)"
-              />
-              <Button
-                v-tooltip="tooltip('Edit user')"
-                icon="pi pi-pencil"
-                text
-                rounded
-                size="small"
-                @click="openEditDialog(data)"
-              />
-              <Button
-                v-tooltip="tooltip('Delete user')"
-                icon="pi pi-trash"
-                text
-                rounded
-                size="small"
-                severity="danger"
-                @click="confirmDelete(data)"
-              />
-            </div>
-          </template>
-        </Column>
-      </DataTable>
+      </div>
     </div>
+
+    <DataTable
+      class="users-table mt-4"
+      :value="filteredUsers"
+      :loading="loading"
+      striped-rows
+      paginator
+      :rows="10"
+      empty-message="No users found."
+    >
+      <Column field="username" header="Username" sortable />
+      <Column field="displayName" header="Display name" sortable />
+      <Column field="email" header="Email" sortable>
+        <template #body="{ data }">
+          {{ data.email || '—' }}
+        </template>
+      </Column>
+      <Column field="role" header="Role" sortable>
+        <template #body="{ data }">
+          <Tag :value="data.role" :severity="data.role === 'admin' ? 'warn' : 'secondary'" />
+        </template>
+      </Column>
+      <Column header="Passkeys">
+        <template #body="{ data }">
+          <Tag
+            :value="data.passkeyCount ? `${data.passkeyCount} registered` : 'Not set up'"
+            :severity="data.passkeyCount ? 'success' : 'danger'"
+          />
+        </template>
+      </Column>
+      <Column headerClass="actions-col" bodyClass="actions-col" style="min-width: 12rem">
+        <template #header>
+          <span class="actions-header">Actions</span>
+        </template>
+        <template #body="{ data }">
+          <div class="actions-cell flex gap-1">
+            <Button
+              v-tooltip="tooltip('Send password reset code')"
+              icon="pi pi-envelope"
+              text
+              rounded
+              size="small"
+              :disabled="!data.email || resettingUserId === data.id"
+              :loading="resettingUserId === data.id"
+              @click="confirmResetPassword(data)"
+            />
+            <Button
+              v-tooltip="tooltip('View passkeys')"
+              icon="pi pi-key"
+              text
+              rounded
+              size="small"
+              @click="openPasskeysDialog(data)"
+            />
+            <Button
+              v-tooltip="tooltip('Edit user')"
+              icon="pi pi-pencil"
+              text
+              rounded
+              size="small"
+              @click="openEditDialog(data)"
+            />
+            <Button
+              v-tooltip="tooltip('Delete user')"
+              icon="pi pi-trash"
+              text
+              rounded
+              size="small"
+              severity="danger"
+              @click="confirmDelete(data)"
+            />
+          </div>
+        </template>
+      </Column>
+    </DataTable>
 
     <Dialog
       v-model:visible="dialogVisible"
@@ -187,12 +188,13 @@ import Button from 'primevue/button'
 import Column from 'primevue/column'
 import DataTable from 'primevue/datatable'
 import Dialog from 'primevue/dialog'
+import IconField from 'primevue/iconfield'
+import InputIcon from 'primevue/inputicon'
 import InputText from 'primevue/inputtext'
 import Message from 'primevue/message'
 import Password from 'primevue/password'
 import Select from 'primevue/select'
 import Tag from 'primevue/tag'
-import PageHeader from '../components/PageHeader.vue'
 import {
   createUser,
   deletePasskey,
@@ -334,8 +336,8 @@ async function saveUser() {
 
 function confirmResetPassword(user) {
   confirm.require({
-    message: `Send a password reset code to ${user.email}?`,
-    header: 'Reset password',
+    message: `Send an account recovery code to ${user.email}? Existing passkeys will be revoked when the user completes recovery.`,
+    header: 'Account recovery',
     icon: 'pi pi-envelope',
     accept: async () => {
       resettingUserId.value = user.id
@@ -432,17 +434,8 @@ onMounted(loadUsers)
 </script>
 
 <style scoped>
-.page {
-  display: flex;
-  flex-direction: column;
-  gap: 1.5rem;
-}
-
-.content-panel {
-  background: var(--p-content-background);
-  border: 1px solid var(--p-content-border-color);
-  border-radius: 1rem;
-  padding: 1rem;
+.panel-toolbar .search-field {
+  min-width: 12rem;
 }
 
 .field-label {

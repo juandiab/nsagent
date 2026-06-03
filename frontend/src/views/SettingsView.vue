@@ -315,7 +315,8 @@
             <div class="content-panel content-panel-padded">
               <h2 class="section-title">Security</h2>
               <p class="section-copy">
-                Sign in with your password first, then register a passkey for faster sign-in next time.
+                Register a passkey for passwordless sign-in. Once a passkey is active, password sign-in is
+                disabled for your account. Use account recovery (email code) if you lose your device.
               </p>
 
               <div class="flex flex-column gap-3 mt-4">
@@ -348,6 +349,11 @@
               </div>
             </div>
           </div>
+        </section>
+
+        <!-- Users (admin) -->
+        <section v-if="activeSection === 'users'" key="users">
+          <UsersPanel />
         </section>
 
         <!-- Legal -->
@@ -407,6 +413,7 @@ import ModelUsageDashboard from '../components/ModelUsageDashboard.vue'
 import NextGenApiPanel from '../components/NextGenApiPanel.vue'
 import AIProvidersPanel from '../components/AIProvidersPanel.vue'
 import BraveSearchPanel from '../components/BraveSearchPanel.vue'
+import UsersPanel from '../components/UsersPanel.vue'
 import { getCopilotSettings, saveCopilotSettings } from '../services/copilot'
 import { getMcpConfig, getMcpStatus, saveMcpConfig } from '../services/mcp'
 import { getSmtpConfig, saveSmtpConfig, testSmtpConfig } from '../services/smtp'
@@ -417,26 +424,48 @@ import { fetchPasskeyStatus, passkeyErrorMessage, registerPasskey } from '../ser
 const route = useRoute()
 const router = useRouter()
 
-const sections = [
-  { key: 'mcp', label: 'MCP Server', icon: 'pi pi-server' },
-  { key: 'jpilot', label: 'Chat', icon: 'pi pi-comments' },
-  { key: 'ai-providers', label: 'AI Providers', icon: 'pi pi-sparkles' },
-  { key: 'nextgen', label: 'Next-Gen API', icon: 'pi pi-code' },
+const currentUser = ref(getStoredUser())
+const isAdmin = computed(() => currentUser.value?.role === 'admin')
+
+const allSections = [
+  { key: 'mcp', label: 'MCP Server', icon: 'pi pi-server', adminOnly: true },
+  { key: 'jpilot', label: 'Chat', icon: 'pi pi-comments', adminOnly: true },
+  { key: 'ai-providers', label: 'AI Providers', icon: 'pi pi-sparkles', adminOnly: true },
+  { key: 'nextgen', label: 'Next-Gen API', icon: 'pi pi-code', adminOnly: true },
   { key: 'security', label: 'Security', icon: 'pi pi-shield' },
+  { key: 'users', label: 'Users', icon: 'pi pi-users', adminOnly: true },
   { key: 'legal', label: 'Legal', icon: 'pi pi-book' }
 ]
-const sectionKeys = new Set(sections.map((section) => section.key))
-const activeSection = ref('mcp')
+
+const sections = computed(() =>
+  allSections.filter((section) => !section.adminOnly || isAdmin.value)
+)
+
+const defaultSection = computed(() => (isAdmin.value ? 'mcp' : 'security'))
+const sectionKeys = computed(() => new Set(sections.value.map((section) => section.key)))
+const activeSection = ref(defaultSection.value)
 
 function applySectionFromQuery() {
   const section = route.query.section
   if (section === 'usage') {
-    activeSection.value = 'ai-providers'
+    if (isAdmin.value) {
+      activeSection.value = 'ai-providers'
+    } else {
+      activeSection.value = 'security'
+      router.replace({ query: { section: 'security' } })
+    }
     return
   }
-  if (typeof section === 'string' && sectionKeys.has(section)) {
+  if (typeof section === 'string' && sectionKeys.value.has(section)) {
     activeSection.value = section
+    return
   }
+  if (typeof section === 'string' && section) {
+    activeSection.value = defaultSection.value
+    router.replace({ query: { section: defaultSection.value } })
+    return
+  }
+  activeSection.value = defaultSection.value
 }
 
 function selectSection(key) {
@@ -756,6 +785,13 @@ async function testSmtpSettings() {
 }
 
 onMounted(async () => {
+  try {
+    const { data } = await api.get('/auth/me')
+    currentUser.value = data
+  } catch {
+    // Fall back to stored user from login.
+  }
+  applySectionFromQuery()
   await ensureSectionLoaded(activeSection.value)
 })
 </script>
@@ -845,7 +881,7 @@ onMounted(async () => {
 }
 
 .legal-links a:hover {
-  background: var(--p-surface-100);
+  background: var(--app-nested-surface);
   border-color: var(--p-content-border-color);
 }
 

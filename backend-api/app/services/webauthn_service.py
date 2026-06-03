@@ -276,6 +276,11 @@ async def delete_passkey(db: AsyncIOMotorDatabase, passkey_id: ObjectId) -> bool
     return result.deleted_count > 0
 
 
+async def delete_all_user_passkeys(db: AsyncIOMotorDatabase, user_id: ObjectId) -> int:
+    result = await db.passkeys.delete_many({"userId": user_id})
+    return result.deleted_count
+
+
 async def ensure_webauthn_indexes(db: AsyncIOMotorDatabase) -> None:
     await db.passkeys.create_index("credentialId", unique=True)
     await db.passkeys.create_index("userId")

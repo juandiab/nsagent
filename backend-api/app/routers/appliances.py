@@ -5,6 +5,8 @@ from pymongo import ReturnDocument
 from app.dependencies import get_db
 from app.models.appliance import (
     build_appliance_document,
+    is_netscaler_appliance,
+    normalize_vendor,
     parse_object_id,
     serialize_appliance,
     utc_now,
@@ -82,7 +84,11 @@ async def update_appliance(
     if payload.notes is not None:
         update_data["notes"] = payload.notes
     if payload.enabled is not None:
-        update_data["enabled"] = payload.enabled
+        update_data["enabled"] = payload.enabled if is_netscaler_appliance(existing) else False
+    if payload.vendor is not None:
+        update_data["vendor"] = normalize_vendor(payload.vendor)
+        if update_data["vendor"] != "netscaler":
+            update_data["enabled"] = False
 
     if _should_update_credential(payload.host):
         update_data["encryptedHost"] = encrypt_value(payload.host)

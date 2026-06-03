@@ -4,10 +4,18 @@ from motor.motor_asyncio import AsyncIOMotorDatabase
 from app.dependencies import get_current_user, get_db
 from app.models.user import serialize_user
 from app.schemas.auth import LoginRequest, LoginResponse, MessageResponse, UserResponse
-from app.schemas.password_reset import PasswordResetConfirmRequest
+from app.schemas.password_reset import (
+    AccountRecoveryConfirmResponse,
+    AccountRecoveryRequest,
+    PasswordResetConfirmRequest,
+)
 from app.services.auth_service import create_access_token, verify_password
 from app.services.user_service import get_user_by_username
-from app.services.password_reset_service import confirm_reset
+from app.services.password_reset_service import (
+    confirm_reset,
+    request_self_service_recovery,
+)
+from app.services.webauthn_service import count_user_passkeys
 
 router = APIRouter(prefix="/auth", tags=["auth"])
 
@@ -20,6 +28,12 @@ async def login(payload: LoginRequest, db: AsyncIOMotorDatabase = Depends(get_db
         raise HTTPException(
             status_code=status.HTTP_401_UNAUTHORIZED,
             detail="Invalid username or password",
+        )
+
+    if await count_user_passkeys(db, user["_id"]) > 0:
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail="This account uses passkey sign-in only. Use your passkey or account recovery.",
         )
 
     return LoginResponse(
@@ -38,13 +52,22 @@ async def logout(_: dict = Depends(get_current_user)) -> MessageResponse:
     return MessageResponse(message="Logged out successfully")
 
 
-@router.post("/password-reset/confirm", response_model=MessageResponse)
+@router.post("/account-recovery/request", response_model=MessageResponse)
+async def account_recovery_request(
+    payload: AccountRecoveryRequest,
+    db: AsyncIOMotorDatabase = Depends(get_db),
+) -> MessageResponse:
+    message = await request_self_service_recovery(db, username=payload.username)
+    return MessageResponse(message=message)
+
+
+@router.post("/password-reset/confirm", response_model=AccountRecoveryConfirmResponse)
 async def password_reset_confirm(
     payload: PasswordResetConfirmRequest,
     db: AsyncIOMotorDatabase = Depends(get_db),
-) -> MessageResponse:
+) -> AccountRecoveryConfirmResponse:
     try:
-        await confirm_reset(
+        message, recovery_token = await confirm_reset(
             db,
             username=payload.username,
             code=payload.code,
@@ -52,4 +75,4 @@ async def password_reset_confirm(
         )
     except ValueError as exc:
         raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail=str(exc)) from exc
-    return MessageResponse(message="Password updated successfully")
+    return AccountRecoveryConfirmResponse(message=message, recoveryToken=recovery_token)

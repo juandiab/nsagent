@@ -5,6 +5,8 @@
   --app-shell-gap: 2rem;
   --sidebar-width: 6rem;
   --content-radius: 1rem;
+  --app-nested-surface: color-mix(in srgb, var(--p-text-color) 4%, var(--p-content-background));
+  --app-nested-surface-strong: color-mix(in srgb, var(--p-text-color) 8%, var(--p-content-background));
 }
 
 html,
@@ -42,6 +44,11 @@ body {
 .stat-card:hover {
   border-color: var(--p-primary-200);
   box-shadow: 0 4px 24px rgba(0, 0, 0, 0.04);
+}
+
+html.app-dark .stat-card:hover {
+  border-color: var(--p-primary-700);
+  box-shadow: 0 4px 24px rgba(0, 0, 0, 0.28);
 }
 
 .stat-label {
@@ -83,6 +90,14 @@ body {
   color: var(--p-text-muted-color);
   max-width: 36rem;
   line-height: 1.6;
+}
+
+html.app-dark .welcome-panel {
+  background: linear-gradient(
+    135deg,
+    var(--p-content-background) 0%,
+    color-mix(in srgb, var(--p-primary-900) 38%, var(--p-content-background)) 100%
+  );
 }
 
 .empty-hint {

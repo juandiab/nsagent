@@ -7,7 +7,7 @@
     </div>
     <div v-else-if="!appliances.length" class="picker-empty">
       No NetScalers in inventory.
-      <RouterLink to="/netscalers">Add one →</RouterLink>
+      <RouterLink to="/appliances">Add one →</RouterLink>
     </div>
     <div v-else class="appliance-grid">
       <button

@@ -101,17 +101,11 @@ function onToggleTheme() {
   theme.value = toggleTheme()
 }
 
-const mainNavItems = computed(() => {
-  const items = [
-    { label: 'Dashboard', path: '/', icon: 'pi pi-home' },
-    { label: 'JPilot', path: '/copilot', icon: 'pi pi-comments' },
-    { label: 'NetScalers', path: '/netscalers', icon: 'pi pi-server' }
-  ]
-  if (currentUser.value?.role === 'admin') {
-    items.push({ label: 'Users', path: '/users', icon: 'pi pi-users' })
-  }
-  return items
-})
+const mainNavItems = [
+  { label: 'Dashboard', path: '/', icon: 'pi pi-home' },
+  { label: 'JPilot', path: '/copilot', icon: 'pi pi-comments' },
+  { label: 'Appliances', path: '/appliances', icon: 'pi pi-server' }
+]
 
 const bottomNavItems = [
   { label: 'Plans', path: '/plans', icon: 'pi pi-tags' },

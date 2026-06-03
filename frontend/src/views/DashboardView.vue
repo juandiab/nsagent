@@ -18,8 +18,9 @@
           </p>
           <h2>Welcome to JPilot</h2>
           <p>
-            Your intelligent NetScaler management platform. Manage appliances, configure AI providers,
-            and prepare for AI-assisted operations—with guardrails built by Nexxus Tech.
+            Your intelligent ADC and infrastructure platform. Manage NetScalers with JPilot chat,
+            register other vendors for what's ahead, and configure AI providers—all with guardrails
+            built by Nexxus Tech.
           </p>
         </div>
         <div class="welcome-cta flex-shrink-0">
@@ -38,25 +39,22 @@
     </div>
 
     <div class="grid">
-      <div class="col-12 md:col-4">
+      <div class="col-12 md:col-6">
         <div class="stat-card">
-          <div class="stat-label">NetScalers</div>
-          <div class="stat-value">{{ stats.appliances }}</div>
-          <RouterLink to="/netscalers" class="stat-link">Manage inventory →</RouterLink>
+          <div class="stat-label">Appliances</div>
+          <div class="stat-value">{{ stats.netscalers + stats.otherAppliances }}</div>
+          <p class="stat-detail">
+            {{ stats.netscalers }} NetScaler · {{ stats.otherAppliances }} other vendors
+          </p>
+          <RouterLink to="/appliances" class="stat-link">Manage inventory →</RouterLink>
         </div>
       </div>
-      <div class="col-12 md:col-4">
+      <div class="col-12 md:col-6">
         <div class="stat-card">
           <div class="stat-label">AI Providers</div>
           <div class="stat-value">{{ stats.providers }}</div>
-          <RouterLink to="/settings?section=ai-providers" class="stat-link">Configure providers →</RouterLink>
-        </div>
-      </div>
-      <div class="col-12 md:col-4">
-        <div class="stat-card">
-          <div class="stat-label">Enabled Appliances</div>
-          <div class="stat-value">{{ stats.enabled }}</div>
-          <span class="empty-hint">Active in inventory</span>
+          <RouterLink v-if="isAdmin" to="/settings?section=ai-providers" class="stat-link">Configure providers →</RouterLink>
+          <span v-else class="empty-hint">Admin configuration</span>
         </div>
       </div>
     </div>
@@ -102,23 +100,27 @@
 </template>
 
 <script setup>
-import { onMounted, reactive } from 'vue'
+import { onMounted, reactive, ref, computed } from 'vue'
 import { useRouter } from 'vue-router'
 import Button from 'primevue/button'
 import Tag from 'primevue/tag'
 import NexxusMarketingSection from '../components/NexxusMarketingSection.vue'
 import PageHeader from '../components/PageHeader.vue'
 import { NEXXUS_TECH } from '../config/nexxusTech'
+import { isNetScalerVendor } from '../config/applianceVendors'
 import api from '../services/api'
-import { dashboardQuickActions } from '../config/jpilotRecommendedActions'
+import { getDashboardQuickActions } from '../config/jpilotRecommendedActions'
 import { getMcpStatus } from '../services/mcp'
+import { getStoredUser } from '../services/auth'
 
 const router = useRouter()
-const quickActions = dashboardQuickActions
+const currentUser = ref(getStoredUser())
+const isAdmin = computed(() => currentUser.value?.role === 'admin')
+const quickActions = computed(() => getDashboardQuickActions(isAdmin.value))
 const stats = reactive({
-  appliances: 0,
+  netscalers: 0,
   providers: 0,
-  enabled: 0
+  otherAppliances: 0
 })
 const mcpStatus = reactive({
   online: false
@@ -126,14 +128,20 @@ const mcpStatus = reactive({
 
 onMounted(async () => {
   try {
+    const meRes = await api.get('/auth/me')
+    currentUser.value = meRes.data
+  } catch {
+    // Dashboard remains usable without role refresh.
+  }
+  try {
     const [appliancesRes, providersRes, status] = await Promise.all([
       api.get('/appliances'),
       api.get('/ai-providers'),
       getMcpStatus().catch(() => ({ online: false }))
     ])
-    stats.appliances = appliancesRes.data.length
+    stats.netscalers = appliancesRes.data.filter((item) => isNetScalerVendor(item.vendor)).length
     stats.providers = providersRes.data.length
-    stats.enabled = appliancesRes.data.filter((item) => item.enabled).length
+    stats.otherAppliances = appliancesRes.data.filter((item) => !isNetScalerVendor(item.vendor)).length
     mcpStatus.online = status.online
   } catch {
     // Dashboard remains usable without stats
@@ -151,6 +159,12 @@ onMounted(async () => {
   font-weight: 600;
   margin: 0;
   color: var(--p-text-color);
+}
+
+.stat-detail {
+  margin: 0.35rem 0 0;
+  font-size: 0.8125rem;
+  color: var(--p-text-muted-color);
 }
 
 .stat-link {
