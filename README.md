@@ -6,7 +6,7 @@ Repository: [github.com/juandiab/nsagent](https://github.com/juandiab/nsagent)
 
 > **Disclaimer:** JPilot is an independent project and is not affiliated with, endorsed by, or sponsored by Citrix Systems, Inc. NetScaler is a trademark of Citrix Systems, Inc.
 
-**Current release:** `v0.15` — Dashboard and Plans layout refresh; simpler Docker Compose dev/prod commands.
+**Current release:** `v0.16` — `prod-up` and `upgrade` scripts for production deploy and pull-and-rebuild workflows.
 
 Bump the root [`VERSION`](VERSION) file when tagging a release so in-app update checks match GitHub.
 
@@ -29,6 +29,12 @@ Bump the root [`VERSION`](VERSION) file when tagging a release so in-app update 
 - **Optional Brave Search** — domain-restricted web augmentation when local memory/docs are weak (Settings → AI Providers).
 - **Dashboard shortcuts** — recommended JPilot prompts and links (health summary, list IPs/vservers, diagnostics, guided LB).
 - **Model usage dashboard** — Settings → AI Providers shows monthly LLM token/request usage and Brave Search query usage with progress bars (tracked locally per calendar month).
+
+## What's new in v0.16
+
+| Area | Highlights |
+|------|------------|
+| **Deploy scripts** | `./scripts/prod-up.sh` — production `build` + `up -d` from repo root. `./scripts/upgrade.sh` — `git pull origin main`, then optional dev and/or prod stack rebuild. PowerShell equivalents included. |
 
 ## What's new in v0.15
 
