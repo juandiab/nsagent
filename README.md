@@ -71,12 +71,24 @@ Repository: [github.com/juandiab/nsagent](https://github.com/juandiab/nsagent)
 
 ## Quick start
 
-The web installer handles everything — secrets, TLS certificate, and `.env` are
-generated for you. From the project root:
+The only prerequisite is **Docker** (Docker Desktop on Mac/Windows, Docker Engine on
+Linux). The installer downloads the project and generates secrets, the TLS certificate,
+and `.env` for you.
+
+**macOS / Linux**
 
 ```bash
-./install.sh
+curl -fsSL https://raw.githubusercontent.com/juandiab/nsagent/main/get.sh | bash
 ```
+
+**Windows (PowerShell)**
+
+```powershell
+irm https://raw.githubusercontent.com/juandiab/nsagent/main/get.ps1 | iex
+```
+
+(Already cloned the repo? Just run `./install.sh` — or `.\install.ps1` on Windows — from
+the project root.)
 
 Then:
 
@@ -93,7 +105,8 @@ Then:
 To reconfigure an existing install (overwrites `.env`):
 
 ```bash
-./install.sh --reconfigure
+./install.sh --reconfigure      # macOS / Linux
+.\install.ps1 -Reconfigure      # Windows (PowerShell)
 ```
 
 > The installer generates `NSAGENT_ENCRYPTION_KEY` (Fernet) and `JWT_SECRET_KEY`

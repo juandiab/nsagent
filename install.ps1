@@ -1,0 +1,100 @@
+<#
+.SYNOPSIS
+  JPilot / NSAgent installer for Windows (PowerShell twin of install.sh).
+
+.DESCRIPTION
+  Starts the web setup wizard, waits for you to complete it in the browser, then
+  launches the full stack. Run from the project root:
+
+      .\install.ps1                 # first-time install
+      .\install.ps1 -Reconfigure    # overwrite an existing .env via the wizard
+#>
+[CmdletBinding()]
+param([switch]$Reconfigure)
+
+$ErrorActionPreference = 'Stop'
+Set-Location -Path $PSScriptRoot
+
+$Sentinel          = '.installer-complete'
+$InstallerCompose  = 'docker-compose.installer.yml'
+
+function Fail($msg) { Write-Host "  $msg" -ForegroundColor Red; exit 1 }
+
+# ---- locate docker compose -------------------------------------------------
+$dc = $null
+try { docker compose version *> $null; if ($LASTEXITCODE -eq 0) { $dc = @('docker','compose') } } catch {}
+if (-not $dc) {
+  if (Get-Command docker-compose -ErrorAction SilentlyContinue) { $dc = @('docker-compose') }
+}
+if (-not $dc) { Fail "Docker Compose is required but was not found. Install Docker Desktop and re-run." }
+
+function Compose { param([Parameter(ValueFromRemainingArguments=$true)]$Args)
+  & $dc[0] @($dc[1..($dc.Count-1)] + $Args)
+}
+
+# ---- existing-install guard ------------------------------------------------
+if ((Test-Path '.env') -and (-not $Reconfigure)) {
+  Write-Host "A .env file already exists - this looks like a configured install."
+  Write-Host "Re-run with '-Reconfigure' to overwrite it via the wizard, or start the"
+  Write-Host "stack directly with:  $($dc -join ' ') up -d"
+  exit 1
+}
+
+if (Test-Path $Sentinel) { Remove-Item $Sentinel -Force }
+
+$installerUp = $false
+function Cleanup {
+  if ($script:installerUp) {
+    Write-Host "`nShutting down the installer..."
+    Compose '-f' $InstallerCompose 'down' *> $null
+  }
+}
+
+try {
+  # ---- launch the wizard ---------------------------------------------------
+  Write-Host "Building and starting the setup wizard..."
+  Compose '-f' $InstallerCompose 'up' '-d' '--build'
+  $script:installerUp = $true
+
+  Write-Host ""
+  Write-Host "  +----------------------------------------------------------+"
+  Write-Host "  |  JPilot setup is ready.                                  |"
+  Write-Host "  |                                                          |"
+  Write-Host "  |   >  Open  https://localhost:9443                        |"
+  Write-Host "  |                                                          |"
+  Write-Host "  |  It uses a self-signed certificate, so your browser will |"
+  Write-Host "  |  show a security warning the first time - that is        |"
+  Write-Host "  |  expected for the installer. Accept it to continue.      |"
+  Write-Host "  +----------------------------------------------------------+"
+  Write-Host ""
+  Write-Host "Waiting for you to finish the wizard (Ctrl-C to abort)..."
+
+  # ---- wait for the wizard to finish ---------------------------------------
+  while (-not (Test-Path $Sentinel)) { Start-Sleep -Seconds 2 }
+
+  $domain = (Get-Content $Sentinel -TotalCount 1).Trim()
+  if ([string]::IsNullOrWhiteSpace($domain)) { $domain = 'localhost' }
+
+  Write-Host ""
+  Write-Host "Configuration received. Stopping the installer..."
+  Compose '-f' $InstallerCompose 'down' *> $null
+  $script:installerUp = $false
+}
+finally {
+  Cleanup
+}
+
+# ---- launch the real stack -------------------------------------------------
+Write-Host "Launching JPilot..."
+Compose 'up' '-d' '--build'
+
+if (Test-Path $Sentinel) { Remove-Item $Sentinel -Force }
+
+Write-Host ""
+Write-Host "  JPilot is starting at  https://$domain" -ForegroundColor Green
+Write-Host ""
+Write-Host "  * The first boot may take a few seconds while services come up."
+Write-Host "  * Sign in with the admin account you just created."
+Write-Host "  * View logs with:   $($dc -join ' ') logs -f"
+Write-Host "  * Stop with:        $($dc -join ' ') down"
+Write-Host ""
