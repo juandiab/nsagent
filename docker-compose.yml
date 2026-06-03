@@ -15,6 +15,7 @@ services:
       - backend-api
 
   frontend:
+    profiles: ["dev"]
     build:
       context: .
       dockerfile: frontend/Dockerfile
@@ -66,11 +67,21 @@ services:
       - PASSWORD_RESET_LOG_CODES=${PASSWORD_RESET_LOG_CODES:-false}
     networks:
       - nsagent-network
+    healthcheck:
+      test:
+        [
+          "CMD-SHELL",
+          'python -c "import urllib.request; urllib.request.urlopen(''http://127.0.0.1:8000/health'')"',
+        ]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+      start_period: 30s
     depends_on:
       mongodb:
         condition: service_healthy
       mcp-server:
-        condition: service_started
+        condition: service_healthy
 
   mcp-server:
     build:
@@ -86,6 +97,16 @@ services:
     environment:
       - MCP_HOST=0.0.0.0
       - MCP_PORT=8001
+    healthcheck:
+      test:
+        [
+          "CMD-SHELL",
+          'python -c "import urllib.request; urllib.request.urlopen(''http://127.0.0.1:8001/health'')"',
+        ]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+      start_period: 15s
     networks:
       - nsagent-network
 

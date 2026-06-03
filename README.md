@@ -6,7 +6,7 @@ Repository: [github.com/juandiab/nsagent](https://github.com/juandiab/nsagent)
 
 > **Disclaimer:** JPilot is an independent project and is not affiliated with, endorsed by, or sponsored by Citrix Systems, Inc. NetScaler is a trademark of Citrix Systems, Inc.
 
-**Current release:** `v0.12` — JPilot chat roles (Architect, Operator, Investigator), MongoDB production hardening, nginx auth zones.
+**Current release:** `v0.13` — production compose overlay fix, MCP/MongoDB startup hardening.
 
 Bump the root [`VERSION`](VERSION) file when tagging a release so in-app update checks match GitHub.
 
@@ -29,6 +29,15 @@ Bump the root [`VERSION`](VERSION) file when tagging a release so in-app update 
 - **Optional Brave Search** — domain-restricted web augmentation when local memory/docs are weak (Settings → AI Providers).
 - **Dashboard shortcuts** — recommended JPilot prompts and links (health summary, list IPs/vservers, diagnostics, guided LB).
 - **Model usage dashboard** — Settings → AI Providers shows monthly LLM token/request usage and Brave Search query usage with progress bars (tracked locally per calendar month).
+
+## What's new in v0.13
+
+| Area | Highlights |
+|------|------------|
+| **Production compose** | `docker-compose.prod.yml` is now an **overlay** on `docker-compose.yml` (use both `-f` flags or `./compose.sh`). Clears dev bind mounts, drops the dev frontend via profile, and fixes nginx `depends_on` merging. |
+| **Startup order** | MCP and backend healthchecks; API waits for healthy MongoDB **and** MCP before starting; nginx waits for a healthy backend. |
+| **MCP URL migration** | Stored MCP settings that point at `localhost` are rewritten to `http://mcp-server:8001` on startup (fixes MCP calls from inside Docker). |
+| **MongoDB connect** | Backend verifies MongoDB with an admin `ping` and a 5s server-selection timeout during startup. |
 
 ## What's new in v0.12
 
@@ -75,7 +84,7 @@ Bump the root [`VERSION`](VERSION) file when tagging a release so in-app update 
 | **Updates** | Settings → About checks GitHub for new versions; banner when an update is available; copy-paste rebuild instructions for macOS/Linux and Windows. |
 | **Versioning** | Root `VERSION` file baked into the backend; compares against GitHub tags (falls back when no GitHub Release is published). |
 | **Deploy modes** | Installer lets you pick production (compiled) or development (hot reload); `compose.sh` / `compose.ps1` pick the right stack from `.env`. |
-| **Production stack** | `docker-compose.prod.yml` — compiled frontend in nginx, no reload or source bind mounts on API services. |
+| **Production stack** | `docker-compose.yml` + `docker-compose.prod.yml` overlay — compiled frontend in nginx, no dev bind mounts on API services. |
 
 ## What's new in v0.06
 
@@ -378,7 +387,7 @@ bind-mounted into containers; **Uvicorn `--reload`** and **Vite HMR** pick up ch
 
 ```bash
 ./compose.sh up
-# or explicitly: docker compose up --build
+# or explicitly: docker compose --profile dev up --build
 ```
 
 Health checks (dev stack exposes service ports via containers):
@@ -395,14 +404,18 @@ After changing Python dependencies in `requirements.txt`, rebuild the affected i
 
 ## Production
 
-Set `NSAGENT_DEPLOY_MODE=prod` in `.env` (the installer default). The stack uses
-`docker-compose.prod.yml`: the frontend is compiled into the nginx image, and API services run
-without reload or source bind mounts.
+Set `NSAGENT_DEPLOY_MODE=prod` in `.env` (the installer default). Production merges the base
+stack with `docker-compose.prod.yml`: the frontend is compiled into the nginx image, and API
+services run without reload or source bind mounts.
 
 ```bash
 ./compose.sh up -d --build
-# or explicitly: docker compose -f docker-compose.prod.yml up -d --build
+# or explicitly:
+docker compose -f docker-compose.yml -f docker-compose.prod.yml up -d --build
 ```
+
+Do **not** use `docker-compose.prod.yml` alone — it only contains production overrides. The base
+`docker-compose.yml` defines MongoDB, networks, volumes, and shared service settings.
 
 After changing the domain or `VITE_API_BASE_URL`, rebuild nginx so the UI picks up the new API URL:
 
@@ -447,7 +460,7 @@ docker logs nsagent-mongodb-1 2>&1 | grep -i "fatal\|assert\|crash\|signal\|segf
 name is usually `<project>_nsagent_mongodb_data`, e.g. `nsagent_nsagent_mongodb_data`):
 
 ```bash
-docker compose -f docker-compose.prod.yml stop mongodb
+docker compose -f docker-compose.yml -f docker-compose.prod.yml stop mongodb
 docker run --rm -v nsagent_nsagent_mongodb_data:/data/db mongo:8.2 mongod --repair
 ./compose.sh up -d mongodb
 ./compose.sh up -d backend-api mcp-server nginx

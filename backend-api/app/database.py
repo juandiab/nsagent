@@ -13,7 +13,8 @@ def get_database() -> AsyncIOMotorDatabase:
 
 async def connect_to_mongo() -> None:
     global client
-    client = AsyncIOMotorClient(settings.mongo_uri)
+    client = AsyncIOMotorClient(settings.mongo_uri, serverSelectionTimeoutMS=5000)
+    await client.admin.command("ping")
 
 
 async def close_mongo_connection() -> None:

@@ -1,5 +1,7 @@
 from datetime import datetime, timezone
 
+from urllib.parse import urlparse
+
 from motor.motor_asyncio import AsyncIOMotorDatabase
 
 from app.config import settings as app_settings
@@ -36,6 +38,11 @@ def utc_now() -> datetime:
     return datetime.now(timezone.utc)
 
 
+def _is_local_mcp_url(url: str) -> bool:
+    host = (urlparse(url.strip()).hostname or "").lower()
+    return host in {"localhost", "127.0.0.1", "0.0.0.0"}
+
+
 def default_settings() -> dict:
     return {
         "_id": SETTINGS_ID,
@@ -57,6 +64,13 @@ async def ensure_default_settings(db: AsyncIOMotorDatabase) -> None:
     if existing is None:
         await db.mcpSettings.insert_one(default_settings())
         return
+
+    stored_url = str(existing.get("serverUrl") or "").strip()
+    if stored_url and _is_local_mcp_url(stored_url):
+        await db.mcpSettings.update_one(
+            {"_id": SETTINGS_ID},
+            {"$set": {"serverUrl": app_settings.mcp_server_url, "updatedAt": utc_now()}},
+        )
 
     enabled_tools = existing.get("enabledTools", [])
     migrated = False

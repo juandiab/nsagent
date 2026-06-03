@@ -13,10 +13,19 @@ param([Parameter(ValueFromRemainingArguments = $true)][object[]]$Args)
 $ErrorActionPreference = 'Stop'
 Set-Location -Path $PSScriptRoot
 
-$composeFile = 'docker-compose.yml'
+$composeArgs = @('-f', 'docker-compose.yml')
+$composeProfile = @('--profile', 'dev')
+
 if (Test-Path '.env') {
   $modeLine = Get-Content '.env' | Where-Object { $_ -match '^\s*NSAGENT_DEPLOY_MODE\s*=' } | Select-Object -First 1
-  if ($modeLine -match '=\s*prod\s*$') { $composeFile = 'docker-compose.prod.yml' }
+  if ($modeLine -match '=\s*prod\s*$') {
+    $composeArgs = @('-f', 'docker-compose.yml', '-f', 'docker-compose.prod.yml')
+    $composeProfile = @()
+    try {
+      & docker compose @composeArgs --profile dev stop frontend 2>$null
+      & docker compose @composeArgs --profile dev rm -f frontend 2>$null
+    } catch {}
+  }
 }
 
 $dc = $null
@@ -26,5 +35,5 @@ if (-not $dc) {
 }
 if (-not $dc) { Write-Error 'Docker Compose is required but was not found.'; exit 1 }
 
-& $dc[0] @($dc[1..($dc.Count-1)] + @('-f', $composeFile) + $Args)
+& $dc[0] @($dc[1..($dc.Count-1)] + $composeArgs + $composeProfile + $Args)
 exit $LASTEXITCODE
