@@ -3,8 +3,15 @@ from motor.motor_asyncio import AsyncIOMotorDatabase
 
 from app.dependencies import get_current_user, get_db
 from app.schemas.mcp_config import MCPSettingsResponse, MCPSettingsUpdate, MCPStatusResponse
+from app.schemas.smtp_settings import SMTPSettingsResponse, SMTPSettingsUpdate, SMTPTestRequest
+from app.schemas.test import TestConnectionResponse
 from app.services.mcp_client import get_mcp_health, list_mcp_tools, push_config_to_mcp_server
 from app.services.mcp_config_service import ALL_TOOL_NAMES, get_mcp_settings, update_mcp_settings
+from app.services.smtp_settings_service import (
+    get_smtp_settings,
+    test_smtp_settings,
+    update_smtp_settings,
+)
 from app.services.nextgen_catalog import get_nextgen_api_info, get_nextgen_options, get_tool_catalog
 from app.services.nextgen_api_reference import get_api_categories
 
@@ -81,3 +88,33 @@ async def get_mcp_status(
             toolCount=len(ALL_TOOL_NAMES),
             enabledToolCount=len(settings.enabledTools),
         )
+
+
+@router.get("/smtp", response_model=SMTPSettingsResponse)
+async def read_smtp_settings(
+    db: AsyncIOMotorDatabase = Depends(get_db),
+    _: dict = Depends(get_current_user),
+) -> SMTPSettingsResponse:
+    return await get_smtp_settings(db)
+
+
+@router.put("/smtp", response_model=SMTPSettingsResponse)
+async def save_smtp_settings(
+    payload: SMTPSettingsUpdate,
+    db: AsyncIOMotorDatabase = Depends(get_db),
+    _: dict = Depends(get_current_user),
+) -> SMTPSettingsResponse:
+    try:
+        return await update_smtp_settings(db, payload)
+    except ValueError as exc:
+        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail=str(exc)) from exc
+
+
+@router.post("/smtp/test", response_model=TestConnectionResponse)
+async def test_smtp(
+    payload: SMTPTestRequest,
+    db: AsyncIOMotorDatabase = Depends(get_db),
+    _: dict = Depends(get_current_user),
+) -> TestConnectionResponse:
+    success, message = await test_smtp_settings(db, payload)
+    return TestConnectionResponse(success=success, message=message)

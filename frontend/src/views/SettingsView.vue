@@ -5,266 +5,446 @@
       subtitle="Platform configuration and preferences"
     />
 
-    <div class="grid">
-      <div class="col-12 lg:col-8">
-        <div class="content-panel content-panel-padded mb-4">
-          <div class="flex align-items-start justify-content-between gap-3 flex-wrap">
-            <div>
-              <h2 class="section-title">MCP Server</h2>
-              <p class="section-copy">Configure the Model Context Protocol server connection.</p>
-            </div>
-            <Tag
-              :value="mcpStatus.online ? 'Online' : 'Offline'"
-              :severity="mcpStatus.online ? 'success' : 'danger'"
-              :icon="mcpStatus.online ? 'pi pi-check-circle' : 'pi pi-times-circle'"
-            />
-          </div>
+    <div class="settings-layout">
+      <!-- Section navigation -->
+      <nav class="settings-nav">
+        <ul class="settings-nav-list">
+          <li
+            v-for="section in sections"
+            :key="section.key"
+            class="settings-nav-item"
+            :class="{ 'is-active': activeSection === section.key }"
+          >
+            <a class="settings-nav-link" @click="activeSection = section.key">
+              <i :class="[section.icon, 'settings-nav-icon']" />
+              <span>{{ section.label }}</span>
+            </a>
+          </li>
+        </ul>
+      </nav>
 
-          <div v-if="mcpLoading" class="mt-4">
-            <ProgressSpinner style="width: 2rem; height: 2rem" />
-          </div>
-
-          <div v-else class="flex flex-column gap-4 mt-4">
-            <div class="flex flex-column gap-2 setting-row">
-              <label for="serverUrl" class="setting-label">Server URL</label>
-              <InputText
-                id="serverUrl"
-                v-model="mcpSettings.serverUrl"
-                placeholder="http://mcp-server:8001"
-              />
-              <small class="setting-hint">Backend uses this URL to reach the MCP server. Use host.docker.internal for host-side services.</small>
-            </div>
-
-            <div class="flex flex-column gap-2 setting-row">
-              <label for="serverName" class="setting-label">Server name</label>
-              <InputText id="serverName" v-model="mcpSettings.serverName" />
-            </div>
-
-            <div class="flex align-items-center justify-content-between gap-3 setting-row">
-              <div>
-                <div class="setting-label">SSE transport</div>
-                <div class="setting-hint">Server-Sent Events endpoint for MCP clients.</div>
+      <!-- Section content -->
+      <div class="settings-content">
+        <!-- MCP Server -->
+        <section v-show="activeSection === 'mcp'" class="grid">
+          <div class="col-12 lg:col-8 flex flex-column gap-4">
+            <div class="content-panel content-panel-padded">
+              <div class="flex align-items-start justify-content-between gap-3 flex-wrap">
+                <div>
+                  <h2 class="section-title">MCP Server</h2>
+                  <p class="section-copy">Configure the Model Context Protocol server connection.</p>
+                </div>
+                <Tag
+                  :value="mcpStatus.online ? 'Online' : 'Offline'"
+                  :severity="mcpStatus.online ? 'success' : 'danger'"
+                  :icon="mcpStatus.online ? 'pi pi-check-circle' : 'pi pi-times-circle'"
+                />
               </div>
-              <ToggleSwitch v-model="mcpSettings.sseEnabled" />
+
+              <div v-if="mcpLoading" class="mt-4">
+                <ProgressSpinner style="width: 2rem; height: 2rem" />
+              </div>
+
+              <div v-else class="flex flex-column gap-4 mt-4">
+                <div class="flex flex-column gap-2 setting-row">
+                  <label for="serverUrl" class="setting-label">Server URL</label>
+                  <InputText
+                    id="serverUrl"
+                    v-model="mcpSettings.serverUrl"
+                    placeholder="http://mcp-server:8001"
+                  />
+                  <small class="setting-hint">Backend uses this URL to reach the MCP server. Use host.docker.internal for host-side services.</small>
+                </div>
+
+                <div class="flex flex-column gap-2 setting-row">
+                  <label for="serverName" class="setting-label">Server name</label>
+                  <InputText id="serverName" v-model="mcpSettings.serverName" />
+                </div>
+
+                <div class="flex align-items-center justify-content-between gap-3 setting-row">
+                  <div>
+                    <div class="setting-label">SSE transport</div>
+                    <div class="setting-hint">Server-Sent Events endpoint for MCP clients.</div>
+                  </div>
+                  <ToggleSwitch v-model="mcpSettings.sseEnabled" />
+                </div>
+
+                <div class="flex gap-2 pt-2">
+                  <Button
+                    label="Save MCP settings"
+                    icon="pi pi-save"
+                    size="small"
+                    :loading="mcpSaving"
+                    @click="saveMcpSettings"
+                  />
+                  <Button
+                    label="Test connection"
+                    icon="pi pi-bolt"
+                    size="small"
+                    severity="secondary"
+                    outlined
+                    :loading="mcpTesting"
+                    @click="testMcpConnection"
+                  />
+                </div>
+
+                <Message v-if="mcpMessage" :severity="mcpMessageSeverity" :closable="false">
+                  {{ mcpMessage }}
+                </Message>
+              </div>
             </div>
 
-            <div class="flex gap-2 pt-2">
-              <Button
-                label="Save MCP settings"
-                icon="pi pi-save"
-                size="small"
-                :loading="mcpSaving"
-                @click="saveMcpSettings"
-              />
-              <Button
-                label="Test connection"
-                icon="pi pi-bolt"
-                size="small"
-                severity="secondary"
-                outlined
-                :loading="mcpTesting"
-                @click="testMcpConnection"
-              />
-            </div>
+            <div class="content-panel content-panel-padded">
+              <div class="flex align-items-start justify-content-between gap-3 flex-wrap">
+                <div>
+                  <h2 class="section-title">SMTP / Email</h2>
+                  <p class="section-copy">Outbound email server used for password resets and notifications.</p>
+                </div>
+                <Tag
+                  :value="smtpSettings.hasPassword || smtpSettings.host ? 'Configured' : 'Not set up'"
+                  :severity="smtpSettings.hasPassword || smtpSettings.host ? 'success' : 'secondary'"
+                />
+              </div>
 
-            <Message v-if="mcpMessage" :severity="mcpMessageSeverity" :closable="false">
-              {{ mcpMessage }}
-            </Message>
+              <div v-if="smtpLoading" class="mt-4">
+                <ProgressSpinner style="width: 2rem; height: 2rem" />
+              </div>
+
+              <div v-else class="flex flex-column gap-4 mt-4">
+                <div class="flex flex-column gap-2 setting-row">
+                  <label for="smtpProvider" class="setting-label">Provider</label>
+                  <Select
+                    id="smtpProvider"
+                    v-model="smtpSettings.provider"
+                    :options="smtpProviders"
+                    option-label="label"
+                    option-value="value"
+                    @update:model-value="applySmtpProvider"
+                  />
+                  <small class="setting-hint">Pick a preset to fill the server details, or choose Custom to enter your own.</small>
+                </div>
+
+                <div class="flex flex-column gap-2 setting-row">
+                  <label for="smtpHost" class="setting-label">SMTP host</label>
+                  <InputText
+                    id="smtpHost"
+                    v-model="smtpSettings.host"
+                    placeholder="smtp.example.com"
+                    :disabled="isSmtpPreset"
+                  />
+                </div>
+
+                <div class="flex flex-column gap-2 setting-row">
+                  <label for="smtpPort" class="setting-label">Port</label>
+                  <InputNumber
+                    id="smtpPort"
+                    v-model="smtpSettings.port"
+                    :use-grouping="false"
+                    :min="1"
+                    :max="65535"
+                    class="max-select"
+                    :disabled="isSmtpPreset"
+                  />
+                </div>
+
+                <div class="flex flex-column gap-2 setting-row">
+                  <label for="smtpUsername" class="setting-label">Username</label>
+                  <InputText
+                    id="smtpUsername"
+                    v-model="smtpSettings.username"
+                    placeholder="you@example.com"
+                  />
+                </div>
+
+                <div class="flex flex-column gap-2 setting-row">
+                  <label for="smtpPassword" class="setting-label">Password</label>
+                  <Password
+                    id="smtpPassword"
+                    v-model="smtpSettings.password"
+                    class="w-full"
+                    :feedback="false"
+                    toggle-mask
+                    input-class="w-full"
+                    :placeholder="smtpSettings.hasPassword ? 'Saved — enter a new password to replace' : 'App password or SMTP password'"
+                  />
+                  <small class="setting-hint">
+                    For Gmail/Outlook with 2FA, generate an app password. Stored encrypted on the backend.
+                  </small>
+                </div>
+
+                <div class="flex flex-column gap-2 setting-row">
+                  <label for="smtpFrom" class="setting-label">From address</label>
+                  <InputText
+                    id="smtpFrom"
+                    v-model="smtpSettings.fromAddress"
+                    placeholder="no-reply@example.com"
+                  />
+                  <small class="setting-hint">Leave blank to use the username as the sender.</small>
+                </div>
+
+                <div class="flex align-items-center justify-content-between gap-3 setting-row">
+                  <div>
+                    <div class="setting-label">Encryption</div>
+                    <div class="setting-hint">STARTTLS (587) or implicit SSL/TLS (465).</div>
+                  </div>
+                  <SelectButton
+                    v-model="smtpEncryption"
+                    :options="smtpEncryptionOptions"
+                    option-label="label"
+                    option-value="value"
+                    :allow-empty="false"
+                    :disabled="isSmtpPreset"
+                  />
+                </div>
+
+                <div class="flex flex-column gap-2 setting-row">
+                  <label for="smtpTestRecipient" class="setting-label">Send test email to</label>
+                  <InputText
+                    id="smtpTestRecipient"
+                    v-model="smtpTestRecipient"
+                    placeholder="you@example.com"
+                  />
+                  <small class="setting-hint">A test message is sent here to confirm the settings work.</small>
+                </div>
+
+                <div class="flex gap-2 pt-2">
+                  <Button
+                    label="Save SMTP settings"
+                    icon="pi pi-save"
+                    size="small"
+                    :loading="smtpSaving"
+                    @click="saveSmtpSettings"
+                  />
+                  <Button
+                    label="Send test email"
+                    icon="pi pi-send"
+                    size="small"
+                    severity="secondary"
+                    outlined
+                    :loading="smtpTesting"
+                    @click="testSmtpSettings"
+                  />
+                </div>
+
+                <Message v-if="smtpMessage" :severity="smtpMessageSeverity" :closable="false">
+                  {{ smtpMessage }}
+                </Message>
+              </div>
+            </div>
           </div>
-        </div>
 
-        <div class="content-panel content-panel-padded mb-4">
-          <h2 class="section-title">Security</h2>
-          <p class="section-copy">
-            Sign in with your password first, then register a passkey for faster sign-in next time.
-          </p>
+          <div class="col-12 lg:col-4">
+            <div class="content-panel content-panel-padded info-panel">
+              <h3 class="info-title">MCP status</h3>
+              <ul class="info-list m-0 pl-0 list-none">
+                <li><strong>URL:</strong> {{ mcpStatus.serverUrl || '—' }}</li>
+                <li><strong>Enabled tools:</strong> {{ mcpStatus.enabledToolCount }} / {{ mcpStatus.toolCount }}</li>
+                <li><strong>Status:</strong> {{ mcpStatus.message }}</li>
+              </ul>
+            </div>
+          </div>
+        </section>
 
-          <div class="flex flex-column gap-3 mt-4">
-            <div class="flex align-items-center justify-content-between gap-3 flex-wrap">
-              <div>
-                <div class="setting-label">Passkeys</div>
-                <div class="setting-hint">
-                  {{ passkeyStatus.hasPasskey
-                    ? `${passkeyStatus.passkeyCount} passkey(s) registered for ${passkeyStatus.username}`
-                    : 'No passkey registered yet for your account.' }}
+        <!-- JPilot -->
+        <section v-show="activeSection === 'jpilot'" class="grid">
+          <div class="col-12 lg:col-8 flex flex-column gap-4">
+            <div class="content-panel content-panel-padded">
+              <h2 class="section-title">Attachments</h2>
+              <p class="section-copy">Control what can be attached to JPilot chat messages.</p>
+
+              <div class="flex flex-column gap-4 mt-4">
+                <div class="flex align-items-center justify-content-between gap-3 setting-row">
+                  <div>
+                    <div class="setting-label">Allow image attachments</div>
+                    <div class="setting-hint">PNG, JPEG, WebP, GIF — up to 5 MB each</div>
+                  </div>
+                  <ToggleSwitch v-model="copilotSettings.allowImages" @update:model-value="saveCopilotPrefs" />
+                </div>
+
+                <div class="flex align-items-center justify-content-between gap-3 setting-row">
+                  <div>
+                    <div class="setting-label">Allow configuration files</div>
+                    <div class="setting-hint">.conf, .cfg, .txt, .json, .yaml, .xml, .ns, .cs — up to 1 MB each</div>
+                  </div>
+                  <ToggleSwitch v-model="copilotSettings.allowConfigFiles" @update:model-value="saveCopilotPrefs" />
+                </div>
+
+                <div class="flex flex-column gap-2 setting-row">
+                  <label for="maxAttachments" class="setting-label">Max attachments per message</label>
+                  <Select
+                    id="maxAttachments"
+                    v-model="copilotSettings.maxAttachments"
+                    :options="maxAttachmentOptions"
+                    class="max-select"
+                    @update:model-value="saveCopilotPrefs"
+                  />
                 </div>
               </div>
-              <Tag
-                :value="passkeyStatus.hasPasskey ? 'Enabled' : 'Not set up'"
-                :severity="passkeyStatus.hasPasskey ? 'success' : 'secondary'"
-              />
             </div>
 
-            <Button
-              label="Register passkey"
-              icon="pi pi-key"
-              size="small"
-              :loading="passkeyRegistering"
-              @click="registerMyPasskey"
-            />
+            <div class="content-panel content-panel-padded">
+              <h2 class="section-title">Web search</h2>
+              <p class="section-copy">
+                JPilot always searches the official Next-Gen API getting started guide. Optionally enable Brave Search for additional web results.
+              </p>
 
-            <Message v-if="passkeyMessage" :severity="passkeyMessageSeverity" :closable="false">
-              {{ passkeyMessage }}
-            </Message>
+              <div class="flex flex-column gap-4 mt-4">
+                <div class="flex align-items-center justify-content-between gap-3 setting-row">
+                  <div>
+                    <div class="setting-label">Enable web search for Next-Gen API docs</div>
+                    <div class="setting-hint">Adds broader internet results alongside the official guide.</div>
+                  </div>
+                  <ToggleSwitch v-model="platformSettings.allowWebSearch" />
+                </div>
+
+                <div class="flex flex-column gap-2 setting-row">
+                  <label for="braveApiKey" class="setting-label">Brave Search API key</label>
+                  <Password
+                    id="braveApiKey"
+                    v-model="platformSettings.braveSearchApiKey"
+                    class="w-full"
+                    :feedback="false"
+                    toggle-mask
+                    input-class="w-full"
+                    :placeholder="platformSettings.hasBraveSearchApiKey ? 'Saved — enter a new key to replace' : 'BSA...'"
+                  />
+                  <small class="setting-hint">
+                    Get a key from <a href="https://brave.com/search/api/" target="_blank" rel="noopener">Brave Search API</a>.
+                    Stored encrypted on the backend.
+                  </small>
+                </div>
+
+                <div class="flex flex-column gap-2 setting-row">
+                  <div class="setting-label">Allowed domains</div>
+                  <div class="setting-hint">
+                    Web search results are restricted to these domains. The official NetScaler/Citrix
+                    domains are always included; add your own internal doc sites below.
+                  </div>
+                  <div class="domain-chips">
+                    <span v-for="d in lockedDomains" :key="d" class="domain-chip domain-chip-locked">
+                      <i class="pi pi-lock" /> {{ d }}
+                    </span>
+                    <span v-for="d in platformSettings.extraDomains" :key="d" class="domain-chip">
+                      {{ d }}
+                      <button type="button" class="domain-remove" @click="removeDomain(d)">
+                        <i class="pi pi-times" />
+                      </button>
+                    </span>
+                  </div>
+                  <div class="flex gap-2">
+                    <InputText
+                      v-model="newDomain"
+                      class="flex-1"
+                      placeholder="e.g. docs.internal.example.com"
+                      @keydown.enter.prevent="addDomain"
+                    />
+                    <Button label="Add" icon="pi pi-plus" size="small" severity="secondary" outlined @click="addDomain" />
+                  </div>
+                  <small class="setting-hint">Remember to save after editing domains.</small>
+                </div>
+
+                <div class="flex gap-2 pt-2">
+                  <Button
+                    label="Save web search settings"
+                    icon="pi pi-save"
+                    size="small"
+                    :loading="platformSaving"
+                    @click="savePlatformSettings"
+                  />
+                  <Button
+                    label="Test search"
+                    icon="pi pi-bolt"
+                    size="small"
+                    severity="secondary"
+                    outlined
+                    :loading="platformTesting"
+                    @click="testPlatformSearch"
+                  />
+                </div>
+
+                <Message v-if="platformMessage" :severity="platformMessageSeverity" :closable="false">
+                  {{ platformMessage }}
+                </Message>
+              </div>
+            </div>
           </div>
-        </div>
 
-        <div class="content-panel content-panel-padded">
-          <h2 class="section-title">JPilot</h2>
-          <p class="section-copy">Control what can be attached to JPilot chat messages.</p>
-
-          <div class="flex flex-column gap-4 mt-4">
-            <div class="flex align-items-center justify-content-between gap-3 setting-row">
-              <div>
-                <div class="setting-label">Allow image attachments</div>
-                <div class="setting-hint">PNG, JPEG, WebP, GIF — up to 5 MB each</div>
-              </div>
-              <ToggleSwitch v-model="copilotSettings.allowImages" @update:model-value="saveCopilotPrefs" />
-            </div>
-
-            <div class="flex align-items-center justify-content-between gap-3 setting-row">
-              <div>
-                <div class="setting-label">Allow configuration files</div>
-                <div class="setting-hint">.conf, .cfg, .txt, .json, .yaml, .xml, .ns, .cs — up to 1 MB each</div>
-              </div>
-              <ToggleSwitch v-model="copilotSettings.allowConfigFiles" @update:model-value="saveCopilotPrefs" />
-            </div>
-
-            <div class="flex flex-column gap-2 setting-row">
-              <label for="maxAttachments" class="setting-label">Max attachments per message</label>
-              <Select
-                id="maxAttachments"
-                v-model="copilotSettings.maxAttachments"
-                :options="maxAttachmentOptions"
-                class="max-select"
-                @update:model-value="saveCopilotPrefs"
-              />
+          <div class="col-12 lg:col-4">
+            <div class="content-panel content-panel-padded info-panel">
+              <h3 class="info-title">Attachment tips</h3>
+              <ul class="info-list m-0 pl-3">
+                <li>Attach NetScaler configs for analysis or troubleshooting.</li>
+                <li>Attach screenshots of errors, dashboards, or topology diagrams.</li>
+                <li>Vision support depends on your default AI provider and model.</li>
+              </ul>
             </div>
           </div>
-        </div>
+        </section>
 
-        <div class="content-panel content-panel-padded mt-4">
-          <h2 class="section-title">JPilot web search</h2>
-          <p class="section-copy">
-            JPilot always searches the official Next-Gen API getting started guide. Optionally enable Brave Search for additional web results.
-          </p>
+        <!-- Security -->
+        <section v-show="activeSection === 'security'" class="grid">
+          <div class="col-12 lg:col-8">
+            <div class="content-panel content-panel-padded">
+              <h2 class="section-title">Security</h2>
+              <p class="section-copy">
+                Sign in with your password first, then register a passkey for faster sign-in next time.
+              </p>
 
-          <div class="flex flex-column gap-4 mt-4">
-            <div class="flex align-items-center justify-content-between gap-3 setting-row">
-              <div>
-                <div class="setting-label">Enable web search for Next-Gen API docs</div>
-                <div class="setting-hint">Adds broader internet results alongside the official guide.</div>
-              </div>
-              <ToggleSwitch v-model="platformSettings.allowWebSearch" />
-            </div>
+              <div class="flex flex-column gap-3 mt-4">
+                <div class="flex align-items-center justify-content-between gap-3 flex-wrap">
+                  <div>
+                    <div class="setting-label">Passkeys</div>
+                    <div class="setting-hint">
+                      {{ passkeyStatus.hasPasskey
+                        ? `${passkeyStatus.passkeyCount} passkey(s) registered for ${passkeyStatus.username}`
+                        : 'No passkey registered yet for your account.' }}
+                    </div>
+                  </div>
+                  <Tag
+                    :value="passkeyStatus.hasPasskey ? 'Enabled' : 'Not set up'"
+                    :severity="passkeyStatus.hasPasskey ? 'success' : 'secondary'"
+                  />
+                </div>
 
-            <div class="flex flex-column gap-2 setting-row">
-              <label for="braveApiKey" class="setting-label">Brave Search API key</label>
-              <Password
-                id="braveApiKey"
-                v-model="platformSettings.braveSearchApiKey"
-                class="w-full"
-                :feedback="false"
-                toggle-mask
-                input-class="w-full"
-                :placeholder="platformSettings.hasBraveSearchApiKey ? 'Saved — enter a new key to replace' : 'BSA...'"
-              />
-              <small class="setting-hint">
-                Get a key from <a href="https://brave.com/search/api/" target="_blank" rel="noopener">Brave Search API</a>.
-                Stored encrypted on the backend.
-              </small>
-            </div>
-
-            <div class="flex flex-column gap-2 setting-row">
-              <div class="setting-label">Allowed domains</div>
-              <div class="setting-hint">
-                Web search results are restricted to these domains. The official NetScaler/Citrix
-                domains are always included; add your own internal doc sites below.
-              </div>
-              <div class="domain-chips">
-                <span v-for="d in lockedDomains" :key="d" class="domain-chip domain-chip-locked">
-                  <i class="pi pi-lock" /> {{ d }}
-                </span>
-                <span v-for="d in platformSettings.extraDomains" :key="d" class="domain-chip">
-                  {{ d }}
-                  <button type="button" class="domain-remove" @click="removeDomain(d)">
-                    <i class="pi pi-times" />
-                  </button>
-                </span>
-              </div>
-              <div class="flex gap-2">
-                <InputText
-                  v-model="newDomain"
-                  class="flex-1"
-                  placeholder="e.g. docs.internal.example.com"
-                  @keydown.enter.prevent="addDomain"
+                <Button
+                  label="Register passkey"
+                  icon="pi pi-key"
+                  size="small"
+                  :loading="passkeyRegistering"
+                  @click="registerMyPasskey"
                 />
-                <Button label="Add" icon="pi pi-plus" size="small" severity="secondary" outlined @click="addDomain" />
+
+                <Message v-if="passkeyMessage" :severity="passkeyMessageSeverity" :closable="false">
+                  {{ passkeyMessage }}
+                </Message>
               </div>
-              <small class="setting-hint">Remember to save after editing domains.</small>
             </div>
-
-            <div class="flex gap-2 pt-2">
-              <Button
-                label="Save web search settings"
-                icon="pi pi-save"
-                size="small"
-                :loading="platformSaving"
-                @click="savePlatformSettings"
-              />
-              <Button
-                label="Test search"
-                icon="pi pi-bolt"
-                size="small"
-                severity="secondary"
-                outlined
-                :loading="platformTesting"
-                @click="testPlatformSearch"
-              />
-            </div>
-
-            <Message v-if="platformMessage" :severity="platformMessageSeverity" :closable="false">
-              {{ platformMessage }}
-            </Message>
           </div>
-        </div>
-      </div>
+        </section>
 
-      <div class="col-12 lg:col-4">
-        <div class="content-panel content-panel-padded info-panel mb-4">
-          <h3 class="info-title">MCP status</h3>
-          <ul class="info-list m-0 pl-0 list-none">
-            <li><strong>URL:</strong> {{ mcpStatus.serverUrl || '—' }}</li>
-            <li><strong>Enabled tools:</strong> {{ mcpStatus.enabledToolCount }} / {{ mcpStatus.toolCount }}</li>
-            <li><strong>Status:</strong> {{ mcpStatus.message }}</li>
-          </ul>
-        </div>
-
-        <div class="content-panel content-panel-padded info-panel mb-4">
-          <ModelUsageDashboard ref="usageDashboardRef" />
-        </div>
-
-        <div class="content-panel content-panel-padded info-panel">
-          <h3 class="info-title">Attachment tips</h3>
-          <ul class="info-list m-0 pl-3">
-            <li>Attach NetScaler configs for analysis or troubleshooting.</li>
-            <li>Attach screenshots of errors, dashboards, or topology diagrams.</li>
-            <li>Vision support depends on your default AI provider and model.</li>
-          </ul>
-        </div>
+        <!-- Usage -->
+        <section v-show="activeSection === 'usage'" class="grid">
+          <div class="col-12 lg:col-8">
+            <div class="content-panel content-panel-padded info-panel">
+              <ModelUsageDashboard ref="usageDashboardRef" />
+            </div>
+          </div>
+        </section>
       </div>
     </div>
   </div>
 </template>
 
 <script setup>
-import { onMounted, reactive, ref } from 'vue'
+import { computed, onMounted, reactive, ref } from 'vue'
 import Button from 'primevue/button'
+import InputNumber from 'primevue/inputnumber'
 import InputText from 'primevue/inputtext'
 import Message from 'primevue/message'
 import Password from 'primevue/password'
 import ProgressSpinner from 'primevue/progressspinner'
 import Select from 'primevue/select'
+import SelectButton from 'primevue/selectbutton'
 import Tag from 'primevue/tag'
 import ToggleSwitch from 'primevue/toggleswitch'
 import PageHeader from '../components/PageHeader.vue'
@@ -276,9 +456,18 @@ import {
   testCopilotPlatformSearch
 } from '../services/copilotPlatform'
 import { getMcpConfig, getMcpStatus, saveMcpConfig } from '../services/mcp'
+import { getSmtpConfig, saveSmtpConfig, testSmtpConfig } from '../services/smtp'
 import api from '../services/api'
 import { getStoredUser } from '../services/auth'
 import { fetchPasskeyStatus, passkeyErrorMessage, registerPasskey } from '../services/webauthn'
+
+const sections = [
+  { key: 'mcp', label: 'MCP Server', icon: 'pi pi-server' },
+  { key: 'jpilot', label: 'JPilot', icon: 'pi pi-comments' },
+  { key: 'security', label: 'Security', icon: 'pi pi-shield' },
+  { key: 'usage', label: 'Usage', icon: 'pi pi-chart-bar' }
+]
+const activeSection = ref('mcp')
 
 const maxAttachmentOptions = [1, 2, 3, 4, 5, 6, 7, 8, 9, 10]
 const copilotSettings = reactive(getCopilotSettings())
@@ -318,6 +507,67 @@ const mcpStatus = reactive({
   toolCount: 0,
   enabledToolCount: 0
 })
+
+// ---- SMTP / email ----
+const smtpProviders = [
+  { label: 'Gmail', value: 'gmail' },
+  { label: 'Outlook / Office 365', value: 'outlook' },
+  { label: 'Custom', value: 'custom' }
+]
+
+const smtpPresets = {
+  gmail: { host: 'smtp.gmail.com', port: 587, useTls: true, useSsl: false },
+  outlook: { host: 'smtp.office365.com', port: 587, useTls: true, useSsl: false }
+}
+
+const smtpEncryptionOptions = [
+  { label: 'STARTTLS', value: 'starttls' },
+  { label: 'SSL/TLS', value: 'ssl' },
+  { label: 'None', value: 'none' }
+]
+
+const smtpLoading = ref(true)
+const smtpSaving = ref(false)
+const smtpTesting = ref(false)
+const smtpMessage = ref('')
+const smtpMessageSeverity = ref('info')
+const smtpTestRecipient = ref('')
+
+const smtpSettings = reactive({
+  provider: 'custom',
+  host: '',
+  port: 587,
+  username: '',
+  password: '',
+  fromAddress: '',
+  hasPassword: false,
+  useTls: true,
+  useSsl: false
+})
+
+const isSmtpPreset = computed(() => smtpSettings.provider !== 'custom')
+
+const smtpEncryption = computed({
+  get() {
+    if (smtpSettings.useSsl) return 'ssl'
+    if (smtpSettings.useTls) return 'starttls'
+    return 'none'
+  },
+  set(value) {
+    smtpSettings.useSsl = value === 'ssl'
+    smtpSettings.useTls = value === 'starttls'
+  }
+})
+
+function applySmtpProvider(provider) {
+  const preset = smtpPresets[provider]
+  if (preset) {
+    smtpSettings.host = preset.host
+    smtpSettings.port = preset.port
+    smtpSettings.useTls = preset.useTls
+    smtpSettings.useSsl = preset.useSsl
+  }
+}
 
 const passkeyRegistering = ref(false)
 const passkeyMessage = ref('')
@@ -514,14 +764,152 @@ async function testMcpConnection() {
   }
 }
 
+async function loadSmtpSettings() {
+  smtpLoading.value = true
+  try {
+    const config = await getSmtpConfig()
+    Object.assign(smtpSettings, {
+      provider: config.provider || 'custom',
+      host: config.host || '',
+      port: config.port || 587,
+      username: config.username || '',
+      password: '',
+      fromAddress: config.fromAddress || '',
+      hasPassword: config.hasPassword || false,
+      useTls: config.useTls,
+      useSsl: config.useSsl
+    })
+  } catch (error) {
+    smtpMessage.value = error.response?.data?.detail || 'Failed to load SMTP settings'
+    smtpMessageSeverity.value = 'error'
+  } finally {
+    smtpLoading.value = false
+  }
+}
+
+function smtpPayload() {
+  return {
+    provider: smtpSettings.provider,
+    host: smtpSettings.host,
+    port: smtpSettings.port,
+    username: smtpSettings.username,
+    password: smtpSettings.password || null,
+    fromAddress: smtpSettings.fromAddress,
+    useTls: smtpSettings.useTls,
+    useSsl: smtpSettings.useSsl
+  }
+}
+
+async function saveSmtpSettings() {
+  smtpSaving.value = true
+  smtpMessage.value = ''
+  try {
+    const saved = await saveSmtpConfig(smtpPayload())
+    Object.assign(smtpSettings, {
+      provider: saved.provider,
+      host: saved.host,
+      port: saved.port,
+      username: saved.username,
+      password: '',
+      fromAddress: saved.fromAddress,
+      hasPassword: saved.hasPassword,
+      useTls: saved.useTls,
+      useSsl: saved.useSsl
+    })
+    smtpMessage.value = 'SMTP settings saved.'
+    smtpMessageSeverity.value = 'success'
+  } catch (error) {
+    smtpMessage.value = error.response?.data?.detail || 'Failed to save SMTP settings'
+    smtpMessageSeverity.value = 'error'
+  } finally {
+    smtpSaving.value = false
+  }
+}
+
+async function testSmtpSettings() {
+  if (!smtpTestRecipient.value.trim()) {
+    smtpMessage.value = 'Enter a recipient address to send the test email.'
+    smtpMessageSeverity.value = 'warn'
+    return
+  }
+  smtpTesting.value = true
+  smtpMessage.value = ''
+  try {
+    const result = await testSmtpConfig({
+      ...smtpPayload(),
+      testRecipient: smtpTestRecipient.value.trim()
+    })
+    smtpMessage.value = result.message
+    smtpMessageSeverity.value = result.success ? 'success' : 'error'
+  } catch (error) {
+    smtpMessage.value = error.response?.data?.detail || 'SMTP test failed'
+    smtpMessageSeverity.value = 'error'
+  } finally {
+    smtpTesting.value = false
+  }
+}
+
 onMounted(async () => {
-  await Promise.all([loadMcpConfig(), loadPlatformSettings(), loadPasskeyStatus()])
+  await Promise.all([loadMcpConfig(), loadSmtpSettings(), loadPlatformSettings(), loadPasskeyStatus()])
 })
 </script>
 
 <style scoped>
 .page {
   animation: page-in 0.35s ease;
+}
+
+.settings-layout {
+  display: flex;
+  flex-direction: column;
+  gap: 1.5rem;
+}
+
+.settings-nav-icon {
+  font-size: 1rem;
+}
+
+/* Horizontal scrollable tab bar */
+.settings-nav {
+  border-bottom: 1px solid var(--p-content-border-color);
+  overflow-x: auto;
+}
+
+.settings-nav-list {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: flex;
+  flex-direction: row;
+  white-space: nowrap;
+}
+
+.settings-nav-item {
+  border-bottom: 2px solid transparent;
+  margin-bottom: -1px;
+}
+
+.settings-nav-item.is-active {
+  border-bottom-color: var(--p-primary-color);
+}
+
+.settings-nav-link {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  padding: 0.75rem 1rem;
+  cursor: pointer;
+  font-weight: 500;
+  color: var(--p-text-muted-color);
+  transition: color 0.15s ease;
+}
+
+.settings-nav-item.is-active .settings-nav-link {
+  color: var(--p-primary-color);
+}
+
+.settings-nav-link:hover {
+  color: var(--p-text-color);
 }
 
 .section-title {
