@@ -202,13 +202,17 @@ defineExpose({ refresh: load })
 .usage-card {
   padding: 0.85rem 0.9rem;
   border-radius: 12px;
-  background: linear-gradient(145deg, var(--p-surface-0), var(--p-surface-50));
+  background: linear-gradient(145deg, var(--app-nested-surface), var(--app-nested-surface-strong));
   border: 1px solid var(--p-content-border-color);
   box-shadow: 0 1px 8px rgba(15, 23, 42, 0.04);
 }
 
 .usage-card-brave {
-  background: linear-gradient(145deg, rgba(59, 130, 246, 0.06), var(--p-surface-0));
+  background: linear-gradient(
+    145deg,
+    color-mix(in srgb, #3b82f6 12%, var(--app-nested-surface)),
+    var(--app-nested-surface-strong)
+  );
 }
 
 .usage-card-muted {
@@ -301,6 +305,20 @@ defineExpose({ refresh: load })
 .usage-empty-block {
   padding: 0.75rem;
   border-radius: 8px;
-  background: var(--p-surface-100);
+  background: var(--app-nested-surface-strong);
+}
+
+:global(html.app-dark) .usage-card {
+  box-shadow: 0 1px 8px rgba(0, 0, 0, 0.22);
+}
+
+:global(html.app-dark) .usage-icon {
+  background: color-mix(in srgb, var(--p-primary-400) 18%, var(--app-nested-surface-strong));
+  color: var(--p-primary-200);
+}
+
+:global(html.app-dark) .usage-icon.brave {
+  background: color-mix(in srgb, #3b82f6 22%, var(--app-nested-surface-strong));
+  color: #93c5fd;
 }
 </style>

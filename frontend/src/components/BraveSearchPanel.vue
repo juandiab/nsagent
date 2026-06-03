@@ -215,7 +215,7 @@ onMounted(loadSettings)
 <style scoped>
 .brave-search-panel {
   border-left: 3px solid var(--p-surface-400);
-  background: color-mix(in srgb, var(--p-content-background) 92%, var(--p-surface-200));
+  background: var(--app-nested-surface);
 }
 
 .section-title {
@@ -276,7 +276,7 @@ onMounted(loadSettings)
   padding: 0.25rem 0.6rem;
   border-radius: 999px;
   font-size: 0.8125rem;
-  background: var(--p-surface-100);
+  background: var(--app-nested-surface-strong);
   border: 1px solid var(--p-content-border-color);
 }
 

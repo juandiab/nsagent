@@ -4,9 +4,9 @@
       <div class="blog-panel-header flex flex-column md:flex-row md:align-items-end md:justify-content-between gap-3 mb-4">
         <div>
           <p class="section-eyebrow m-0">From Nexxus Tech</p>
-          <h3 class="panel-heading mt-1">NetScaler insights</h3>
+          <h3 class="panel-heading mt-1">Articles of interest</h3>
           <p class="section-lead m-0 mt-2">
-            Guides on WAF, Zero Trust, and AI automation from the JPilot team.
+            Infrastructure, security, and automation reading curated by the JPilot team.
           </p>
         </div>
         <a

@@ -78,7 +78,7 @@ watch(
 <style scoped>
 .legal-page {
   min-height: 100vh;
-  background: var(--p-surface-50);
+  background: var(--p-content-background);
   color: var(--p-text-color);
   display: flex;
   flex-direction: column;

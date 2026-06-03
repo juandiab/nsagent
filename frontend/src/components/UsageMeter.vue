@@ -72,7 +72,7 @@ const summaryText = computed(() => {
 :deep(.p-progressbar) {
   height: 0.55rem;
   border-radius: 999px;
-  background: var(--p-surface-200);
+  background: var(--app-nested-surface-strong);
 }
 
 :deep(.usage-bar-ok .p-progressbar-value) {
