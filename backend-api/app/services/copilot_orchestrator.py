@@ -48,6 +48,12 @@ from app.services.copilot_memory_gate import (
     destructive_confirmation_required,
 )
 from app.services.copilot_retry import build_tool_retry_hint
+from app.services.copilot_roles import (
+    JPilotRole,
+    build_system_prompt,
+    normalize_role,
+    role_requires_appliance,
+)
 from app.services.encryption_service import decrypt_value
 
 MAX_TOOL_ITERATIONS = 20
@@ -196,7 +202,15 @@ def _response_has_input_form(content: str) -> bool:
     return form is not None
 
 
-def _should_force_tool_execution(user_message: str, tool_traces: list[ToolCallTrace], content: str) -> bool:
+def _should_force_tool_execution(
+    user_message: str,
+    tool_traces: list[ToolCallTrace],
+    content: str,
+    role: str | None = None,
+) -> bool:
+    if normalize_role(role) == JPilotRole.ARCHITECT:
+        return False
+
     if content and _response_has_input_form(content):
         return False
 
@@ -249,8 +263,15 @@ def _had_successful_action(tool_traces: list[ToolCallTrace]) -> bool:
     return False
 
 
-def guard_fabricated_execution(content: str, tool_traces: list[ToolCallTrace]) -> str:
+def guard_fabricated_execution(
+    content: str,
+    tool_traces: list[ToolCallTrace],
+    role: str | None = None,
+) -> str:
     """Prepend a warning when the reply claims a config change that no tool actually performed."""
+    if normalize_role(role) == JPilotRole.ARCHITECT:
+        return content
+
     if _claims_config_change(content) and not _had_successful_action(tool_traces):
         logger.warning(
             "fabricated_execution_guard fired — response claims a config change but no "
@@ -259,85 +280,6 @@ def guard_fabricated_execution(content: str, tool_traces: list[ToolCallTrace]) -
         )
         return f"{UNEXECUTED_ACTION_BANNER}\n\n---\n\n{content}"
     return content
-
-SYSTEM_PROMPT = """You are JPilot, an intelligent assistant for Citrix NetScaler ADC appliances.
-
-Mandatory rules:
-1. Answer only what the user asked. Do not add troubleshooting steps, verification checklists, or follow-up offers unless explicitly requested.
-2. The user already selected and authenticated to the active appliance — use it for every NetScaler tool call.
-3. Use only official documentation domains: developer-docs.netscaler.com, docs.netscaler.com, docs.citrix.com (plus any extra domains the admin allowed). When a search tool returns webResults (domain-restricted live web search), you may use and cite those URLs. Never cite or rely on other websites.
-4. **Before any Next-Gen API tool call**, you MUST call search_netscaler_nextgen_api and read memoryExcerpts + suggestedGetPaths from netscaler_nextgen_api_memory.md.
-5. **Before any SSH CLI command**, you MUST call search_netscaler_cli_reference and read **recommendedCommands** (exact syntax). When retrievalMode is `section`, also read memoryExcerpts. **Exception:** connectivity diagnostics (ping, ping6, traceroute, traceroute6) use netscaler_run_diagnostic directly and require NO search.
-6. **ICMP connectivity checks ALWAYS use netscaler_run_diagnostic.** For "can the appliance ping X", "is X reachable" (no port), ping, or traceroute, call netscaler_run_diagnostic(operation, target) immediately. This tool is always available — never claim ping/traceroute is unavailable, never say the CLI reference lacks ping, and never tell the user to run it from the shell. A failed/unreachable result is a valid answer to report.
-6b. **TCP port checks use netscaler_telnet or netscaler_run_diagnostic(operation=tcp_port, target, port).** For "is port N open on X", "can the appliance reach X:PORT", call immediately — do NOT use ping. Uses `shell sh -c '/usr/bin/telnet HOST PORT </dev/null'` on NetScaler (no GNU timeout, no netcat). NEVER claim port-check tools are broken without calling them. Report verdict open/refused/no_response. Ignore "ERROR: Export failed" CLI noise when telnet shows Connected to.
-6c. **"Can YOU / JPilot reach the documentation or internet" uses jpilot_check_doc_connectivity — NOT an appliance ping.** That question is about the JPilot backend's own HTTPS reach to the official docs (and web search), which is a different host on a different network path than any appliance. Never answer "can you reach the docs" with a ping/telnet from a NetScaler; appliance reachability ≠ JPilot's reachability.
-7. You can READ and WRITE configuration. Prefer NetScaler Next-Gen API tools:
-   netscaler_get_system_info, netscaler_list_virtual_servers, netscaler_list_applications,
-   netscaler_list_ip_addresses, netscaler_list_virtual_ips, netscaler_nextgen_get,
-   netscaler_create_application (POST /applications),
-   netscaler_nextgen_request (generic GET/POST/PUT/DELETE on any Next-Gen path),
-   netscaler_run_diagnostic (ping/ping6/traceroute/traceroute6 — connectivity troubleshooting),
-   netscaler_run_cli_command (any classic CLI verb: add/set/bind/unbind/enable/disable/rm/clear/save/...),
-   netscaler_run_cli_commands (run multiple classic CLI commands in one call — preferred for multi-step LB setup).
-8. Choosing how to fulfill a request:
-   a. For application-centric or Next-Gen resources (applications, certificates, routes, config_sets):
-      search_netscaler_nextgen_api first, then netscaler_create_application or netscaler_nextgen_request
-      with the exact path + JSON body from netscaler_nextgen_api_memory.md.
-   b. For classic-only config (lb/cs vserver, services, monitors, vlan, routes, features, modes, policies):
-      search_netscaler_cli_reference first, then netscaler_run_cli_commands (multi-step) or netscaler_run_cli_command.
-   c. Never invent syntax. Copy paths/payloads/commands from the memory files. For statistics use 'stat ...', never 'show ... statistics'.
-   d. After classic CLI writes, run 'save ns config' to persist (Next-Gen API config persists automatically).
-   e. If a write or command fails, read retryHint/suggestedCommand/errorMessage, fix it, and retry. Do not answer until it succeeds.
-   f. For reads, if Next-Gen API tools do not return the data, fall back to a read-only command via netscaler_run_cli_command (or netscaler_ssh_run_command) after searching the CLI reference.
-9. DESTRUCTIVE OPERATIONS require explicit user confirmation BEFORE execution:
-   - Classic CLI: rm, clear, delete, reboot, shutdown, disable, unbind, flush, reset, unset, kill, force.
-   - Next-Gen API: DELETE requests, and disable/uninstall actions.
-   - For these, first show the user the exact command/request and its impact, and ask them to confirm.
-     Only after the user explicitly agrees, call the tool again with confirmed=true.
-   - Additive/setup operations (add, set, bind, enable, link, save, create, POST, PUT) run immediately — no confirmation needed.
-   - If a destructive tool returns needsConfirmation, stop and ask the user; do not retry without confirmed=true.
-10. Never tell the user to run manual CLI or GUI steps — perform the operation yourself with the tools.
-11. Multi-step configuration (load balancers, StoreFront/Citrix, Delivery Controllers, CS vservers, SSL offload):
-   a. **First** call search_netscaler_cli_reference (and search_netscaler_nextgen_api when application-centric). Use official syntax from memory excerpts.
-   b. When VIP, backends, ports, SSL, or names are missing, reply with a **short intro** then a ```jpilot-form``` JSON block with inputForm.fields — **no prose after the fence**. Use sensible defaults (HTTP/80 or SSL/443 for Delivery Controllers, LEASTCONNECTION, tcp-default monitor). For service type, offer HTTP, SSL, TCP, UDP, and SSL_BRIDGE when relevant.
-   c. If official docs have no workload-specific pattern, use the **default classic LB** shape: add lb vserver → service group → bind members → bind monitor → save ns config.
-   d. **Do NOT** run write tools until the user submits the form or explicitly provided every value in chat.
-   e. Form JSON shape: select options may be plain strings or {"value":"HTTPS","label":"HTTPS (port 443)"}. **Health monitor and load-balancing method must use `"type":"select"` with an `options` array** (e.g. monitor: tcp-default, http, ping, none). Example: {"inputForm":{"title":"...","fields":[{"id":"vip","label":"VIP","type":"text","required":true},{"id":"monitor","label":"Health monitor","type":"select","default":"tcp-default","options":["tcp-default","http","ping","none"]}]}}
-
-Tool routing:
-- All IPs / NSIP / SNIP / VIP / "show ns ip": netscaler_list_ip_addresses
-- Add VIP / SNIP / NSIP (classic): search_netscaler_cli_reference (add ns ip), then netscaler_add_ip_address
-- Create Next-Gen application / app with VIP and backends: search_netscaler_nextgen_api (AddApplication), then netscaler_create_application
-- Modify / delete a Next-Gen resource (PUT/DELETE app, cert, route, config_set): search_netscaler_nextgen_api, then netscaler_nextgen_request
-- Create / modify / delete classic config (add lb vserver, bind service, set/rm, enable feature):
-  search_netscaler_cli_reference, then netscaler_run_cli_commands (preferred) or netscaler_run_cli_command
-- Virtual servers / lb vserver / "show virtual servers": netscaler_list_virtual_servers (includes classic + Next-Gen)
-- Firmware, version, build, hostname, serial, management IP only: netscaler_get_system_info
-- Load-balancing VIPs only: netscaler_list_virtual_ips
-- Next-Gen applications only: netscaler_list_applications
-- VLAN / routing table / classic-only networking: search_netscaler_cli_reference, then netscaler_run_cli_command (show vlan, show route)
-- "Can YOU / JPilot reach the documentation / internet" / "do you have internet access" / "can you fetch the docs": jpilot_check_doc_connectivity. This tests the JPilot BACKEND's own HTTPS reach to the official docs (and web search). Do NOT answer this with an appliance ping — the appliance and the JPilot backend are different hosts on different network paths.
-- APPLIANCE connectivity ("can the appliance/NetScaler reach X", "is X reachable from NS01") / ping / traceroute / network path: netscaler_run_diagnostic (operation=ping|ping6|traceroute|traceroute6, target=<host>) — runs immediately, no memory search or confirmation needed. ICMP only; a failed ping just means the host is unreachable from the appliance — report that, don't retry. For reaching a web service, prefer a TCP/443 check (netscaler_telnet) over ICMP.
-- TCP port reachability / "is port N open on X" / "can the appliance reach X on port N" / verify a backend service port: netscaler_telnet (target=<host>, port=<n>) — runs immediately, no memory search or confirmation needed. Reports verdict open/refused/no_response.
-- Deeper network diagnostics (ARP table, interface/link status, packet capture): search_netscaler_cli_reference, then netscaler_ssh_run_command (show arp, show interface, stat interface, show nstrace)
-- Performance statistics / counters / CPU or memory usage / event logs / newnslog analysis: netscaler_collect_nsconmsg (operation=current|stats|statswt0|event|memstats|consmsg|settime|oldconmsg, optional counter/vserver/selectors) — read-only nsconmsg, runs immediately, no memory search or confirmation needed
-- Unknown Next-Gen resource: search_netscaler_nextgen_api (memory file), then netscaler_nextgen_get or netscaler_nextgen_request
-
-Report tool results directly. State the command/request that was run and summarize its output.
-
-When the user attaches files or images, analyze them in NetScaler context only if relevant to the question.
-"""
-
-
-def build_system_prompt(appliance_name: str) -> str:
-    return (
-        f"{SYSTEM_PROMPT}\n"
-        f"Active appliance: {appliance_name}\n"
-        f"Next-Gen API login is confirmed. Always pass appliance_name \"{appliance_name}\" to NetScaler tools.\n"
-        "Official CLI/API behavioral rules are loaded on demand via search_netscaler_cli_reference and "
-        "search_netscaler_nextgen_api — do not assume syntax without searching first."
-    )
-
 
 def trim_chat_history(history: list[dict]) -> list[dict]:
     if len(history) <= MAX_HISTORY_MESSAGES:
@@ -359,9 +301,12 @@ def _finalize_chat_response(
     model: str,
     tool_traces: list[ToolCallTrace],
     user_message: str = "",
+    role: str | None = None,
 ) -> ChatResponse:
     cleaned, input_form = parse_input_form(content)
-    cleaned, input_form = attach_default_lb_form_if_missing(user_message, cleaned, input_form)
+    cleaned, input_form = attach_default_lb_form_if_missing(
+        user_message, cleaned, input_form, role=role
+    )
     return ChatResponse(
         content=cleaned,
         providerName=provider_name,
@@ -379,6 +324,7 @@ async def _execute_tool_with_memory_gate(
     appliance_name: str,
     nextgen_memory_reviewed: bool,
     cli_memory_reviewed: bool,
+    role: str | None = None,
 ) -> tuple[str, bool, bool]:
     logger.info("tool_call name=%s args=%s", name, json.dumps(arguments, default=str)[:500])
 
@@ -395,7 +341,9 @@ async def _execute_tool_with_memory_gate(
             cli_memory_reviewed,
         )
 
-    result = await execute_copilot_tool(db, name, arguments, default_appliance_name=appliance_name)
+    result = await execute_copilot_tool(
+        db, name, arguments, default_appliance_name=appliance_name, role=role
+    )
     logger.info("tool_call name=%s executed result=%s", name, (result or "")[:600])
     if name == MEMORY_SEARCH_TOOL:
         nextgen_memory_reviewed = True
@@ -437,6 +385,7 @@ async def run_copilot_chat(
     appliance_name: str = "",
     provider_id: str | None = None,
     web_search: bool = True,
+    role: str | None = None,
 ) -> ChatResponse:
     from app.services.copilot_service import set_web_search_allowed
 
@@ -457,20 +406,24 @@ async def run_copilot_chat(
     model = provider["model"]
     endpoint = provider.get("endpoint", "")
 
+    chat_role = normalize_role(role)
     tool_traces: list[ToolCallTrace] = []
-    enabled_tools = await get_enabled_copilot_tools(db)
+    enabled_tools = await get_enabled_copilot_tools(db, role=chat_role.value)
     enabled_tool_names = {tool["name"] for tool in enabled_tools}
-    system_prompt = build_system_prompt(appliance_name)
+    system_prompt = build_system_prompt(chat_role, appliance_name)
     history = trim_chat_history(history)
 
     from app.services.copilot_port_check import try_auto_tcp_port_check
 
-    auto_traces, auto_response = await try_auto_tcp_port_check(
-        db,
-        user_message=user_message,
-        appliance_name=appliance_name,
-        enabled_tool_names=enabled_tool_names,
-    )
+    auto_traces: list[ToolCallTrace] = []
+    auto_response = None
+    if appliance_name and role_requires_appliance(chat_role):
+        auto_traces, auto_response = await try_auto_tcp_port_check(
+            db,
+            user_message=user_message,
+            appliance_name=appliance_name,
+            enabled_tool_names=enabled_tool_names,
+        )
     if auto_traces:
         tool_traces.extend(auto_traces)
     if auto_response and auto_traces:
@@ -505,6 +458,7 @@ async def run_copilot_chat(
             provider_type,
             provider_name,
             usage_accumulator,
+            jpilot_role=chat_role.value,
         )
     elif provider_type == "Gemini":
         content = await _run_gemini_loop(
@@ -521,6 +475,7 @@ async def run_copilot_chat(
             provider_type,
             provider_name,
             usage_accumulator,
+            jpilot_role=chat_role.value,
         )
     elif provider_type in {"OpenAI", "Grok", "DeepSeek", "LM Studio", "OpenAI-Compatible"}:
         if provider_type == "LM Studio":
@@ -546,6 +501,7 @@ async def run_copilot_chat(
             provider_type,
             provider_name,
             usage_accumulator,
+            jpilot_role=chat_role.value,
         )
     else:
         raise ValueError(f"Unsupported provider type: {provider_type}")
@@ -569,7 +525,7 @@ async def run_copilot_chat(
             model,
         )
 
-    content = guard_fabricated_execution(content, tool_traces)
+    content = guard_fabricated_execution(content, tool_traces, role=chat_role.value)
 
     return _finalize_chat_response(
         content,
@@ -578,6 +534,7 @@ async def run_copilot_chat(
         model=model,
         tool_traces=tool_traces,
         user_message=user_message,
+        role=chat_role.value,
     )
 
 
@@ -597,6 +554,7 @@ async def _run_openai_loop(
     provider_type: str = "OpenAI-Compatible",
     provider_name: str = "",
     usage_accumulator: UsageAccumulator | None = None,
+    jpilot_role: str | None = None,
 ) -> str:
     messages: list[dict[str, Any]] = [{"role": "system", "content": system_prompt}]
     for item in history:
@@ -633,7 +591,7 @@ async def _run_openai_loop(
 
         if not tool_calls:
             content = choice.get("content") or ""
-            if _should_force_tool_execution(user_message, tool_traces, content):
+            if _should_force_tool_execution(user_message, tool_traces, content, role=jpilot_role):
                 logger.warning(
                     "execution_nudge — model replied without running write tools; forcing another iteration"
                 )
@@ -656,7 +614,13 @@ async def _run_openai_loop(
                 arguments = {}
             try:
                 result, nextgen_memory_reviewed, cli_memory_reviewed = await _execute_tool_with_memory_gate(
-                    db, name, arguments, appliance_name, nextgen_memory_reviewed, cli_memory_reviewed
+                    db,
+                    name,
+                    arguments,
+                    appliance_name,
+                    nextgen_memory_reviewed,
+                    cli_memory_reviewed,
+                    role=jpilot_role,
                 )
             except Exception as exc:
                 logger.exception("tool_call name=%s failed", name)
@@ -695,11 +659,12 @@ async def _run_gemini_loop(
     provider_type: str = "Gemini",
     provider_name: str = "",
     usage_accumulator: UsageAccumulator | None = None,
+    jpilot_role: str | None = None,
 ) -> str:
     contents: list[dict[str, Any]] = []
     for item in history:
-        role = "model" if item["role"] == "assistant" else "user"
-        contents.append({"role": role, "parts": [{"text": item["content"]}]})
+        gemini_role = "model" if item["role"] == "assistant" else "user"
+        contents.append({"role": gemini_role, "parts": [{"text": item["content"]}]})
     contents.append(
         {
             "role": "user",
@@ -732,7 +697,7 @@ async def _run_gemini_loop(
 
         if not function_calls:
             content = "\n".join(text_parts).strip()
-            if _should_force_tool_execution(user_message, tool_traces, content):
+            if _should_force_tool_execution(user_message, tool_traces, content, role=jpilot_role):
                 logger.warning(
                     "execution_nudge — model replied without running write tools; forcing another iteration"
                 )
@@ -749,7 +714,13 @@ async def _run_gemini_loop(
             name = function_call["name"]
             arguments = function_call.get("args", {})
             result, nextgen_memory_reviewed, cli_memory_reviewed = await _execute_tool_with_memory_gate(
-                db, name, arguments, appliance_name, nextgen_memory_reviewed, cli_memory_reviewed
+                db,
+                name,
+                arguments,
+                appliance_name,
+                nextgen_memory_reviewed,
+                cli_memory_reviewed,
+                role=jpilot_role,
             )
             tool_traces.append(ToolCallTrace(name=name, arguments=arguments, result=result))
             response_parts.append(
@@ -783,6 +754,7 @@ async def _run_anthropic_loop(
     provider_type: str = "Anthropic",
     provider_name: str = "",
     usage_accumulator: UsageAccumulator | None = None,
+    jpilot_role: str | None = None,
 ) -> str:
     messages: list[dict[str, Any]] = []
     for item in history:
@@ -817,7 +789,7 @@ async def _run_anthropic_loop(
 
         if stop_reason != "tool_use" and not tool_uses:
             content = "\n".join(text_blocks).strip()
-            if _should_force_tool_execution(user_message, tool_traces, content):
+            if _should_force_tool_execution(user_message, tool_traces, content, role=jpilot_role):
                 logger.warning(
                     "execution_nudge — model replied without running write tools; forcing another iteration"
                 )
@@ -834,7 +806,13 @@ async def _run_anthropic_loop(
             name = tool_use["name"]
             arguments = tool_use.get("input", {})
             result, nextgen_memory_reviewed, cli_memory_reviewed = await _execute_tool_with_memory_gate(
-                db, name, arguments, appliance_name, nextgen_memory_reviewed, cli_memory_reviewed
+                db,
+                name,
+                arguments,
+                appliance_name,
+                nextgen_memory_reviewed,
+                cli_memory_reviewed,
+                role=jpilot_role,
             )
             tool_traces.append(ToolCallTrace(name=name, arguments=arguments, result=result))
             tool_results.append(

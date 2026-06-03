@@ -301,6 +301,14 @@ _NON_LB_CONFIG_MARKERS = (
     "rate limit",
     "stream identifier",
     "persistence",
+    "secure header",
+    "security header",
+    "http header",
+    "response header",
+    "hsts",
+    "content-security-policy",
+    "x-frame-options",
+    "x-content-type",
 )
 
 _CREATE_POLICY_RE = re.compile(
@@ -316,6 +324,25 @@ _APPLY_OR_BIND_TO_VSERVER_RE = re.compile(
 _CREATE_LB_VSERVER_RE = re.compile(
     r"\b(?:create|add|new|setup|set up|provision)\s+(?:a\s+)?(?:lb\s+)?(?:virtual\s+)?(?:load\s+)?server\b",
     re.IGNORECASE,
+)
+
+# User is changing an existing vserver/LB by name — not provisioning a new LB from scratch.
+_EXISTING_NAMED_LB_RE = re.compile(
+    r"\b(?:called|named)\s+[\w.-]+|\b(?:on|to|for)\s+(?:the\s+)?(?:lb\s+)?(?:vserver|virtual\s+server)\s+[\w.-]+",
+    re.IGNORECASE,
+)
+
+_FEATURE_ON_EXISTING_LB_HINTS = (
+    "header",
+    "policy",
+    "rewrite",
+    "responder",
+    "transform",
+    "ssl",
+    "secure",
+    "redirect",
+    "bind ",
+    "monitor",
 )
 
 _LB_PROVISION_MARKERS = (
@@ -359,11 +386,25 @@ def message_targets_policy_or_feature_config(user_message: str) -> bool:
     return False
 
 
+def user_configures_existing_lb(user_message: str) -> bool:
+    """True when the user names an existing LB/vserver to configure (not create a new one)."""
+    lowered = user_message.lower()
+    if not _EXISTING_NAMED_LB_RE.search(user_message):
+        return False
+    if any(hint in lowered for hint in _FEATURE_ON_EXISTING_LB_HINTS):
+        return not bool(_CREATE_LB_VSERVER_RE.search(lowered))
+    if "load balanc" in lowered or "lb vserver" in lowered or "vserver" in lowered:
+        return not bool(_CREATE_LB_VSERVER_RE.search(lowered))
+    return False
+
+
 def user_requests_lb_vserver_create(user_message: str) -> bool:
     lowered = user_message.lower()
     if not any(verb in lowered for verb in _LB_CREATE_VERBS):
         return False
     if message_targets_policy_or_feature_config(user_message):
+        return False
+    if user_configures_existing_lb(user_message):
         return False
     if any(term in lowered for term in _LB_PROVISION_MARKERS):
         return True
@@ -480,8 +521,14 @@ def attach_default_lb_form_if_missing(
     user_message: str,
     content: str,
     form: InputForm | None,
+    role: str | None = None,
 ) -> tuple[str, InputForm | None]:
     """Ensure LB create requests always return a renderable form when inputs are missing."""
+    from app.services.copilot_roles import JPilotRole, normalize_role
+
+    if normalize_role(role) == JPilotRole.ARCHITECT:
+        return content, form
+
     if form is not None:
         return content, normalize_lb_form_fields(form)
     if is_form_submission(user_message):

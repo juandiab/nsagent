@@ -119,8 +119,8 @@ export const jpilotRecommendedGroups = [
     ]
   },
   {
-    id: 'diagnostics',
-    title: 'Diagnostics',
+    id: 'investigator',
+    title: 'Investigator',
     actions: [
       {
         id: 'cpu-mem',

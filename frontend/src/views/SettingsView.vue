@@ -36,375 +36,375 @@
       <div class="settings-content">
         <KeepAlive>
           <div :key="activeSection" class="settings-section-panel">
-        <section v-if="activeSection === 'mcp'" class="grid">
-          <div class="col-12 lg:col-8 flex flex-column gap-4">
-            <div class="content-panel content-panel-padded">
-              <div class="flex align-items-start justify-content-between gap-3 flex-wrap">
-                <div>
-                  <h2 class="section-title">MCP Server</h2>
-                  <p class="section-copy">Configure the Model Context Protocol server connection.</p>
-                </div>
-                <Tag
-                  :value="mcpStatus.online ? 'Online' : 'Offline'"
-                  :severity="mcpStatus.online ? 'success' : 'danger'"
-                  :icon="mcpStatus.online ? 'pi pi-check-circle' : 'pi pi-times-circle'"
-                />
-              </div>
-
-              <div v-if="mcpLoading" class="mt-4">
-                <ProgressSpinner style="width: 2rem; height: 2rem" />
-              </div>
-
-              <div v-else class="flex flex-column gap-4 mt-4">
-                <div class="flex flex-column gap-2 setting-row">
-                  <label for="serverUrl" class="setting-label">Server URL</label>
-                  <InputText
-                    id="serverUrl"
-                    v-model="mcpSettings.serverUrl"
-                    placeholder="http://mcp-server:8001"
-                  />
-                  <small class="setting-hint">Backend uses this URL to reach the MCP server. Use host.docker.internal for host-side services.</small>
-                </div>
-
-                <div class="flex flex-column gap-2 setting-row">
-                  <label for="serverName" class="setting-label">Server name</label>
-                  <InputText id="serverName" v-model="mcpSettings.serverName" />
-                </div>
-
-                <div class="flex align-items-center justify-content-between gap-3 setting-row">
+          <section v-if="activeSection === 'mcp'" class="grid">
+            <div class="col-12 lg:col-8 flex flex-column gap-4">
+              <div class="content-panel content-panel-padded">
+                <div class="flex align-items-start justify-content-between gap-3 flex-wrap">
                   <div>
-                    <div class="setting-label">SSE transport</div>
-                    <div class="setting-hint">Server-Sent Events endpoint for MCP clients.</div>
-                  </div>
-                  <ToggleSwitch v-model="mcpSettings.sseEnabled" />
-                </div>
-
-                <div class="flex gap-2 pt-2">
-                  <Button
-                    label="Save MCP settings"
-                    icon="pi pi-save"
-                    size="small"
-                    :loading="mcpSaving"
-                    @click="saveMcpSettings"
-                  />
-                  <Button
-                    label="Test connection"
-                    icon="pi pi-bolt"
-                    size="small"
-                    severity="secondary"
-                    outlined
-                    :loading="mcpTesting"
-                    @click="testMcpConnection"
-                  />
-                </div>
-
-                <Message v-if="mcpMessage" :severity="mcpMessageSeverity" :closable="false">
-                  {{ mcpMessage }}
-                </Message>
-              </div>
-            </div>
-
-            <div class="content-panel content-panel-padded">
-              <div class="flex align-items-start justify-content-between gap-3 flex-wrap">
-                <div>
-                  <h2 class="section-title">SMTP / Email</h2>
-                  <p class="section-copy">Outbound email server used for password resets and notifications.</p>
-                </div>
-                <Tag
-                  :value="smtpSettings.hasPassword || smtpSettings.host ? 'Configured' : 'Not set up'"
-                  :severity="smtpSettings.hasPassword || smtpSettings.host ? 'success' : 'secondary'"
-                />
-              </div>
-
-              <div v-if="smtpLoading" class="mt-4">
-                <ProgressSpinner style="width: 2rem; height: 2rem" />
-              </div>
-
-              <div v-else class="flex flex-column gap-4 mt-4">
-                <div class="flex flex-column gap-2 setting-row">
-                  <label for="smtpProvider" class="setting-label">Provider</label>
-                  <Select
-                    id="smtpProvider"
-                    v-model="smtpSettings.provider"
-                    :options="smtpProviders"
-                    option-label="label"
-                    option-value="value"
-                    @update:model-value="applySmtpProvider"
-                  />
-                  <small class="setting-hint">Pick a preset to fill the server details, or choose Custom to enter your own.</small>
-                </div>
-
-                <div class="flex flex-column gap-2 setting-row">
-                  <label for="smtpHost" class="setting-label">SMTP host</label>
-                  <InputText
-                    id="smtpHost"
-                    v-model="smtpSettings.host"
-                    placeholder="smtp.example.com"
-                    :disabled="isSmtpPreset"
-                  />
-                </div>
-
-                <div class="flex flex-column gap-2 setting-row">
-                  <label for="smtpPort" class="setting-label">Port</label>
-                  <InputNumber
-                    id="smtpPort"
-                    v-model="smtpSettings.port"
-                    :use-grouping="false"
-                    :min="1"
-                    :max="65535"
-                    class="max-select"
-                    :disabled="isSmtpPreset"
-                  />
-                </div>
-
-                <div class="flex flex-column gap-2 setting-row">
-                  <label for="smtpUsername" class="setting-label">Username</label>
-                  <InputText
-                    id="smtpUsername"
-                    v-model="smtpSettings.username"
-                    placeholder="you@example.com"
-                  />
-                </div>
-
-                <div class="flex flex-column gap-2 setting-row">
-                  <label for="smtpPassword" class="setting-label">Password</label>
-                  <Password
-                    id="smtpPassword"
-                    v-model="smtpSettings.password"
-                    class="w-full"
-                    :feedback="false"
-                    toggle-mask
-                    input-class="w-full"
-                    :placeholder="smtpSettings.hasPassword ? 'Saved — enter a new password to replace' : 'App password or SMTP password'"
-                  />
-                  <small class="setting-hint">
-                    For Gmail/Outlook with 2FA, generate an app password. Stored encrypted on the backend.
-                  </small>
-                </div>
-
-                <div class="flex flex-column gap-2 setting-row">
-                  <label for="smtpFrom" class="setting-label">From address</label>
-                  <InputText
-                    id="smtpFrom"
-                    v-model="smtpSettings.fromAddress"
-                    placeholder="no-reply@example.com"
-                  />
-                  <small class="setting-hint">Leave blank to use the username as the sender.</small>
-                </div>
-
-                <div class="flex align-items-center justify-content-between gap-3 setting-row">
-                  <div>
-                    <div class="setting-label">Encryption</div>
-                    <div class="setting-hint">STARTTLS (587) or implicit SSL/TLS (465).</div>
-                  </div>
-                  <SelectButton
-                    v-model="smtpEncryption"
-                    :options="smtpEncryptionOptions"
-                    option-label="label"
-                    option-value="value"
-                    :allow-empty="false"
-                    :disabled="isSmtpPreset"
-                  />
-                </div>
-
-                <div class="flex flex-column gap-2 setting-row">
-                  <label for="smtpTestRecipient" class="setting-label">Send test email to</label>
-                  <InputText
-                    id="smtpTestRecipient"
-                    v-model="smtpTestRecipient"
-                    placeholder="you@example.com"
-                  />
-                  <small class="setting-hint">A test message is sent here to confirm the settings work.</small>
-                </div>
-
-                <div class="flex gap-2 pt-2">
-                  <Button
-                    label="Save SMTP settings"
-                    icon="pi pi-save"
-                    size="small"
-                    :loading="smtpSaving"
-                    @click="saveSmtpSettings"
-                  />
-                  <Button
-                    label="Send test email"
-                    icon="pi pi-send"
-                    size="small"
-                    severity="secondary"
-                    outlined
-                    :loading="smtpTesting"
-                    @click="testSmtpSettings"
-                  />
-                </div>
-
-                <Message v-if="smtpMessage" :severity="smtpMessageSeverity" :closable="false">
-                  {{ smtpMessage }}
-                </Message>
-              </div>
-            </div>
-          </div>
-
-          <div class="col-12 lg:col-4">
-            <div class="content-panel content-panel-padded info-panel">
-              <h3 class="info-title">MCP status</h3>
-              <ul class="info-list m-0 pl-0 list-none">
-                <li><strong>URL:</strong> {{ mcpStatus.serverUrl || '—' }}</li>
-                <li><strong>Enabled tools:</strong> {{ mcpStatus.enabledToolCount }} / {{ mcpStatus.toolCount }}</li>
-                <li><strong>Status:</strong> {{ mcpStatus.message }}</li>
-              </ul>
-            </div>
-          </div>
-        </section>
-
-        <!-- JPilot (attachments) -->
-        <section v-if="activeSection === 'jpilot'" class="grid">
-          <div class="col-12 lg:col-8 flex flex-column gap-4">
-            <div class="content-panel content-panel-padded">
-              <h2 class="section-title">Attachments</h2>
-              <p class="section-copy">Control what can be attached to JPilot chat messages.</p>
-
-              <div class="flex flex-column gap-4 mt-4">
-                <div class="flex align-items-center justify-content-between gap-3 setting-row">
-                  <div>
-                    <div class="setting-label">Allow image attachments</div>
-                    <div class="setting-hint">PNG, JPEG, WebP, GIF — up to 5 MB each</div>
-                  </div>
-                  <ToggleSwitch v-model="copilotSettings.allowImages" @update:model-value="saveCopilotPrefs" />
-                </div>
-
-                <div class="flex align-items-center justify-content-between gap-3 setting-row">
-                  <div>
-                    <div class="setting-label">Allow configuration files</div>
-                    <div class="setting-hint">.conf, .cfg, .txt, .json, .yaml, .xml, .ns, .cs — up to 1 MB each</div>
-                  </div>
-                  <ToggleSwitch v-model="copilotSettings.allowConfigFiles" @update:model-value="saveCopilotPrefs" />
-                </div>
-
-                <div class="flex flex-column gap-2 setting-row">
-                  <label for="maxAttachments" class="setting-label">Max attachments per message</label>
-                  <Select
-                    id="maxAttachments"
-                    v-model="copilotSettings.maxAttachments"
-                    :options="maxAttachmentOptions"
-                    class="max-select"
-                    @update:model-value="saveCopilotPrefs"
-                  />
-                </div>
-              </div>
-            </div>
-          </div>
-
-          <div class="col-12 lg:col-4">
-            <div class="content-panel content-panel-padded info-panel">
-              <h3 class="info-title">Attachment tips</h3>
-              <ul class="info-list m-0 pl-3">
-                <li>Attach NetScaler configs for analysis or troubleshooting.</li>
-                <li>Attach screenshots of errors, dashboards, or topology diagrams.</li>
-                <li>Vision support depends on your default language model.</li>
-              </ul>
-            </div>
-          </div>
-        </section>
-
-        <!-- AI Providers -->
-        <section v-if="activeSection === 'ai-providers'" class="flex flex-column gap-4">
-          <AIProvidersPanel />
-          <BraveSearchPanel @usage-changed="refreshUsageDashboard" />
-          <div class="content-panel content-panel-padded">
-            <ModelUsageDashboard ref="usageDashboardRef" />
-          </div>
-        </section>
-
-        <!-- Next-Gen API -->
-        <section v-if="activeSection === 'nextgen'">
-          <NextGenApiPanel />
-        </section>
-
-        <!-- Security -->
-        <section v-if="activeSection === 'security'" class="grid">
-          <div class="col-12 lg:col-8">
-            <div class="content-panel content-panel-padded">
-              <h2 class="section-title">Security</h2>
-              <p class="section-copy">
-                Register a passkey for passwordless sign-in. Once a passkey is active, password sign-in is
-                disabled for your account. Use account recovery (email code) if you lose your device.
-              </p>
-
-              <div class="flex flex-column gap-3 mt-4">
-                <div class="flex align-items-center justify-content-between gap-3 flex-wrap">
-                  <div>
-                    <div class="setting-label">Passkeys</div>
-                    <div class="setting-hint">
-                      {{ passkeyStatus.hasPasskey
-                        ? `${passkeyStatus.passkeyCount} passkey(s) registered for ${passkeyStatus.username}`
-                        : 'No passkey registered yet for your account.' }}
-                    </div>
+                    <h2 class="section-title">MCP Server</h2>
+                    <p class="section-copy">Configure the Model Context Protocol server connection.</p>
                   </div>
                   <Tag
-                    :value="passkeyStatus.hasPasskey ? 'Enabled' : 'Not set up'"
-                    :severity="passkeyStatus.hasPasskey ? 'success' : 'secondary'"
+                    :value="mcpStatus.online ? 'Online' : 'Offline'"
+                    :severity="mcpStatus.online ? 'success' : 'danger'"
+                    :icon="mcpStatus.online ? 'pi pi-check-circle' : 'pi pi-times-circle'"
                   />
                 </div>
-
-                <Button
-                  label="Register passkey"
-                  icon="pi pi-key"
-                  size="small"
-                  :loading="passkeyRegistering"
-                  @click="registerMyPasskey"
-                />
-
-                <Message v-if="passkeyMessage" :severity="passkeyMessageSeverity" :closable="false">
-                  {{ passkeyMessage }}
-                </Message>
+  
+                <div v-if="mcpLoading" class="mt-4">
+                  <ProgressSpinner style="width: 2rem; height: 2rem" />
+                </div>
+  
+                <div v-else class="flex flex-column gap-4 mt-4">
+                  <div class="flex flex-column gap-2 setting-row">
+                    <label for="serverUrl" class="setting-label">Server URL</label>
+                    <InputText
+                      id="serverUrl"
+                      v-model="mcpSettings.serverUrl"
+                      placeholder="http://mcp-server:8001"
+                    />
+                    <small class="setting-hint">Backend uses this URL to reach the MCP server. Use host.docker.internal for host-side services.</small>
+                  </div>
+  
+                  <div class="flex flex-column gap-2 setting-row">
+                    <label for="serverName" class="setting-label">Server name</label>
+                    <InputText id="serverName" v-model="mcpSettings.serverName" />
+                  </div>
+  
+                  <div class="flex align-items-center justify-content-between gap-3 setting-row">
+                    <div>
+                      <div class="setting-label">SSE transport</div>
+                      <div class="setting-hint">Server-Sent Events endpoint for MCP clients.</div>
+                    </div>
+                    <ToggleSwitch v-model="mcpSettings.sseEnabled" />
+                  </div>
+  
+                  <div class="flex gap-2 pt-2">
+                    <Button
+                      label="Save MCP settings"
+                      icon="pi pi-save"
+                      size="small"
+                      :loading="mcpSaving"
+                      @click="saveMcpSettings"
+                    />
+                    <Button
+                      label="Test connection"
+                      icon="pi pi-bolt"
+                      size="small"
+                      severity="secondary"
+                      outlined
+                      :loading="mcpTesting"
+                      @click="testMcpConnection"
+                    />
+                  </div>
+  
+                  <Message v-if="mcpMessage" :severity="mcpMessageSeverity" :closable="false">
+                    {{ mcpMessage }}
+                  </Message>
+                </div>
+              </div>
+  
+              <div class="content-panel content-panel-padded">
+                <div class="flex align-items-start justify-content-between gap-3 flex-wrap">
+                  <div>
+                    <h2 class="section-title">SMTP / Email</h2>
+                    <p class="section-copy">Outbound email server used for password resets and notifications.</p>
+                  </div>
+                  <Tag
+                    :value="smtpSettings.hasPassword || smtpSettings.host ? 'Configured' : 'Not set up'"
+                    :severity="smtpSettings.hasPassword || smtpSettings.host ? 'success' : 'secondary'"
+                  />
+                </div>
+  
+                <div v-if="smtpLoading" class="mt-4">
+                  <ProgressSpinner style="width: 2rem; height: 2rem" />
+                </div>
+  
+                <div v-else class="flex flex-column gap-4 mt-4">
+                  <div class="flex flex-column gap-2 setting-row">
+                    <label for="smtpProvider" class="setting-label">Provider</label>
+                    <Select
+                      id="smtpProvider"
+                      v-model="smtpSettings.provider"
+                      :options="smtpProviders"
+                      option-label="label"
+                      option-value="value"
+                      @update:model-value="applySmtpProvider"
+                    />
+                    <small class="setting-hint">Pick a preset to fill the server details, or choose Custom to enter your own.</small>
+                  </div>
+  
+                  <div class="flex flex-column gap-2 setting-row">
+                    <label for="smtpHost" class="setting-label">SMTP host</label>
+                    <InputText
+                      id="smtpHost"
+                      v-model="smtpSettings.host"
+                      placeholder="smtp.example.com"
+                      :disabled="isSmtpPreset"
+                    />
+                  </div>
+  
+                  <div class="flex flex-column gap-2 setting-row">
+                    <label for="smtpPort" class="setting-label">Port</label>
+                    <InputNumber
+                      id="smtpPort"
+                      v-model="smtpSettings.port"
+                      :use-grouping="false"
+                      :min="1"
+                      :max="65535"
+                      class="max-select"
+                      :disabled="isSmtpPreset"
+                    />
+                  </div>
+  
+                  <div class="flex flex-column gap-2 setting-row">
+                    <label for="smtpUsername" class="setting-label">Username</label>
+                    <InputText
+                      id="smtpUsername"
+                      v-model="smtpSettings.username"
+                      placeholder="you@example.com"
+                    />
+                  </div>
+  
+                  <div class="flex flex-column gap-2 setting-row">
+                    <label for="smtpPassword" class="setting-label">Password</label>
+                    <Password
+                      id="smtpPassword"
+                      v-model="smtpSettings.password"
+                      class="w-full"
+                      :feedback="false"
+                      toggle-mask
+                      input-class="w-full"
+                      :placeholder="smtpSettings.hasPassword ? 'Saved — enter a new password to replace' : 'App password or SMTP password'"
+                    />
+                    <small class="setting-hint">
+                      For Gmail/Outlook with 2FA, generate an app password. Stored encrypted on the backend.
+                    </small>
+                  </div>
+  
+                  <div class="flex flex-column gap-2 setting-row">
+                    <label for="smtpFrom" class="setting-label">From address</label>
+                    <InputText
+                      id="smtpFrom"
+                      v-model="smtpSettings.fromAddress"
+                      placeholder="no-reply@example.com"
+                    />
+                    <small class="setting-hint">Leave blank to use the username as the sender.</small>
+                  </div>
+  
+                  <div class="flex align-items-center justify-content-between gap-3 setting-row">
+                    <div>
+                      <div class="setting-label">Encryption</div>
+                      <div class="setting-hint">STARTTLS (587) or implicit SSL/TLS (465).</div>
+                    </div>
+                    <SelectButton
+                      v-model="smtpEncryption"
+                      :options="smtpEncryptionOptions"
+                      option-label="label"
+                      option-value="value"
+                      :allow-empty="false"
+                      :disabled="isSmtpPreset"
+                    />
+                  </div>
+  
+                  <div class="flex flex-column gap-2 setting-row">
+                    <label for="smtpTestRecipient" class="setting-label">Send test email to</label>
+                    <InputText
+                      id="smtpTestRecipient"
+                      v-model="smtpTestRecipient"
+                      placeholder="you@example.com"
+                    />
+                    <small class="setting-hint">A test message is sent here to confirm the settings work.</small>
+                  </div>
+  
+                  <div class="flex gap-2 pt-2">
+                    <Button
+                      label="Save SMTP settings"
+                      icon="pi pi-save"
+                      size="small"
+                      :loading="smtpSaving"
+                      @click="saveSmtpSettings"
+                    />
+                    <Button
+                      label="Send test email"
+                      icon="pi pi-send"
+                      size="small"
+                      severity="secondary"
+                      outlined
+                      :loading="smtpTesting"
+                      @click="testSmtpSettings"
+                    />
+                  </div>
+  
+                  <Message v-if="smtpMessage" :severity="smtpMessageSeverity" :closable="false">
+                    {{ smtpMessage }}
+                  </Message>
+                </div>
               </div>
             </div>
-          </div>
-        </section>
-
-        <!-- Users (admin) -->
-        <section v-if="activeSection === 'users'">
-          <UsersPanel />
-        </section>
-
-        <!-- About / updates -->
-        <section v-if="activeSection === 'about'">
-          <UpdatesPanel @update-status="onUpdateStatus" />
-        </section>
-
-        <!-- Legal -->
-        <section v-if="activeSection === 'legal'" class="grid">
-          <div class="col-12 lg:col-8">
-            <div class="content-panel content-panel-padded">
-              <h2 class="section-title">Legal</h2>
-              <p class="section-copy">Policies and agreements that govern your use of JPilot.</p>
-
-              <ul class="legal-links mt-4">
-                <li>
-                  <RouterLink to="/legal/privacy">
-                    <i class="pi pi-shield" /> <span>Privacy Policy</span> <i class="pi pi-external-link" />
-                  </RouterLink>
-                </li>
-                <li>
-                  <RouterLink to="/legal/terms">
-                    <i class="pi pi-file" /> <span>Terms of Service</span> <i class="pi pi-external-link" />
-                  </RouterLink>
-                </li>
-                <li>
-                  <RouterLink to="/legal/eula">
-                    <i class="pi pi-key" /> <span>End-User License Agreement</span> <i class="pi pi-external-link" />
-                  </RouterLink>
-                </li>
-                <li>
-                  <RouterLink to="/legal/acceptable-use">
-                    <i class="pi pi-check-circle" /> <span>Acceptable Use Policy</span> <i class="pi pi-external-link" />
-                  </RouterLink>
-                </li>
-              </ul>
-
-              <p class="section-copy mt-4">© {{ new Date().getFullYear() }} Nexxus-Tech SAS · Bogotá D.C., Colombia · contact@nexxus-tech.com</p>
+  
+            <div class="col-12 lg:col-4">
+              <div class="content-panel content-panel-padded info-panel">
+                <h3 class="info-title">MCP status</h3>
+                <ul class="info-list m-0 pl-0 list-none">
+                  <li><strong>URL:</strong> {{ mcpStatus.serverUrl || '—' }}</li>
+                  <li><strong>Enabled tools:</strong> {{ mcpStatus.enabledToolCount }} / {{ mcpStatus.toolCount }}</li>
+                  <li><strong>Status:</strong> {{ mcpStatus.message }}</li>
+                </ul>
+              </div>
             </div>
-          </div>
-        </section>
+          </section>
+  
+          <!-- JPilot (attachments) -->
+          <section v-if="activeSection === 'jpilot'" class="grid">
+            <div class="col-12 lg:col-8 flex flex-column gap-4">
+              <div class="content-panel content-panel-padded">
+                <h2 class="section-title">Attachments</h2>
+                <p class="section-copy">Control what can be attached to JPilot chat messages.</p>
+  
+                <div class="flex flex-column gap-4 mt-4">
+                  <div class="flex align-items-center justify-content-between gap-3 setting-row">
+                    <div>
+                      <div class="setting-label">Allow image attachments</div>
+                      <div class="setting-hint">PNG, JPEG, WebP, GIF — up to 5 MB each</div>
+                    </div>
+                    <ToggleSwitch v-model="copilotSettings.allowImages" @update:model-value="saveCopilotPrefs" />
+                  </div>
+  
+                  <div class="flex align-items-center justify-content-between gap-3 setting-row">
+                    <div>
+                      <div class="setting-label">Allow configuration files</div>
+                      <div class="setting-hint">.conf, .cfg, .txt, .json, .yaml, .xml, .ns, .cs — up to 1 MB each</div>
+                    </div>
+                    <ToggleSwitch v-model="copilotSettings.allowConfigFiles" @update:model-value="saveCopilotPrefs" />
+                  </div>
+  
+                  <div class="flex flex-column gap-2 setting-row">
+                    <label for="maxAttachments" class="setting-label">Max attachments per message</label>
+                    <Select
+                      id="maxAttachments"
+                      v-model="copilotSettings.maxAttachments"
+                      :options="maxAttachmentOptions"
+                      class="max-select"
+                      @update:model-value="saveCopilotPrefs"
+                    />
+                  </div>
+                </div>
+              </div>
+            </div>
+  
+            <div class="col-12 lg:col-4">
+              <div class="content-panel content-panel-padded info-panel">
+                <h3 class="info-title">Attachment tips</h3>
+                <ul class="info-list m-0 pl-3">
+                  <li>Attach NetScaler configs for analysis or troubleshooting.</li>
+                  <li>Attach screenshots of errors, dashboards, or topology diagrams.</li>
+                  <li>Vision support depends on your default language model.</li>
+                </ul>
+              </div>
+            </div>
+          </section>
+  
+          <!-- AI Providers -->
+          <section v-if="activeSection === 'ai-providers'" class="flex flex-column gap-4">
+            <AIProvidersPanel />
+            <BraveSearchPanel @usage-changed="refreshUsageDashboard" />
+            <div class="content-panel content-panel-padded">
+              <ModelUsageDashboard ref="usageDashboardRef" />
+            </div>
+          </section>
+  
+          <!-- Next-Gen API -->
+          <section v-if="activeSection === 'nextgen'">
+            <NextGenApiPanel />
+          </section>
+  
+          <!-- Security -->
+          <section v-if="activeSection === 'security'" class="grid">
+            <div class="col-12 lg:col-8">
+              <div class="content-panel content-panel-padded">
+                <h2 class="section-title">Security</h2>
+                <p class="section-copy">
+                  Register a passkey for passwordless sign-in. Once a passkey is active, password sign-in is
+                  disabled for your account. Use account recovery (email code) if you lose your device.
+                </p>
+  
+                <div class="flex flex-column gap-3 mt-4">
+                  <div class="flex align-items-center justify-content-between gap-3 flex-wrap">
+                    <div>
+                      <div class="setting-label">Passkeys</div>
+                      <div class="setting-hint">
+                        {{ passkeyStatus.hasPasskey
+                          ? `${passkeyStatus.passkeyCount} passkey(s) registered for ${passkeyStatus.username}`
+                          : 'No passkey registered yet for your account.' }}
+                      </div>
+                    </div>
+                    <Tag
+                      :value="passkeyStatus.hasPasskey ? 'Enabled' : 'Not set up'"
+                      :severity="passkeyStatus.hasPasskey ? 'success' : 'secondary'"
+                    />
+                  </div>
+  
+                  <Button
+                    label="Register passkey"
+                    icon="pi pi-key"
+                    size="small"
+                    :loading="passkeyRegistering"
+                    @click="registerMyPasskey"
+                  />
+  
+                  <Message v-if="passkeyMessage" :severity="passkeyMessageSeverity" :closable="false">
+                    {{ passkeyMessage }}
+                  </Message>
+                </div>
+              </div>
+            </div>
+          </section>
+  
+          <!-- Users (admin) -->
+          <section v-if="activeSection === 'users'">
+            <UsersPanel />
+          </section>
+  
+          <!-- About / updates -->
+          <section v-if="activeSection === 'about'">
+            <UpdatesPanel @update-status="onUpdateStatus" />
+          </section>
+  
+          <!-- Legal -->
+          <section v-if="activeSection === 'legal'" class="grid">
+            <div class="col-12 lg:col-8">
+              <div class="content-panel content-panel-padded">
+                <h2 class="section-title">Legal</h2>
+                <p class="section-copy">Policies and agreements that govern your use of JPilot.</p>
+  
+                <ul class="legal-links mt-4">
+                  <li>
+                    <RouterLink to="/legal/privacy">
+                      <i class="pi pi-shield" /> <span>Privacy Policy</span> <i class="pi pi-external-link" />
+                    </RouterLink>
+                  </li>
+                  <li>
+                    <RouterLink to="/legal/terms">
+                      <i class="pi pi-file" /> <span>Terms of Service</span> <i class="pi pi-external-link" />
+                    </RouterLink>
+                  </li>
+                  <li>
+                    <RouterLink to="/legal/eula">
+                      <i class="pi pi-key" /> <span>End-User License Agreement</span> <i class="pi pi-external-link" />
+                    </RouterLink>
+                  </li>
+                  <li>
+                    <RouterLink to="/legal/acceptable-use">
+                      <i class="pi pi-check-circle" /> <span>Acceptable Use Policy</span> <i class="pi pi-external-link" />
+                    </RouterLink>
+                  </li>
+                </ul>
+  
+                <p class="section-copy mt-4">© {{ new Date().getFullYear() }} Nexxus-Tech SAS · Bogotá D.C., Colombia · contact@nexxus-tech.com</p>
+              </div>
+            </div>
+          </section>
           </div>
         </KeepAlive>
       </div>

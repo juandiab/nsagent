@@ -615,7 +615,12 @@ async def execute_copilot_tool(
     name: str,
     arguments: dict[str, Any],
     default_appliance_name: str | None = None,
+    role: str | None = None,
 ) -> str:
+    from app.services.copilot_roles import assert_tool_allowed_for_role
+
+    assert_tool_allowed_for_role(name, role)
+
     if name == "jpilot_check_doc_connectivity":
         from app.services.connectivity_service import check_doc_connectivity
 
@@ -812,7 +817,8 @@ async def execute_copilot_tool(
     return await invoke_mcp_tool(mcp_tool, mcp_args, db=db)
 
 
-async def get_enabled_copilot_tools(db) -> list[dict[str, Any]]:
+async def get_enabled_copilot_tools(db, role: str | None = None) -> list[dict[str, Any]]:
+    from app.services.copilot_roles import filter_tools_for_role
     from app.services.mcp_config_service import get_mcp_settings
 
     settings = await get_mcp_settings(db)
@@ -825,7 +831,7 @@ async def get_enabled_copilot_tools(db) -> list[dict[str, Any]]:
     tools.append(SEARCH_TOOL)
     tools.append(CLI_SEARCH_TOOL)
     tools.append(SELF_CONNECTIVITY_TOOL)
-    return tools
+    return filter_tools_for_role(tools, role)
 
 
 def to_openai_tools(tools: list[dict[str, Any]] | None = None) -> list[dict[str, Any]]:

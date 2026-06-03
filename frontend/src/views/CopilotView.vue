@@ -54,6 +54,7 @@
         <ChatPane
           class="pane-slot"
           session-id="pane-1"
+          initial-role="architect"
           :providers="providers"
           :appliances="appliances"
           :default-provider-id="defaultProviderId"
@@ -76,6 +77,7 @@
           v-if="windowCount === 2"
           class="pane-slot"
           session-id="pane-2"
+          initial-role="operator"
           :providers="providers"
           :appliances="appliances"
           :default-provider-id="defaultProviderId"
@@ -129,7 +131,7 @@ const defaultProviderId = computed(() => {
 
 const subtitle = computed(() => {
   if (!ready.value) return 'Configure an AI provider to start'
-  if (windowCount.value > 1) return 'Two chats · pick a model and appliance per chat'
+  if (windowCount.value > 1) return 'Architect + Operator · plan in one pane, execute in the other'
   const def = providers.value.find((p) => p.isDefault) || providers.value[0]
   return def ? `${def.providerName} · ${def.model}` : ''
 })

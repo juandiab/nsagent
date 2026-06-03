@@ -6,7 +6,7 @@ Repository: [github.com/juandiab/nsagent](https://github.com/juandiab/nsagent)
 
 > **Disclaimer:** JPilot is an independent project and is not affiliated with, endorsed by, or sponsored by Citrix Systems, Inc. NetScaler is a trademark of Citrix Systems, Inc.
 
-**Current release:** `v0.11` — nginx auth/login rate limit raised to 15 requests per minute.
+**Current release:** `v0.12` — JPilot chat roles (Architect, Operator, Investigator), MongoDB production hardening, nginx auth zones.
 
 Bump the root [`VERSION`](VERSION) file when tagging a release so in-app update checks match GitHub.
 
@@ -15,6 +15,7 @@ Bump the root [`VERSION`](VERSION) file when tagging a release so in-app update 
 - **Appliance inventory** — store NetScaler hosts and encrypted credentials (Fernet).
 - **AI provider management** — OpenAI, Anthropic, Gemini, Grok, DeepSeek, LM Studio, and OpenAI-compatible endpoints.
 - **JPilot chat** — tool-calling agent bound to the selected appliance; credentials never sent to the LLM.
+- **JPilot roles** — **Architect** (plan without a connected appliance), **Operator** (configure the ADC), **Investigator** (read-first troubleshooting); dual-pane defaults to Architect + Operator.
 - **MCP server** — Model Context Protocol tools for Next-Gen API, classic CLI over SSH, NITRO helpers, diagnostics, and SSL key/CSR generation.
 - **Memory-guided RAG** — `netscaler_nextgen_api_memory.md` and `netscaler_adc_cli_memory.md` gate API/CLI usage before execution.
 - **Classic + Next-Gen** — list virtual servers from Next-Gen applications and classic `lbvserver`; create apps via Next-Gen or multi-step LB setup via CLI.
@@ -28,6 +29,16 @@ Bump the root [`VERSION`](VERSION) file when tagging a release so in-app update 
 - **Optional Brave Search** — domain-restricted web augmentation when local memory/docs are weak (Settings → AI Providers).
 - **Dashboard shortcuts** — recommended JPilot prompts and links (health summary, list IPs/vservers, diagnostics, guided LB).
 - **Model usage dashboard** — Settings → AI Providers shows monthly LLM token/request usage and Brave Search query usage with progress bars (tracked locally per calendar month).
+
+## What's new in v0.12
+
+| Area | Highlights |
+|------|------------|
+| **JPilot roles** | **Architect** (plan without a connected appliance), **Operator** (configure the ADC), **Investigator** (read-first troubleshooting). Icon `SelectButton` per chat pane; dual-pane layout defaults to Architect + Operator. `GET /api/copilot/roles`. |
+| **Architect fixes** | No false “no changes applied” banner or auto LB creation form when planning changes on an existing vserver (e.g. secure headers on `lb_01`). |
+| **Settings** | Fixed `KeepAlive` template structure so Settings tabs cache correctly without a Vue compile error. |
+| **MongoDB (prod)** | Pin `mongo:8.2`, `restart: unless-stopped`, healthcheck; `backend-api` / `mcp-server` wait for healthy MongoDB. |
+| **nginx** | Separate **login** zone (`10r/m`) for `POST /api/auth/login`; **contact** zone (`5r/m`) for recovery and other `/api/auth` paths. |
 
 ## What's new in v0.11
 

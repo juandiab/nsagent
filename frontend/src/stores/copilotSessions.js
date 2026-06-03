@@ -9,6 +9,7 @@ function blankSession() {
   return {
     messages: [],
     input: '',
+    role: 'operator',
     connectedAppliance: '',
     applianceChoice: null,
     providerId: '',
@@ -30,9 +31,11 @@ function loadPersisted() {
 
 const state = reactive({ sessions: loadPersisted() })
 
-export function getSession(id) {
+export function getSession(id, defaultRole = 'operator') {
   if (!state.sessions[id]) {
-    state.sessions[id] = blankSession()
+    const session = blankSession()
+    session.role = defaultRole || 'operator'
+    state.sessions[id] = session
   }
   return state.sessions[id]
 }
@@ -56,6 +59,7 @@ watch(
       for (const [id, session] of Object.entries(sessions)) {
         trimmed[id] = {
           input: session.input || '',
+          role: session.role || 'operator',
           connectedAppliance: session.connectedAppliance || '',
           applianceChoice: session.applianceChoice || null,
           providerId: session.providerId || '',

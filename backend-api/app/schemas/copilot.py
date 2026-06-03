@@ -4,6 +4,8 @@ from typing import Any, Literal
 
 from pydantic import BaseModel, Field
 
+ChatRole = Literal["architect", "operator", "investigator"]
+
 
 class CopilotSettings(BaseModel):
     allowImages: bool = True
@@ -23,11 +25,21 @@ class ChatMessage(BaseModel):
     content: str
 
 
+class CopilotRoleResponse(BaseModel):
+    id: str
+    label: str
+    description: str
+    requiresAppliance: bool
+    suggestedPaneLabel: str
+    handoffTarget: str | None = None
+
+
 class ChatRequest(BaseModel):
     message: str
     history: list[ChatMessage] = []
     attachments: list[ChatAttachment] = []
     settings: CopilotSettings | None = None
+    role: ChatRole = "operator"
     applianceName: str | None = None
     providerId: str | None = None
     webSearch: bool = True

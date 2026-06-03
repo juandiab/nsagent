@@ -13,6 +13,24 @@
     <Menu ref="attachMenu" :model="attachMenuItems" popup />
 
     <div class="pane-toolbar">
+      <SelectButton
+        v-model="session.role"
+        :options="roleOptions"
+        option-value="id"
+        data-key="id"
+        :allow-empty="false"
+        class="pane-role-toggle"
+        :disabled="loading"
+        aria-label="JPilot role"
+      >
+        <template #option="slotProps">
+          <i
+            :class="slotProps.option.icon"
+            v-tooltip.bottom="slotProps.option.label"
+            :aria-label="slotProps.option.label"
+          />
+        </template>
+      </SelectButton>
       <Select
         v-model="session.applianceChoice"
         :options="appliances"
@@ -20,7 +38,7 @@
         option-value="name"
         placeholder="Appliance"
         class="pane-select"
-        :disabled="loading || connecting"
+        :disabled="loading || connecting || !roleNeedsAppliance"
         @change="onApplianceChange"
       />
       <Select
@@ -76,15 +94,16 @@
       <div class="glass-card">
         <div class="glass-head">
           <i class="pi pi-sparkles" />
-          <span>Ask JPilot</span>
+          <span>Ask JPilot — {{ activeRole.label }}</span>
         </div>
+        <p class="glass-role-hint">{{ activeRole.description }}</p>
         <div class="glass-input">
           <i class="pi pi-search glass-input-icon" />
           <input
             v-model="session.input"
             type="text"
             class="glass-input-field"
-            placeholder="Ask about your NetScalers, run a check, request a change..."
+            :placeholder="rolePlaceholder"
             :disabled="loading || !ready"
             @keydown.enter.prevent="sendMessage()"
           />
@@ -222,7 +241,7 @@
           rows="2"
           auto-resize
           class="chat-input flex-1"
-          placeholder="Ask about your NetScalers, attach configs or images..."
+          :placeholder="rolePlaceholder"
           :disabled="loading || !ready"
           @keydown.enter.exact.prevent="sendMessage()"
         />
@@ -245,6 +264,7 @@ import Button from 'primevue/button'
 import Menu from 'primevue/menu'
 import ProgressSpinner from 'primevue/progressspinner'
 import Select from 'primevue/select'
+import SelectButton from 'primevue/selectbutton'
 import Textarea from 'primevue/textarea'
 import ChatAppliancePicker from './ChatAppliancePicker.vue'
 import ChatConfigForm from './ChatConfigForm.vue'
@@ -263,9 +283,16 @@ import {
 import { parseInputFormFromContent, resolveAssistantMessage } from '../utils/copilotForm'
 import { clearSession, getSession } from '../stores/copilotSessions'
 import { jpilotRecommendedGroups } from '../config/jpilotRecommendedActions'
+import {
+  DEFAULT_JPILOT_ROLE,
+  JPILOT_ROLES,
+  getRoleById,
+  roleRequiresAppliance
+} from '../config/jpilotRoles'
 
 const props = defineProps({
   sessionId: { type: String, required: true },
+  initialRole: { type: String, default: DEFAULT_JPILOT_ROLE },
   providers: { type: Array, default: () => [] },
   appliances: { type: Array, default: () => [] },
   defaultProviderId: { type: String, default: '' },
@@ -279,7 +306,7 @@ const router = useRouter()
 const toast = useToast()
 
 // Persistent per-pane state (survives unmount / pane switches / reload).
-const session = getSession(props.sessionId)
+const session = getSession(props.sessionId, props.initialRole)
 
 // Transient UI state — fine to reset on remount.
 const loading = ref(false)
@@ -295,6 +322,18 @@ const configAccept = CONFIG_ACCEPT
 const recommendedGroups = jpilotRecommendedGroups
 
 const ready = computed(() => props.providers.length > 0)
+const roleOptions = JPILOT_ROLES
+const activeRole = computed(() => getRoleById(session.role))
+const roleNeedsAppliance = computed(() => roleRequiresAppliance(session.role))
+const rolePlaceholder = computed(() => {
+  if (activeRole.value.id === 'architect') {
+    return 'Plan a deployment, HA design, migration, or ask NetScaler architecture questions…'
+  }
+  if (activeRole.value.id === 'investigator') {
+    return 'Describe the issue; attach logs or screenshots; connect an appliance for live checks…'
+  }
+  return 'Ask about your NetScalers, attach configs or images…'
+})
 const providerOptions = computed(() =>
   props.providers.map((p) => ({ label: `${p.providerName} · ${p.model}`, value: p.id }))
 )
@@ -487,7 +526,8 @@ async function runChat(content, attachments) {
       history,
       attachments,
       settings: getCopilotSettings(),
-      applianceName: session.connectedAppliance,
+      role: session.role || DEFAULT_JPILOT_ROLE,
+      applianceName: session.connectedAppliance || undefined,
       providerId: session.providerId || undefined,
       webSearch: session.webSearch !== false
     })
@@ -551,7 +591,7 @@ async function sendMessage(text) {
   pendingAttachments.value = []
   await scrollToBottom()
 
-  if (!session.connectedAppliance) {
+  if (roleNeedsAppliance.value && !session.connectedAppliance) {
     session.pendingMessage = content
     session.pendingAttachmentsSnapshot = attachments
     await showAppliancePicker()
@@ -595,6 +635,14 @@ onMounted(scrollToBottom)
   gap: 0.5rem;
   padding: 0.6rem 0.75rem;
   border-bottom: 1px solid var(--glass-border);
+}
+
+.pane-role-toggle :deep(.p-togglebutton) {
+  padding: 0.45rem 0.65rem;
+}
+
+.pane-role-toggle :deep(.p-togglebutton i) {
+  font-size: 1rem;
 }
 
 .pane-select {
@@ -652,6 +700,13 @@ onMounted(scrollToBottom)
 
 .glass-head i {
   color: var(--p-primary-color);
+}
+
+.glass-role-hint {
+  margin: -0.35rem 0 0.85rem;
+  font-size: 0.8125rem;
+  color: var(--glass-muted);
+  line-height: 1.45;
 }
 
 .glass-input {

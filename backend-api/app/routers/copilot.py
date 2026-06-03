@@ -23,9 +23,11 @@ from app.schemas.copilot import (
     CopilotApplianceItem,
     CopilotConnectRequest,
     CopilotConnectResponse,
+    CopilotRoleResponse,
     CopilotSettings,
     CopilotStatusResponse,
 )
+from app.services.copilot_roles import get_role_catalog, normalize_role, role_requires_appliance
 from app.schemas.model_usage import ModelUsageDashboardResponse, UsageLimitsUpdate
 from app.services.model_usage_service import get_usage_dashboard, update_usage_limits
 from app.services.copilot_appliance_service import connect_appliance, list_copilot_appliances
@@ -38,6 +40,11 @@ DEFAULT_SETTINGS = CopilotSettings()
 @router.get("/settings", response_model=CopilotSettings)
 async def get_copilot_settings() -> CopilotSettings:
     return DEFAULT_SETTINGS
+
+
+@router.get("/roles", response_model=list[CopilotRoleResponse])
+async def list_copilot_roles() -> list[CopilotRoleResponse]:
+    return [CopilotRoleResponse(**item) for item in get_role_catalog()]
 
 
 @router.get("/platform-settings", response_model=CopilotPlatformSettingsResponse)
@@ -155,11 +162,12 @@ async def copilot_chat(
             detail="Message or attachments are required",
         )
 
+    chat_role = normalize_role(payload.role)
     appliance_name = (payload.applianceName or "").strip()
-    if not appliance_name:
+    if role_requires_appliance(chat_role) and not appliance_name:
         raise HTTPException(
             status_code=status.HTTP_400_BAD_REQUEST,
-            detail="Select and connect to a NetScaler appliance before chatting",
+            detail="Select and connect to a NetScaler appliance for Operator and Investigator roles",
         )
 
     provider = await resolve_chat_provider(db, payload.providerId)
@@ -175,6 +183,7 @@ async def copilot_chat(
             appliance_name=appliance_name,
             provider_id=payload.providerId,
             web_search=payload.webSearch,
+            role=chat_role.value,
         )
     except AiProviderError as exc:
         if provider and not exc.provider_name:

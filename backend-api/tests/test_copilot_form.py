@@ -7,6 +7,7 @@ sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
 
 from app.services.copilot_form import (  # noqa: E402
     message_targets_policy_or_feature_config,
+    user_configures_existing_lb,
     user_requests_lb_vserver_create,
 )
 
@@ -43,4 +44,10 @@ def test_configure_delivery_controllers_still_triggers_form():
 
 def test_show_vservers_is_not_lb_create():
     msg = "show all lb vservers"
+    assert not user_requests_lb_vserver_create(msg)
+
+
+def test_secure_headers_on_named_lb_is_not_lb_create():
+    msg = "I want to configure HTTP secure headers in a load balancer called lb_01"
+    assert user_configures_existing_lb(msg)
     assert not user_requests_lb_vserver_create(msg)
