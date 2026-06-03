@@ -176,8 +176,10 @@ onMounted(async () => {
 
 .status-list {
   display: flex;
-  flex-direction: column;
-  gap: 0.75rem;
+  flex-direction: row;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 0.5rem;
 }
 
 .welcome-eyebrow {

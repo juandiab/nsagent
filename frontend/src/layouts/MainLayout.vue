@@ -55,7 +55,7 @@
       </div>
     </aside>
 
-    <main class="main-content flex-1 flex flex-column min-h-screen overflow-auto">
+    <main class="main-content flex-1 flex flex-column">
       <div v-if="updateBannerVisible" class="update-banner">
         <Message severity="warn" :closable="true" @close="dismissUpdateBanner">
           <span>
@@ -230,6 +230,8 @@ function isActive(path) {
 .app-shell {
   gap: var(--app-shell-gap);
   padding: 1.5rem;
+  min-height: 100vh;
+  align-items: flex-start;
   background: var(--p-surface-0);
 }
 
@@ -340,8 +342,12 @@ function isActive(path) {
 }
 
 .main-content {
-  padding: 0 0.5rem 2rem;
-  gap: 2rem;
+  height: calc(100vh - 3rem);
+  min-height: calc(100vh - 3rem);
+  max-height: calc(100vh - 3rem);
+  padding: 0 0.5rem 0;
+  gap: 0.75rem;
+  overflow: hidden;
 }
 
 .main-view {
@@ -349,6 +355,7 @@ function isActive(path) {
   display: flex;
   flex-direction: column;
   min-height: 0;
+  overflow: auto;
 }
 
 .main-view :deep(.route-page) {
@@ -370,8 +377,9 @@ function isActive(path) {
 }
 
 .app-legal {
+  flex-shrink: 0;
   margin-top: auto;
-  padding: 1.25rem 1rem 0.25rem;
+  padding: 0.75rem 1rem 0;
   display: flex;
   flex-wrap: wrap;
   align-items: center;

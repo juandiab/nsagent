@@ -1,10 +1,5 @@
 <template>
   <div class="page">
-    <PageHeader
-      title="Settings"
-      subtitle="Platform configuration and preferences"
-    />
-
     <div class="settings-layout">
       <!-- Section navigation -->
       <nav class="settings-nav" aria-label="Settings sections">
@@ -35,10 +30,12 @@
       <!-- Section content (KeepAlive avoids remounting panels and refetching APIs when switching tabs) -->
       <div class="settings-content">
         <KeepAlive>
-          <div :key="activeSection" class="settings-section-panel">
-          <section v-if="activeSection === 'mcp'" class="grid">
-            <div class="col-12 lg:col-8 flex flex-column gap-4">
-              <div class="content-panel content-panel-padded">
+          <Transition :name="sectionTransition" mode="out-in">
+            <div :key="activeSection" class="settings-section-panel">
+          <section v-if="activeSection === 'mcp'" class="mcp-section flex flex-column gap-4">
+            <div class="mcp-panels-row">
+              <div class="mcp-panels-col">
+              <div class="content-panel content-panel-padded h-full">
                 <div class="flex align-items-start justify-content-between gap-3 flex-wrap">
                   <div>
                     <h2 class="section-title">MCP Server</h2>
@@ -103,8 +100,10 @@
                   </Message>
                 </div>
               </div>
-  
-              <div class="content-panel content-panel-padded">
+              </div>
+
+              <div class="mcp-panels-col">
+              <div class="content-panel content-panel-padded h-full">
                 <div class="flex align-items-start justify-content-between gap-3 flex-wrap">
                   <div>
                     <h2 class="section-title">SMTP / Email</h2>
@@ -120,138 +119,143 @@
                   <ProgressSpinner style="width: 2rem; height: 2rem" />
                 </div>
   
-                <div v-else class="flex flex-column gap-4 mt-4">
-                  <div class="flex flex-column gap-2 setting-row">
-                    <label for="smtpProvider" class="setting-label">Provider</label>
-                    <Select
-                      id="smtpProvider"
-                      v-model="smtpSettings.provider"
-                      :options="smtpProviders"
-                      option-label="label"
-                      option-value="value"
-                      @update:model-value="applySmtpProvider"
-                    />
-                    <small class="setting-hint">Pick a preset to fill the server details, or choose Custom to enter your own.</small>
-                  </div>
-  
-                  <div class="flex flex-column gap-2 setting-row">
-                    <label for="smtpHost" class="setting-label">SMTP host</label>
-                    <InputText
-                      id="smtpHost"
-                      v-model="smtpSettings.host"
-                      placeholder="smtp.example.com"
-                      :disabled="isSmtpPreset"
-                    />
-                  </div>
-  
-                  <div class="flex flex-column gap-2 setting-row">
-                    <label for="smtpPort" class="setting-label">Port</label>
-                    <InputNumber
-                      id="smtpPort"
-                      v-model="smtpSettings.port"
-                      :use-grouping="false"
-                      :min="1"
-                      :max="65535"
-                      class="max-select"
-                      :disabled="isSmtpPreset"
-                    />
-                  </div>
-  
-                  <div class="flex flex-column gap-2 setting-row">
-                    <label for="smtpUsername" class="setting-label">Username</label>
-                    <InputText
-                      id="smtpUsername"
-                      v-model="smtpSettings.username"
-                      placeholder="you@example.com"
-                    />
-                  </div>
-  
-                  <div class="flex flex-column gap-2 setting-row">
-                    <label for="smtpPassword" class="setting-label">Password</label>
-                    <Password
-                      id="smtpPassword"
-                      v-model="smtpSettings.password"
-                      class="w-full"
-                      :feedback="false"
-                      toggle-mask
-                      input-class="w-full"
-                      :placeholder="smtpSettings.hasPassword ? 'Saved — enter a new password to replace' : 'App password or SMTP password'"
-                    />
-                    <small class="setting-hint">
-                      For Gmail/Outlook with 2FA, generate an app password. Stored encrypted on the backend.
-                    </small>
-                  </div>
-  
-                  <div class="flex flex-column gap-2 setting-row">
-                    <label for="smtpFrom" class="setting-label">From address</label>
-                    <InputText
-                      id="smtpFrom"
-                      v-model="smtpSettings.fromAddress"
-                      placeholder="no-reply@example.com"
-                    />
-                    <small class="setting-hint">Leave blank to use the username as the sender.</small>
-                  </div>
-  
-                  <div class="flex align-items-center justify-content-between gap-3 setting-row">
-                    <div>
-                      <div class="setting-label">Encryption</div>
-                      <div class="setting-hint">STARTTLS (587) or implicit SSL/TLS (465).</div>
+                <div v-else class="smtp-fields mt-4">
+                  <div class="smtp-fields-grid">
+                    <div class="smtp-field smtp-field-span flex flex-column gap-2 setting-row">
+                      <label for="smtpProvider" class="setting-label">Provider</label>
+                      <Select
+                        id="smtpProvider"
+                        v-model="smtpSettings.provider"
+                        :options="smtpProviders"
+                        option-label="label"
+                        option-value="value"
+                        @update:model-value="applySmtpProvider"
+                      />
+                      <small class="setting-hint">Pick a preset to fill the server details, or choose Custom to enter your own.</small>
                     </div>
-                    <SelectButton
-                      v-model="smtpEncryption"
-                      :options="smtpEncryptionOptions"
-                      option-label="label"
-                      option-value="value"
-                      :allow-empty="false"
-                      :disabled="isSmtpPreset"
-                    />
+
+                    <div class="smtp-field flex flex-column gap-2 setting-row">
+                      <label for="smtpHost" class="setting-label">SMTP host</label>
+                      <InputText
+                        id="smtpHost"
+                        v-model="smtpSettings.host"
+                        placeholder="smtp.example.com"
+                        :disabled="isSmtpPreset"
+                      />
+                    </div>
+
+                    <div class="smtp-field flex flex-column gap-2 setting-row">
+                      <label for="smtpPort" class="setting-label">Port</label>
+                      <InputNumber
+                        id="smtpPort"
+                        v-model="smtpSettings.port"
+                        :use-grouping="false"
+                        :min="1"
+                        :max="65535"
+                        class="max-select w-full"
+                        :disabled="isSmtpPreset"
+                      />
+                    </div>
+
+                    <div class="smtp-field flex flex-column gap-2 setting-row">
+                      <label for="smtpUsername" class="setting-label">Username</label>
+                      <InputText
+                        id="smtpUsername"
+                        v-model="smtpSettings.username"
+                        placeholder="you@example.com"
+                      />
+                    </div>
+
+                    <div class="smtp-field flex flex-column gap-2 setting-row">
+                      <label for="smtpFrom" class="setting-label">From address</label>
+                      <InputText
+                        id="smtpFrom"
+                        v-model="smtpSettings.fromAddress"
+                        placeholder="no-reply@example.com"
+                      />
+                    </div>
+
+                    <div class="smtp-field smtp-field-span flex flex-column gap-2 setting-row">
+                      <label for="smtpPassword" class="setting-label">Password</label>
+                      <Password
+                        id="smtpPassword"
+                        v-model="smtpSettings.password"
+                        class="w-full"
+                        :feedback="false"
+                        toggle-mask
+                        input-class="w-full"
+                        :placeholder="smtpSettings.hasPassword ? 'Saved — enter a new password to replace' : 'App password or SMTP password'"
+                      />
+                      <small class="setting-hint">
+                        For Gmail/Outlook with 2FA, generate an app password. Stored encrypted on the backend.
+                      </small>
+                    </div>
+
+                    <div class="smtp-field smtp-field-span flex align-items-center justify-content-between gap-3 setting-row">
+                      <div>
+                        <div class="setting-label">Encryption</div>
+                        <div class="setting-hint">STARTTLS (587) or implicit SSL/TLS (465).</div>
+                      </div>
+                      <SelectButton
+                        v-model="smtpEncryption"
+                        :options="smtpEncryptionOptions"
+                        option-label="label"
+                        option-value="value"
+                        :allow-empty="false"
+                        :disabled="isSmtpPreset"
+                      />
+                    </div>
+
+                    <div class="smtp-field smtp-field-span flex flex-column gap-2 setting-row">
+                      <label for="smtpTestRecipient" class="setting-label">Send test email to</label>
+                      <InputText
+                        id="smtpTestRecipient"
+                        v-model="smtpTestRecipient"
+                        placeholder="you@example.com"
+                      />
+                      <small class="setting-hint">A test message is sent here to confirm the settings work.</small>
+                    </div>
+
+                    <div class="smtp-field smtp-field-span flex flex-wrap gap-2 pt-2">
+                      <Button
+                        label="Save SMTP settings"
+                        icon="pi pi-save"
+                        size="small"
+                        :loading="smtpSaving"
+                        @click="saveSmtpSettings"
+                      />
+                      <Button
+                        label="Send test email"
+                        icon="pi pi-send"
+                        size="small"
+                        severity="secondary"
+                        outlined
+                        :loading="smtpTesting"
+                        @click="testSmtpSettings"
+                      />
+                    </div>
+
+                    <Message
+                      v-if="smtpMessage"
+                      class="smtp-field-span"
+                      :severity="smtpMessageSeverity"
+                      :closable="false"
+                    >
+                      {{ smtpMessage }}
+                    </Message>
                   </div>
-  
-                  <div class="flex flex-column gap-2 setting-row">
-                    <label for="smtpTestRecipient" class="setting-label">Send test email to</label>
-                    <InputText
-                      id="smtpTestRecipient"
-                      v-model="smtpTestRecipient"
-                      placeholder="you@example.com"
-                    />
-                    <small class="setting-hint">A test message is sent here to confirm the settings work.</small>
-                  </div>
-  
-                  <div class="flex gap-2 pt-2">
-                    <Button
-                      label="Save SMTP settings"
-                      icon="pi pi-save"
-                      size="small"
-                      :loading="smtpSaving"
-                      @click="saveSmtpSettings"
-                    />
-                    <Button
-                      label="Send test email"
-                      icon="pi pi-send"
-                      size="small"
-                      severity="secondary"
-                      outlined
-                      :loading="smtpTesting"
-                      @click="testSmtpSettings"
-                    />
-                  </div>
-  
-                  <Message v-if="smtpMessage" :severity="smtpMessageSeverity" :closable="false">
-                    {{ smtpMessage }}
-                  </Message>
                 </div>
               </div>
-            </div>
-  
-            <div class="col-12 lg:col-4">
-              <div class="content-panel content-panel-padded info-panel">
-                <h3 class="info-title">MCP status</h3>
-                <ul class="info-list m-0 pl-0 list-none">
-                  <li><strong>URL:</strong> {{ mcpStatus.serverUrl || '—' }}</li>
-                  <li><strong>Enabled tools:</strong> {{ mcpStatus.enabledToolCount }} / {{ mcpStatus.toolCount }}</li>
-                  <li><strong>Status:</strong> {{ mcpStatus.message }}</li>
-                </ul>
               </div>
+            </div>
+
+            <div class="content-panel content-panel-padded info-panel mcp-status-panel">
+              <h3 class="info-title">MCP status</h3>
+              <ul class="info-list mcp-status-list m-0 pl-0 list-none">
+                <li><strong>URL:</strong> {{ mcpStatus.serverUrl || '—' }}</li>
+                <li><strong>Enabled tools:</strong> {{ mcpStatus.enabledToolCount }} / {{ mcpStatus.toolCount }}</li>
+                <li><strong>Status:</strong> {{ mcpStatus.message }}</li>
+              </ul>
             </div>
           </section>
   
@@ -308,9 +312,15 @@
           <!-- AI Providers -->
           <section v-if="activeSection === 'ai-providers'" class="flex flex-column gap-4">
             <AIProvidersPanel />
-            <BraveSearchPanel @usage-changed="refreshUsageDashboard" />
-            <div class="content-panel content-panel-padded">
-              <ModelUsageDashboard ref="usageDashboardRef" />
+            <div class="ai-providers-tools-row">
+              <div class="ai-providers-tools-col">
+                <BraveSearchPanel @usage-changed="refreshUsageDashboard" />
+              </div>
+              <div class="ai-providers-tools-col">
+                <div class="content-panel content-panel-padded usage-panel-wrap h-full">
+                  <ModelUsageDashboard ref="usageDashboardRef" />
+                </div>
+              </div>
             </div>
           </section>
   
@@ -405,7 +415,8 @@
               </div>
             </div>
           </section>
-          </div>
+            </div>
+          </Transition>
         </KeepAlive>
       </div>
     </div>
@@ -425,7 +436,6 @@ import Select from 'primevue/select'
 import SelectButton from 'primevue/selectbutton'
 import Tag from 'primevue/tag'
 import ToggleSwitch from 'primevue/toggleswitch'
-import PageHeader from '../components/PageHeader.vue'
 import ModelUsageDashboard from '../components/ModelUsageDashboard.vue'
 import NextGenApiPanel from '../components/NextGenApiPanel.vue'
 import AIProvidersPanel from '../components/AIProvidersPanel.vue'
@@ -486,33 +496,66 @@ const navGroups = computed(() => {
 
 const defaultSection = computed(() => (isAdmin.value ? 'ai-providers' : 'security'))
 const sectionKeys = computed(() => new Set(sections.value.map((section) => section.key)))
+const sectionOrder = computed(() => sections.value.map((section) => section.key))
 const activeSection = ref(defaultSection.value)
+const sectionTransition = ref('settings-section-fade')
 
-function applySectionFromQuery() {
+function sectionIndex(key) {
+  return sectionOrder.value.indexOf(key)
+}
+
+/** Tab to the right in the nav → slide left; tab to the left → slide right. */
+function transitionForSectionChange(fromKey, toKey) {
+  const from = sectionIndex(fromKey)
+  const to = sectionIndex(toKey)
+  if (from < 0 || to < 0 || from === to) return 'settings-section-fade'
+  return to > from ? 'settings-slide-left' : 'settings-slide-right'
+}
+
+function setActiveSection(key, { animate = false } = {}) {
+  const from = activeSection.value
+  if (animate && from !== key) {
+    sectionTransition.value = transitionForSectionChange(from, key)
+  } else {
+    sectionTransition.value = 'settings-section-fade'
+  }
+  activeSection.value = key
+}
+
+function resolveSectionFromQuery() {
   const section = route.query.section
   if (section === 'usage') {
-    if (isAdmin.value) {
-      activeSection.value = 'ai-providers'
-    } else {
-      activeSection.value = 'security'
-      router.replace({ query: { section: 'security' } })
-    }
-    return
+    return isAdmin.value ? 'ai-providers' : 'security'
   }
   if (typeof section === 'string' && sectionKeys.value.has(section)) {
-    activeSection.value = section
-    return
+    return section
   }
   if (typeof section === 'string' && section) {
-    activeSection.value = defaultSection.value
-    router.replace({ query: { section: defaultSection.value } })
-    return
+    return defaultSection.value
   }
-  activeSection.value = defaultSection.value
+  return defaultSection.value
+}
+
+function applySectionFromQuery() {
+  let target = resolveSectionFromQuery()
+
+  if (route.query.section === 'usage' && !isAdmin.value) {
+    router.replace({ query: { section: 'security' } })
+    target = 'security'
+  } else if (
+    typeof route.query.section === 'string' &&
+    route.query.section &&
+    !sectionKeys.value.has(route.query.section)
+  ) {
+    router.replace({ query: { section: defaultSection.value } })
+    target = defaultSection.value
+  }
+
+  setActiveSection(target, { animate: false })
 }
 
 function selectSection(key) {
-  activeSection.value = key
+  setActiveSection(key, { animate: true })
   router.replace({ query: { ...route.query, section: key } })
 }
 
@@ -854,6 +897,88 @@ onMounted(async () => {
   display: flex;
   flex-direction: column;
   gap: 1.5rem;
+}
+
+.settings-content {
+  position: relative;
+  min-width: 0;
+}
+
+.settings-section-panel {
+  width: 100%;
+}
+
+.ai-providers-tools-row {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) minmax(0, 1fr);
+  gap: 1rem;
+  align-items: stretch;
+  width: 100%;
+}
+
+.ai-providers-tools-col {
+  display: flex;
+  flex-direction: column;
+  min-width: 0;
+}
+
+.ai-providers-tools-col :deep(.brave-search-panel),
+.usage-panel-wrap {
+  flex: 1;
+  width: 100%;
+  min-height: 100%;
+}
+
+@media (max-width: 991px) {
+  .ai-providers-tools-row {
+    grid-template-columns: 1fr;
+  }
+}
+
+.mcp-panels-row {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) minmax(0, 1fr);
+  gap: 1rem;
+  align-items: stretch;
+  width: 100%;
+}
+
+.mcp-panels-col {
+  display: flex;
+  flex-direction: column;
+  min-width: 0;
+}
+
+.mcp-panels-col .content-panel {
+  flex: 1;
+  width: 100%;
+}
+
+.mcp-status-list {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.75rem 1.5rem;
+}
+
+.smtp-fields-grid {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) minmax(0, 1fr);
+  gap: 1rem;
+  align-items: start;
+}
+
+.smtp-field-span {
+  grid-column: 1 / -1;
+}
+
+@media (max-width: 991px) {
+  .mcp-panels-row {
+    grid-template-columns: 1fr;
+  }
+
+  .smtp-fields-grid {
+    grid-template-columns: 1fr;
+  }
 }
 
 .settings-nav-icon {

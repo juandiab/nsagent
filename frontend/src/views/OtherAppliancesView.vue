@@ -1,12 +1,14 @@
 <template>
   <div class="page">
-    <PageHeader
-      title="Appliances"
-      :subtitle="headerSubtitle"
-      :searchable="activeTab === 'inventory'"
-      v-model:search="searchQuery"
+    <div
+      v-if="activeTab === 'inventory'"
+      class="appliances-toolbar flex flex-column sm:flex-row sm:align-items-center sm:justify-content-end gap-2 mb-3"
     >
-      <template v-if="activeTab === 'inventory' && isAdmin" #actions>
+      <span class="appliances-search p-input-icon-left">
+        <i class="pi pi-search" />
+        <InputText v-model="searchQuery" placeholder="Search" size="small" class="search-input" />
+      </span>
+      <div v-if="isAdmin" class="flex flex-wrap gap-2">
         <Button label="Add NetScaler" icon="pi pi-server" size="small" @click="openNetScalerDialog" />
         <Button
           label="Add appliance"
@@ -16,8 +18,8 @@
           outlined
           @click="openOtherDialog"
         />
-      </template>
-    </PageHeader>
+      </div>
+    </div>
 
     <div class="content-panel vendor-support-panel">
       <h3 class="roadmap-title">Vendor support <span class="roadmap-soon">(Coming soon)</span></h3>
@@ -363,7 +365,6 @@ import TabView from 'primevue/tabview'
 import Tag from 'primevue/tag'
 import Textarea from 'primevue/textarea'
 import ToggleSwitch from 'primevue/toggleswitch'
-import PageHeader from '../components/PageHeader.vue'
 import SslCsrPanel from '../components/SslCsrPanel.vue'
 import {
   isNetScalerVendor,
@@ -392,13 +393,6 @@ const tabs = [
 ]
 const tabKeys = new Set(tabs.map((tab) => tab.key))
 const activeTab = ref('inventory')
-
-const headerSubtitle = computed(() => {
-  if (activeTab.value === 'ssl') {
-    return 'Generate a CSR or self-signed certificate on your NetScaler'
-  }
-  return 'NetScaler MPX/VPX inventory and multi-vendor registry'
-})
 
 function applyTabFromQuery() {
   const tab = route.query.tab
@@ -778,6 +772,32 @@ onMounted(() => {
 <style scoped>
 .page {
   animation: page-in 0.35s ease;
+}
+
+.appliances-search {
+  display: inline-flex;
+  align-items: center;
+  position: relative;
+}
+
+.appliances-search .pi-search {
+  position: absolute;
+  left: 0.65rem;
+  color: var(--p-text-muted-color);
+  font-size: 0.875rem;
+  pointer-events: none;
+}
+
+.appliances-toolbar .search-input {
+  width: 100%;
+  min-width: 12rem;
+  padding-left: 2rem;
+}
+
+@media (min-width: 576px) {
+  .appliances-toolbar .search-input {
+    width: 14rem;
+  }
 }
 
 .vendor-support-panel {

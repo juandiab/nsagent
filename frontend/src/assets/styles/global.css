@@ -200,6 +200,48 @@ html.app-dark .chat-pane {
   transform: translateY(-4px);
 }
 
+/* Settings section tab switches (SettingsView.vue) */
+.settings-section-fade-enter-active,
+.settings-section-fade-leave-active,
+.settings-slide-left-enter-active,
+.settings-slide-left-leave-active,
+.settings-slide-right-enter-active,
+.settings-slide-right-leave-active {
+  transition: opacity 0.22s ease, transform 0.22s ease;
+}
+
+.settings-section-fade-enter-from {
+  opacity: 0;
+  transform: translateY(10px);
+}
+
+.settings-section-fade-leave-to {
+  opacity: 0;
+  transform: translateY(-6px);
+}
+
+/* Moving to a tab on the right in the nav */
+.settings-slide-left-enter-from {
+  opacity: 0;
+  transform: translateX(1.25rem);
+}
+
+.settings-slide-left-leave-to {
+  opacity: 0;
+  transform: translateX(-1.25rem);
+}
+
+/* Moving to a tab on the left in the nav */
+.settings-slide-right-enter-from {
+  opacity: 0;
+  transform: translateX(-1.25rem);
+}
+
+.settings-slide-right-leave-to {
+  opacity: 0;
+  transform: translateX(1.25rem);
+}
+
 /* ---------------------------------------------------------------------------
    PrimeVue component animation overrides.
    These class names come from PrimeVue's animation system (primevue.org/guides/animations).
@@ -303,6 +345,12 @@ html.app-dark .chat-pane {
 @media (prefers-reduced-motion: reduce) {
   .page-fade-enter-active,
   .page-fade-leave-active,
+  .settings-section-fade-enter-active,
+  .settings-section-fade-leave-active,
+  .settings-slide-left-enter-active,
+  .settings-slide-left-leave-active,
+  .settings-slide-right-enter-active,
+  .settings-slide-right-leave-active,
   .p-anchored-overlay-enter-active,
   .p-anchored-overlay-leave-active,
   .p-dialog-enter-active,

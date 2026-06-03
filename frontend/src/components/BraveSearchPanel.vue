@@ -1,5 +1,5 @@
 <template>
-  <div class="content-panel content-panel-padded brave-search-panel">
+  <div class="content-panel content-panel-padded brave-search-panel h-full">
     <div class="panel-intro">
       <div class="panel-eyebrow">
         <Tag value="Search API" severity="secondary" icon="pi pi-globe" />

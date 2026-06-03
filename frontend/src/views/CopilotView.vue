@@ -1,47 +1,45 @@
 <template>
   <div class="page copilot-page flex flex-column">
-    <PageHeader title="JPilot" :subtitle="subtitle">
-      <template #actions>
-        <SelectButton
-          v-model="windowCount"
-          :options="windowOptions"
-          option-label="label"
-          option-value="value"
-          :allow-empty="false"
-          :disabled="!ready"
-          v-tooltip.bottom="'Number of chat windows'"
-        />
-        <Button
-          v-if="windowCount === 2"
-          v-tooltip.bottom="orientation === 'horizontal' ? 'Stack vertically' : 'Place side by side'"
-          :icon="orientation === 'horizontal' ? 'pi pi-arrows-v' : 'pi pi-arrows-h'"
-          text
-          rounded
-          @click="toggleOrientation"
-        />
-        <div class="bg-picker-wrap">
-          <Button v-tooltip.bottom="'Background'" icon="pi pi-image" text rounded @click="bgPickerOpen = !bgPickerOpen" />
-          <div v-if="bgPickerOpen" class="bg-picker">
-            <button
-              v-for="bg in backgrounds"
-              :key="bg.id"
-              class="bg-thumb"
-              :class="{ 'bg-thumb-active': background === bg.url }"
-              :style="{ backgroundImage: `url(${bg.url})` }"
-              @click="chooseBackground(bg.url)"
-            />
-            <button
-              class="bg-thumb bg-thumb-none"
-              :class="{ 'bg-thumb-active': background === 'none' }"
-              @click="chooseBackground('none')"
-            >
-              None
-            </button>
-          </div>
+    <div class="copilot-toolbar flex justify-content-end align-items-center gap-2 flex-wrap mb-2">
+      <SelectButton
+        v-model="windowCount"
+        :options="windowOptions"
+        option-label="label"
+        option-value="value"
+        :allow-empty="false"
+        :disabled="!ready"
+        v-tooltip.bottom="'Number of chat windows'"
+      />
+      <Button
+        v-if="windowCount === 2"
+        v-tooltip.bottom="orientation === 'horizontal' ? 'Stack vertically' : 'Place side by side'"
+        :icon="orientation === 'horizontal' ? 'pi pi-arrows-v' : 'pi pi-arrows-h'"
+        text
+        rounded
+        @click="toggleOrientation"
+      />
+      <div class="bg-picker-wrap">
+        <Button v-tooltip.bottom="'Background'" icon="pi pi-image" text rounded @click="bgPickerOpen = !bgPickerOpen" />
+        <div v-if="bgPickerOpen" class="bg-picker">
+          <button
+            v-for="bg in backgrounds"
+            :key="bg.id"
+            class="bg-thumb"
+            :class="{ 'bg-thumb-active': background === bg.url }"
+            :style="{ backgroundImage: `url(${bg.url})` }"
+            @click="chooseBackground(bg.url)"
+          />
+          <button
+            class="bg-thumb bg-thumb-none"
+            :class="{ 'bg-thumb-active': background === 'none' }"
+            @click="chooseBackground('none')"
+          >
+            None
+          </button>
         </div>
-        <Button v-tooltip.top="'JPilot settings'" icon="pi pi-cog" text rounded @click="router.push('/settings?section=jpilot')" />
-      </template>
-    </PageHeader>
+      </div>
+      <Button v-tooltip.top="'JPilot settings'" icon="pi pi-cog" text rounded @click="router.push('/settings?section=jpilot')" />
+    </div>
 
     <Message v-if="!ready" severity="warn" :closable="false" class="mb-3">
       No enabled AI provider found.
@@ -96,7 +94,6 @@ import { useRouter } from 'vue-router'
 import Button from 'primevue/button'
 import Message from 'primevue/message'
 import SelectButton from 'primevue/selectbutton'
-import PageHeader from '../components/PageHeader.vue'
 import ChatPane from '../components/ChatPane.vue'
 import {
   CHAT_BACKGROUNDS,
@@ -127,13 +124,6 @@ const ready = computed(() => providers.value.length > 0)
 const defaultProviderId = computed(() => {
   const def = providers.value.find((p) => p.isDefault)
   return (def || providers.value[0])?.id || ''
-})
-
-const subtitle = computed(() => {
-  if (!ready.value) return 'Configure an AI provider to start'
-  if (windowCount.value > 1) return 'Architect + Operator · plan in one pane, execute in the other'
-  const def = providers.value.find((p) => p.isDefault) || providers.value[0]
-  return def ? `${def.providerName} · ${def.model}` : ''
 })
 
 const stageStyle = computed(() =>

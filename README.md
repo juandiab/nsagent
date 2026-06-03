@@ -6,7 +6,7 @@ Repository: [github.com/juandiab/nsagent](https://github.com/juandiab/nsagent)
 
 > **Disclaimer:** JPilot is an independent project and is not affiliated with, endorsed by, or sponsored by Citrix Systems, Inc. NetScaler is a trademark of Citrix Systems, Inc.
 
-**Current release:** `v0.17` — `upgrade` script uses a single dev-or-prod picker after `git pull`.
+**Current release:** `v0.18` — Settings layout polish, directional tab transitions, and shell footer alignment.
 
 Bump the root [`VERSION`](VERSION) file when tagging a release so in-app update checks match GitHub.
 
@@ -29,6 +29,21 @@ Bump the root [`VERSION`](VERSION) file when tagging a release so in-app update 
 - **Optional Brave Search** — domain-restricted web augmentation when local memory/docs are weak (Settings → AI Providers).
 - **Dashboard shortcuts** — recommended JPilot prompts and links (health summary, list IPs/vservers, diagnostics, guided LB).
 - **Model usage dashboard** — Settings → AI Providers shows monthly LLM token/request usage and Brave Search query usage with progress bars (tracked locally per calendar month).
+
+## What's new in v0.18
+
+| Area | Highlights |
+|------|------------|
+| **Settings layout** | AI Providers: documentation web search and model usage side by side. MCP Server and SMTP / Email side by side with a two-column SMTP form. Directional slide when changing tabs (left/right follows nav order). |
+| **Page chrome** | Removed redundant page titles on Settings, JPilot, and Appliances. |
+| **Dashboard** | Platform status tags in one row. |
+| **Shell** | Main content height matches the sidebar; legal footer aligns with the bottom of the menu. |
+
+## What's new in v0.17
+
+| Area | Highlights |
+|------|------------|
+| **upgrade script** | After `git pull origin main`, pick **one** stack to rebuild: `1` development, `2` production, or `q` to skip. No more separate yes/no prompts for both stacks. |
 
 ## What's new in v0.16
 
