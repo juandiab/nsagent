@@ -8,7 +8,10 @@
             Installed version and release checks against GitHub.
           </p>
         </div>
-        <Tag :value="updateInfo?.display_version || '…'" severity="secondary" />
+        <div class="version-tags flex align-items-center gap-2 flex-wrap">
+          <Tag :value="updateInfo?.display_version || '…'" severity="secondary" />
+          <Tag v-if="JPILOT_BETA" value="Beta" severity="warn" />
+        </div>
       </div>
 
       <div v-if="loading" class="mt-4">
@@ -158,6 +161,7 @@ import Message from 'primevue/message'
 import ProgressSpinner from 'primevue/progressspinner'
 import Tag from 'primevue/tag'
 import ChatMarkdown from './ChatMarkdown.vue'
+import { JPILOT_BETA } from '../config/product'
 import { checkForUpdates } from '../services/system'
 
 const emit = defineEmits(['update-status'])

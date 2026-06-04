@@ -8,7 +8,7 @@ Repository: [github.com/juandiab/nsagent](https://github.com/juandiab/nsagent)
 
 > **Disclaimer:** JPilot is an independent project and is not affiliated with, endorsed by, or sponsored by Citrix Systems, Inc. NetScaler is a trademark of Citrix Systems, Inc.
 
-**Current release:** `v0.28` — JPilot chat UX: LLM roles per provider, context ring, stop generation, and role-aware appliances.
+**Current release:** `v0.29` — About JPilot shows a **Beta** badge beside the installed version.
 
 Bump the root [`VERSION`](VERSION) file when tagging a release so in-app update checks match GitHub.
 
@@ -39,6 +39,12 @@ Bump the root [`VERSION`](VERSION) file when tagging a release so in-app update 
 - **Cisco IOS/XE (SSH)** — Operator and Analyst over SSH with `search_cisco_cli_reference` memory gate (beta).
 - **NetScaler SDX (SSH)** — Operator and Analyst for SVM platform and VPX lifecycle with `search_sdx_cli_reference` memory gate (beta).
 - **F5 BIG-IP (SSH / TMSH)** — Operator, Analyst, and Architect (official F5 docs only); `f5_*` MCP tools and `search_f5_tmsh_reference` / `search_f5_documentation` (beta).
+
+## What's new in v0.29
+
+| Area | Highlights |
+|------|------------|
+| **About JPilot** | **Beta** tag displayed next to the installed version in Settings → Updates (toggle via `frontend/src/config/product.js`). |
 
 ## What's new in v0.28
 
