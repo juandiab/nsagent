@@ -19,6 +19,11 @@ def test_cisco_is_supported_vendor():
     assert "cisco" in get_supported_vendor_ids()
 
 
+def test_sdx_is_supported_vendor():
+    assert is_vendor_copilot_supported("sdx")
+    assert "sdx" in get_supported_vendor_ids()
+
+
 def test_cisco_manifest_paths():
     manifest = get_vendor_manifest("cisco")
     assert manifest is not None
@@ -28,6 +33,17 @@ def test_cisco_manifest_paths():
 
 def test_resolve_chat_vendor_for_cisco_appliance():
     assert resolve_chat_vendor(appliance_vendor="cisco", role="operator", appliance_name="sw01") == "cisco"
+
+
+def test_sdx_manifest_paths():
+    manifest = get_vendor_manifest("sdx")
+    assert manifest is not None
+    assert (manifest.memory_dir / "netscaler_sdx_cli_memory.md").is_file()
+    assert (manifest.prompts_dir / "operator.md").is_file()
+
+
+def test_resolve_chat_vendor_for_sdx_appliance():
+    assert resolve_chat_vendor(appliance_vendor="sdx", role="operator", appliance_name="sdx01") == "sdx"
 
 
 def test_validate_vendor_resources_clean():

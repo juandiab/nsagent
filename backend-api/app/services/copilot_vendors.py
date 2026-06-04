@@ -19,6 +19,7 @@ class CopilotVendor(StrEnum):
     NETSCALER = "netscaler"
     F5 = "f5"
     CISCO = "cisco"
+    SDX = "sdx"
 
 
 COPILOT_SUPPORTED_VENDORS = get_supported_vendor_ids()

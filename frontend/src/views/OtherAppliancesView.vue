@@ -1,51 +1,5 @@
 <template>
   <div class="page">
-    <div
-      v-if="activeTab === 'inventory'"
-      class="appliances-toolbar flex flex-column sm:flex-row sm:align-items-center sm:justify-content-end gap-2 mb-3"
-    >
-      <span class="appliances-search p-input-icon-left">
-        <i class="pi pi-search" />
-        <InputText v-model="searchQuery" placeholder="Search" size="small" class="search-input" />
-      </span>
-      <div v-if="isAdmin" class="flex flex-wrap gap-2">
-        <Button label="Add NetScaler" icon="pi pi-server" size="small" @click="openNetScalerDialog" />
-        <Button
-          label="Add appliance"
-          icon="pi pi-plus"
-          size="small"
-          severity="secondary"
-          outlined
-          @click="openOtherDialog"
-        />
-      </div>
-    </div>
-
-    <div class="content-panel vendor-support-panel">
-      <h3 class="roadmap-title">Vendor support <span class="roadmap-soon">(Coming soon)</span></h3>
-      <p class="roadmap-copy">
-        JPilot automation is available today for NetScaler MPX and VPX. Additional platforms can be
-        registered below to prepare your inventory.
-      </p>
-      <div class="vendor-grid">
-        <div
-          v-for="item in vendorSupport"
-          :key="item.id"
-          class="vendor-card"
-          :class="{ 'vendor-card--supported': item.status === 'supported' }"
-        >
-          <div class="vendor-card-head">
-            <span class="vendor-name">{{ item.label }}</span>
-            <Tag
-              :value="item.status === 'supported' ? 'Available' : 'Coming soon'"
-              :severity="item.status === 'supported' ? 'success' : 'secondary'"
-            />
-          </div>
-          <p class="vendor-desc">{{ item.description }}</p>
-        </div>
-      </div>
-    </div>
-
     <nav class="appliances-nav">
       <ul class="appliances-nav-list">
         <li
@@ -62,6 +16,45 @@
       </ul>
     </nav>
 
+    <div
+      v-if="activeTab === 'inventory'"
+      class="appliances-toolbar flex flex-column sm:flex-row sm:align-items-center sm:justify-content-between gap-2 mb-3"
+    >
+      <span class="appliances-search p-input-icon-left">
+        <i class="pi pi-search" />
+        <InputText v-model="searchQuery" placeholder="Search" size="small" class="search-input" />
+      </span>
+      <Button
+        v-if="isAdmin"
+        label="Add appliance"
+        icon="pi pi-plus"
+        size="small"
+        @click="openAddDialog"
+      />
+    </div>
+
+    <div v-if="activeTab === 'inventory' && inventoryTags.length" class="tag-filters flex flex-wrap align-items-center gap-2 mb-3">
+      <span class="tag-filters-label">Tags</span>
+      <Button
+        v-for="tag in inventoryTags"
+        :key="tag"
+        :label="tag"
+        size="small"
+        rounded
+        :outlined="activeTagFilter !== tag"
+        :severity="activeTagFilter === tag ? 'info' : 'secondary'"
+        @click="toggleTagFilter(tag)"
+      />
+      <Button
+        v-if="activeTagFilter"
+        label="Clear"
+        size="small"
+        text
+        severity="secondary"
+        @click="activeTagFilter = ''"
+      />
+    </div>
+
     <div v-show="activeTab === 'inventory'" class="content-panel">
       <DataTable
         class="appliances-table"
@@ -71,15 +64,12 @@
         paginator
         :rows="10"
         :rows-per-page-options="[10, 25, 50]"
-        empty-message="No appliances registered yet. Add a NetScaler or another vendor to get started."
+        empty-message="No appliances registered yet. Use Add appliance to get started."
       >
         <Column field="name" header="Name" sortable />
         <Column header="Platform" sortable sort-field="vendor">
           <template #body="{ data }">
-            <Tag
-              :value="platformLabel(data)"
-              :severity="isNetScalerVendor(data.vendor) ? 'success' : 'info'"
-            />
+            <Tag :value="platformLabel(data)" :severity="data.copilotEligible ? 'success' : 'info'" />
           </template>
         </Column>
         <Column field="environment" header="Environment" sortable>
@@ -87,10 +77,25 @@
             <Tag :value="data.environment" :severity="environmentSeverity(data.environment)" />
           </template>
         </Column>
+        <Column header="Tags">
+          <template #body="{ data }">
+            <div v-if="data.tags?.length" class="tag-cell flex flex-wrap gap-1">
+              <Tag
+                v-for="tag in data.tags"
+                :key="`${data.id}-${tag}`"
+                :value="tag"
+                severity="secondary"
+                class="tag-chip"
+                @click="toggleTagFilter(tag)"
+              />
+            </div>
+            <span v-else class="notes-cell">—</span>
+          </template>
+        </Column>
         <Column header="JPilot">
           <template #body="{ data }">
             <Tag
-              v-if="isNetScalerVendor(data.vendor)"
+              v-if="data.copilotEligible"
               :value="data.enabled ? 'Enabled' : 'Disabled'"
               :severity="data.enabled ? 'success' : 'secondary'"
             />
@@ -107,8 +112,9 @@
             <span class="actions-header">Actions</span>
           </template>
           <template #body="{ data }">
-            <div v-if="isNetScalerVendor(data.vendor)" class="actions-cell flex gap-1">
+            <div class="actions-cell flex gap-1">
               <Button
+                v-if="supportsInspect(data)"
                 v-tooltip="tooltip('Inspect via MCP')"
                 icon="pi pi-search"
                 text
@@ -118,6 +124,7 @@
                 @click="inspectAppliance(data)"
               />
               <Button
+                v-if="supportsConnectionTest(data)"
                 v-tooltip="tooltip('Test connection')"
                 icon="pi pi-bolt"
                 text
@@ -125,18 +132,19 @@
                 size="small"
                 severity="info"
                 :loading="testingId === data.id"
-                @click="testNetScaler(data)"
+                @click="testConnection(data)"
               />
               <Button
-                v-tooltip="adminTooltip('Edit NetScaler')"
+                v-tooltip="adminTooltip('Edit appliance')"
                 icon="pi pi-pencil"
                 text
                 rounded
                 size="small"
                 :disabled="!isAdmin"
-                @click="openNetScalerEdit(data)"
+                @click="openEditDialog(data)"
               />
               <Button
+                v-if="data.copilotEligible"
                 v-tooltip="adminTooltip(data.enabled ? 'Disable' : 'Enable')"
                 :icon="data.enabled ? 'pi pi-ban' : 'pi pi-check'"
                 text
@@ -154,26 +162,7 @@
                 size="small"
                 severity="danger"
                 :disabled="!isAdmin"
-                @click="confirmDelete(data, 'NetScaler')"
-              />
-            </div>
-            <div v-else class="actions-cell flex gap-1">
-              <Button
-                v-tooltip="tooltip('Edit appliance')"
-                icon="pi pi-pencil"
-                text
-                rounded
-                size="small"
-                @click="openOtherEdit(data)"
-              />
-              <Button
-                v-tooltip="tooltip('Delete appliance')"
-                icon="pi pi-trash"
-                text
-                rounded
-                size="small"
-                severity="danger"
-                @click="confirmDelete(data, 'appliance')"
+                @click="confirmDelete(data)"
               />
             </div>
           </template>
@@ -181,137 +170,281 @@
       </DataTable>
     </div>
 
+    <div v-show="activeTab === 'inventory'" class="content-panel vendor-support-panel">
+      <h3 class="roadmap-title">Vendor support</h3>
+      <p class="roadmap-copy">
+        JPilot automation availability by platform. Register any product to prepare your inventory;
+        supported platforms can be enabled for chat.
+      </p>
+      <div class="vendor-grid">
+        <div
+          v-for="item in vendorSupport"
+          :key="item.id"
+          class="vendor-card"
+          :class="{ 'vendor-card--supported': item.status === 'supported' }"
+        >
+          <div class="vendor-card-head">
+            <div class="vendor-card-titles">
+              <span class="vendor-name">{{ item.label }}</span>
+              <span class="vendor-family">{{ item.vendorGroupLabel }}</span>
+            </div>
+            <Tag
+              :value="item.status === 'supported' ? 'Available' : 'Coming soon'"
+              :severity="item.status === 'supported' ? 'success' : 'secondary'"
+            />
+          </div>
+          <p class="vendor-desc">{{ item.description }}</p>
+        </div>
+      </div>
+    </div>
+
     <div v-show="activeTab === 'ssl'">
       <SslCsrPanel />
     </div>
 
-    <!-- NetScaler dialog -->
     <Dialog
-      v-model:visible="netScalerDialogVisible"
-      :header="netScalerEditing ? 'Edit NetScaler' : 'Add NetScaler'"
+      v-model:visible="dialogVisible"
+      :header="editing ? 'Edit appliance' : 'Add appliance'"
       modal
-      :style="{ width: 'min(32rem, 92vw)' }"
+      :style="{ width: 'min(34rem, 92vw)' }"
       :draggable="false"
+      @hide="resetAddWizard"
     >
-      <div class="flex flex-column gap-3">
-        <div class="flex flex-column gap-2">
-          <label for="ns-name" class="field-label">Name</label>
-          <InputText id="ns-name" v-model="netScalerForm.name" class="w-full" />
+      <!-- Add: stepped flow — vendor → device → details -->
+      <div v-if="!editing" class="flex flex-column gap-3">
+        <div v-if="addStep > 1" class="wizard-trail">
+          <button type="button" class="wizard-trail-link" @click="goToAddStep(1)">
+            {{ selectedVendorGroup?.label }}
+          </button>
+          <span v-if="addStep >= 2" class="wizard-trail-sep">/</span>
+          <button
+            v-if="addStep >= 2 && selectedProduct"
+            type="button"
+            class="wizard-trail-link"
+            :disabled="addStep === 2"
+            @click="goToAddStep(2)"
+          >
+            {{ selectedProduct.label }}
+          </button>
         </div>
-        <div class="flex flex-column gap-2">
-          <label for="ns-environment" class="field-label">Environment</label>
-          <Select id="ns-environment" v-model="netScalerForm.environment" :options="environments" class="w-full" />
+
+        <div v-if="addStep === 1" class="wizard-step">
+          <p class="step-title">Select vendor</p>
+          <div class="picker-list">
+            <button
+              v-for="group in vendorGroups"
+              :key="group.id"
+              type="button"
+              class="picker-item"
+              @click="selectVendor(group.id)"
+            >
+              <span class="picker-item-label">{{ group.label }}</span>
+              <i class="pi pi-chevron-right picker-item-chevron" />
+            </button>
+          </div>
         </div>
-        <div class="flex flex-column gap-2">
-          <label for="ns-host" class="field-label">Hostname / IP</label>
-          <InputText id="ns-host" v-model="netScalerForm.host" class="w-full" placeholder="10.0.0.1 or ns.example.com" />
-          <small class="field-hint">HTTPS on port 443 (Next-Gen API).</small>
-          <small v-if="netScalerEditing" class="field-hint">Leave blank to keep existing value.</small>
+
+        <div v-else-if="addStep === 2" class="wizard-step">
+          <p class="step-title">Select device</p>
+          <div class="picker-list">
+            <button
+              v-for="option in productOptions"
+              :key="option.id"
+              type="button"
+              class="picker-item"
+              :class="{ 'picker-item--soon': option.disabled }"
+              @click="selectProduct(option.id)"
+            >
+              <span class="picker-item-label">{{ option.label }}</span>
+              <span
+                class="picker-item-status"
+                :class="option.disabled ? 'picker-item-status--soon' : 'picker-item-status--ok'"
+              >
+                {{ option.statusLabel }}
+              </span>
+            </button>
+          </div>
         </div>
-        <div class="flex flex-column gap-2">
-          <label for="ns-username" class="field-label">Username</label>
-          <InputText id="ns-username" v-model="netScalerForm.username" class="w-full" />
-          <small v-if="netScalerEditing" class="field-hint">Leave blank to keep existing value.</small>
-        </div>
-        <div class="flex flex-column gap-2">
-          <label for="ns-password" class="field-label">Password</label>
-          <Password
-            id="ns-password"
-            v-model="netScalerForm.password"
-            class="w-full"
-            :feedback="false"
-            toggle-mask
-            input-class="w-full"
-          />
-          <small v-if="netScalerEditing" class="field-hint">Leave blank to keep existing value.</small>
-        </div>
-        <div class="flex flex-column gap-2">
-          <label for="ns-notes" class="field-label">Notes</label>
-          <Textarea id="ns-notes" v-model="netScalerForm.notes" rows="3" class="w-full" />
-        </div>
-        <div class="flex align-items-center gap-2">
-          <ToggleSwitch v-model="netScalerForm.enabled" input-id="ns-enabled" />
-          <label for="ns-enabled" class="field-label mb-0">Enabled in JPilot</label>
+
+        <div v-else-if="addStep === 3" class="wizard-step">
+          <p class="step-title">{{ selectedProduct?.label }}</p>
+          <small v-if="selectedProduct?.description" class="field-hint block mb-2">
+            {{ selectedProduct.description }}
+          </small>
+
+          <div v-if="!productIsSupported" class="unsupported-panel">
+            <i class="pi pi-clock unsupported-icon" />
+            <p class="unsupported-title">Device not supported yet, coming soon</p>
+            <p class="unsupported-copy">
+              JPilot automation for {{ selectedProduct?.label }} is not available yet. Pick another device
+              or check Vendor support below the inventory for the roadmap.
+            </p>
+          </div>
+
+          <template v-else>
+            <div class="flex flex-column gap-2">
+              <label for="appliance-name" class="field-label">Name</label>
+              <InputText id="appliance-name" v-model="form.name" class="w-full" />
+            </div>
+            <div class="flex flex-column gap-2">
+              <label for="appliance-environment" class="field-label">Environment</label>
+              <Select
+                id="appliance-environment"
+                v-model="form.environment"
+                :options="environments"
+                class="w-full"
+              />
+            </div>
+            <div class="flex flex-column gap-2">
+              <label for="appliance-host" class="field-label">Hostname / IP</label>
+              <InputText
+                id="appliance-host"
+                v-model="form.host"
+                class="w-full"
+                placeholder="10.0.0.1 or device.example.com"
+              />
+              <small class="field-hint">{{ selectedProduct?.hostHint || 'Management IP or hostname.' }}</small>
+            </div>
+            <div class="flex flex-column gap-2">
+              <label for="appliance-username" class="field-label">Username</label>
+              <InputText id="appliance-username" v-model="form.username" class="w-full" />
+            </div>
+            <div class="flex flex-column gap-2">
+              <label for="appliance-password" class="field-label">Password</label>
+              <Password
+                id="appliance-password"
+                v-model="form.password"
+                class="w-full"
+                :feedback="false"
+                toggle-mask
+                input-class="w-full"
+              />
+            </div>
+            <div class="flex flex-column gap-2">
+              <label for="appliance-notes" class="field-label">Notes</label>
+              <Textarea id="appliance-notes" v-model="form.notes" rows="3" class="w-full" />
+            </div>
+            <div class="flex flex-column gap-2">
+              <label for="appliance-tags" class="field-label">Tags</label>
+              <Chips
+                id="appliance-tags"
+                v-model="form.tags"
+                separator=","
+                placeholder="Type a tag and press Enter"
+                class="w-full"
+              />
+              <small class="field-hint">Use tags like prod, dmz, or team-east to filter inventory later.</small>
+            </div>
+            <div
+              v-if="selectedProduct?.value && isCopilotEligibleVendor(selectedProduct.value)"
+              class="flex align-items-center gap-2"
+            >
+              <ToggleSwitch v-model="form.enabled" input-id="appliance-enabled" />
+              <label for="appliance-enabled" class="field-label mb-0">Enabled in JPilot</label>
+            </div>
+          </template>
         </div>
       </div>
+
+      <!-- Edit: single form -->
+      <div v-else class="flex flex-column gap-3">
+        <div class="flex flex-column gap-2">
+          <label class="field-label">Vendor</label>
+          <InputText :model-value="selectedVendorGroup?.label || '—'" class="w-full" disabled />
+        </div>
+        <div class="flex flex-column gap-2">
+          <label class="field-label">Device / platform</label>
+          <InputText :model-value="selectedProduct?.label || '—'" class="w-full" disabled />
+        </div>
+        <template v-if="showApplianceFields">
+          <div class="flex flex-column gap-2">
+            <label for="edit-appliance-name" class="field-label">Name</label>
+            <InputText id="edit-appliance-name" v-model="form.name" class="w-full" />
+          </div>
+          <div class="flex flex-column gap-2">
+            <label for="edit-appliance-environment" class="field-label">Environment</label>
+            <Select
+              id="edit-appliance-environment"
+              v-model="form.environment"
+              :options="environments"
+              class="w-full"
+            />
+          </div>
+          <div class="flex flex-column gap-2">
+            <label for="edit-appliance-host" class="field-label">Hostname / IP</label>
+            <InputText id="edit-appliance-host" v-model="form.host" class="w-full" />
+            <small class="field-hint">Leave blank to keep existing value.</small>
+          </div>
+          <div class="flex flex-column gap-2">
+            <label for="edit-appliance-username" class="field-label">Username</label>
+            <InputText id="edit-appliance-username" v-model="form.username" class="w-full" />
+            <small class="field-hint">Leave blank to keep existing value.</small>
+          </div>
+          <div class="flex flex-column gap-2">
+            <label for="edit-appliance-password" class="field-label">Password</label>
+            <Password
+              id="edit-appliance-password"
+              v-model="form.password"
+              class="w-full"
+              :feedback="false"
+              toggle-mask
+              input-class="w-full"
+            />
+            <small class="field-hint">Leave blank to keep existing value.</small>
+          </div>
+          <div class="flex flex-column gap-2">
+            <label for="edit-appliance-notes" class="field-label">Notes</label>
+            <Textarea id="edit-appliance-notes" v-model="form.notes" rows="3" class="w-full" />
+          </div>
+          <div class="flex flex-column gap-2">
+            <label for="edit-appliance-tags" class="field-label">Tags</label>
+            <Chips
+              id="edit-appliance-tags"
+              v-model="form.tags"
+              separator=","
+              placeholder="Type a tag and press Enter"
+              class="w-full"
+            />
+          </div>
+          <div
+            v-if="selectedProduct?.value && isCopilotEligibleVendor(selectedProduct.value)"
+            class="flex align-items-center gap-2"
+          >
+            <ToggleSwitch v-model="form.enabled" input-id="edit-appliance-enabled" />
+            <label for="edit-appliance-enabled" class="field-label mb-0">Enabled in JPilot</label>
+          </div>
+        </template>
+      </div>
+
       <template #footer>
-        <Button label="Cancel" text severity="secondary" @click="netScalerDialogVisible = false" />
+        <Button label="Cancel" text severity="secondary" @click="dialogVisible = false" />
+        <Button v-if="!editing && addStep > 1" label="Back" text severity="secondary" @click="goBackAddStep" />
         <Button
+          v-if="editing && showApplianceFields && supportsConnectionTestForForm"
           label="Test"
           icon="pi pi-bolt"
           severity="info"
           outlined
           :loading="testingDialog"
-          @click="testNetScalerFromDialog"
+          @click="testFromDialog"
         />
-        <Button label="Save" icon="pi pi-check" @click="saveNetScaler" :loading="saving" />
-      </template>
-    </Dialog>
-
-    <!-- Other vendor dialog -->
-    <Dialog
-      v-model:visible="otherDialogVisible"
-      :header="otherEditing ? 'Edit appliance' : 'Add appliance'"
-      modal
-      :style="{ width: 'min(32rem, 92vw)' }"
-      :draggable="false"
-    >
-      <Message severity="warn" :closable="false" class="mb-3">
-        Credentials are stored for future automation. JPilot chat is not enabled for this vendor yet.
-      </Message>
-      <div class="flex flex-column gap-3">
-        <div class="flex flex-column gap-2">
-          <label for="vendor" class="field-label">Vendor</label>
-          <Select
-            id="vendor"
-            v-model="otherForm.vendor"
-            :options="vendorOptions"
-            option-label="label"
-            option-value="value"
-            class="w-full"
-            :disabled="otherEditing"
-          />
-          <small v-if="selectedVendor" class="field-hint">{{ selectedVendor.description }}</small>
-        </div>
-        <div class="flex flex-column gap-2">
-          <label for="name" class="field-label">Name</label>
-          <InputText id="name" v-model="otherForm.name" class="w-full" />
-        </div>
-        <div class="flex flex-column gap-2">
-          <label for="environment" class="field-label">Environment</label>
-          <Select id="environment" v-model="otherForm.environment" :options="environments" class="w-full" />
-        </div>
-        <div class="flex flex-column gap-2">
-          <label for="host" class="field-label">Hostname / IP</label>
-          <InputText id="host" v-model="otherForm.host" class="w-full" placeholder="10.0.0.1 or device.example.com" />
-          <small class="field-hint">Management IP or hostname for SSH and/or HTTPS API access.</small>
-          <small v-if="otherEditing" class="field-hint">Leave blank to keep existing value.</small>
-        </div>
-        <div class="flex flex-column gap-2">
-          <label for="username" class="field-label">Username</label>
-          <InputText id="username" v-model="otherForm.username" class="w-full" />
-          <small v-if="otherEditing" class="field-hint">Leave blank to keep existing value.</small>
-        </div>
-        <div class="flex flex-column gap-2">
-          <label for="password" class="field-label">Password</label>
-          <Password
-            id="password"
-            v-model="otherForm.password"
-            class="w-full"
-            :feedback="false"
-            toggle-mask
-            input-class="w-full"
-          />
-          <small v-if="otherEditing" class="field-hint">Leave blank to keep existing value.</small>
-        </div>
-        <div class="flex flex-column gap-2">
-          <label for="notes" class="field-label">Notes</label>
-          <Textarea id="notes" v-model="otherForm.notes" rows="3" class="w-full" />
-        </div>
-      </div>
-      <template #footer>
-        <Button label="Cancel" text severity="secondary" @click="otherDialogVisible = false" />
-        <Button label="Save" icon="pi pi-check" @click="saveOtherAppliance" :loading="saving" />
+        <Button
+          v-if="!editing && addStep === 3 && productIsSupported && supportsConnectionTestForForm"
+          label="Test"
+          icon="pi pi-bolt"
+          severity="info"
+          outlined
+          :loading="testingDialog"
+          @click="testFromDialog"
+        />
+        <Button
+          v-if="editing || (addStep === 3 && productIsSupported)"
+          label="Save"
+          icon="pi pi-check"
+          :disabled="!canSave"
+          :loading="saving"
+          @click="saveAppliance"
+        />
       </template>
     </Dialog>
 
@@ -353,11 +486,11 @@ import { useRoute, useRouter } from 'vue-router'
 import { useConfirm } from 'primevue/useconfirm'
 import { useToast } from 'primevue/usetoast'
 import Button from 'primevue/button'
+import Chips from 'primevue/chips'
 import Column from 'primevue/column'
 import DataTable from 'primevue/datatable'
 import Dialog from 'primevue/dialog'
 import InputText from 'primevue/inputtext'
-import Message from 'primevue/message'
 import Password from 'primevue/password'
 import Select from 'primevue/select'
 import TabPanel from 'primevue/tabpanel'
@@ -367,9 +500,12 @@ import Textarea from 'primevue/textarea'
 import ToggleSwitch from 'primevue/toggleswitch'
 import SslCsrPanel from '../components/SslCsrPanel.vue'
 import {
-  isNetScalerVendor,
-  NETSCALER_VENDOR,
-  OTHER_APPLIANCE_VENDORS,
+  getProductById,
+  isCopilotEligibleVendor,
+  isProductSupported,
+  productSelectOptions,
+  resolveApplianceProduct,
+  VENDOR_GROUPS,
   VENDOR_SUPPORT,
   vendorLabel
 } from '../config/applianceVendors'
@@ -382,7 +518,7 @@ const confirm = useConfirm()
 const toast = useToast()
 
 const vendorSupport = VENDOR_SUPPORT
-const vendorOptions = OTHER_APPLIANCE_VENDORS
+const vendorGroups = VENDOR_GROUPS
 
 const currentUser = ref(getStoredUser())
 const isAdmin = computed(() => currentUser.value?.role === 'admin')
@@ -418,14 +554,12 @@ const inspectVisible = ref(false)
 const inspectTitle = ref('')
 const inspectData = ref(null)
 const searchQuery = ref('')
+const activeTagFilter = ref('')
 
-const netScalerDialogVisible = ref(false)
-const netScalerEditing = ref(false)
-const netScalerEditingId = ref(null)
-
-const otherDialogVisible = ref(false)
-const otherEditing = ref(false)
-const otherEditingId = ref(null)
+const dialogVisible = ref(false)
+const editing = ref(false)
+const editingId = ref(null)
+const addStep = ref(1)
 
 const environments = ['LAB', 'DEV', 'TEST', 'UAT', 'PROD']
 
@@ -441,48 +575,146 @@ function adminTooltip(value) {
 }
 
 function platformLabel(appliance) {
-  return isNetScalerVendor(appliance.vendor) ? 'NetScaler MPX/VPX' : vendorLabel(appliance.vendor)
+  return vendorLabel(appliance.vendor, appliance.productId)
 }
 
-const emptyNetScalerForm = () => ({
+function resolveProductForAppliance(appliance) {
+  return resolveApplianceProduct(appliance)
+}
+
+function supportsInspect(appliance) {
+  return Boolean(resolveProductForAppliance(appliance)?.supportsInspect)
+}
+
+function supportsConnectionTest(appliance) {
+  return Boolean(resolveProductForAppliance(appliance)?.supportsConnectionTest)
+}
+
+const emptyForm = () => ({
+  vendorGroupId: '',
+  productId: '',
   name: '',
   environment: 'LAB',
   host: '',
   username: '',
   password: '',
   notes: '',
+  tags: [],
   enabled: true
 })
 
-const netScalerForm = reactive(emptyNetScalerForm())
+const form = reactive(emptyForm())
 
-const emptyOtherForm = () => ({
-  vendor: 'f5',
-  name: '',
-  environment: 'LAB',
-  host: '',
-  username: '',
-  password: '',
-  notes: ''
+const productOptions = computed(() => productSelectOptions(form.vendorGroupId))
+
+const selectedVendorGroup = computed(() => vendorGroups.find((g) => g.id === form.vendorGroupId) || null)
+
+const selectedProduct = computed(() => getProductById(form.productId))
+
+const productIsSupported = computed(() => isProductSupported(selectedProduct.value))
+
+const showApplianceFields = computed(() => {
+  if (!selectedProduct.value?.value) return false
+  if (editing.value) return true
+  return productIsSupported.value
 })
 
-const otherForm = reactive(emptyOtherForm())
+const supportsConnectionTestForForm = computed(() => Boolean(selectedProduct.value?.supportsConnectionTest))
 
-const selectedVendor = computed(() => vendorOptions.find((item) => item.value === otherForm.vendor))
+const canSave = computed(() => {
+  if (!selectedProduct.value?.value) return false
+  if (!form.name.trim()) return false
+  if (editing.value) return true
+  if (!productIsSupported.value) return false
+  return Boolean(form.host.trim() && form.username.trim() && form.password)
+})
+
+function resetAddWizard() {
+  addStep.value = 1
+}
+
+function selectVendor(groupId) {
+  form.vendorGroupId = groupId
+  form.productId = ''
+  addStep.value = 2
+}
+
+function selectProduct(productId) {
+  form.productId = productId
+  addStep.value = 3
+}
+
+function goBackAddStep() {
+  if (addStep.value === 3) {
+    addStep.value = 2
+    return
+  }
+  if (addStep.value === 2) {
+    form.vendorGroupId = ''
+    form.productId = ''
+    addStep.value = 1
+  }
+}
+
+function goToAddStep(step) {
+  if (step === 1) {
+    form.vendorGroupId = ''
+    form.productId = ''
+    addStep.value = 1
+    return
+  }
+  if (step === 2 && form.vendorGroupId) {
+    form.productId = ''
+    addStep.value = 2
+  }
+}
 
 const filteredAppliances = computed(() => {
   const query = searchQuery.value.trim().toLowerCase()
-  const items = appliances.value
+  const tagFilter = activeTagFilter.value.trim().toLowerCase()
+  let items = appliances.value
+
+  if (tagFilter) {
+    items = items.filter((item) => (item.tags || []).includes(tagFilter))
+  }
+
   if (!query) return items
   return items.filter(
     (item) =>
       item.name.toLowerCase().includes(query) ||
       item.environment.toLowerCase().includes(query) ||
       platformLabel(item).toLowerCase().includes(query) ||
-      vendorLabel(item.vendor).toLowerCase().includes(query) ||
-      (item.notes || '').toLowerCase().includes(query)
+      (item.notes || '').toLowerCase().includes(query) ||
+      (item.tags || []).some((tag) => tag.includes(query))
   )
 })
+
+const inventoryTags = computed(() => {
+  const tags = new Set()
+  for (const item of appliances.value) {
+    for (const tag of item.tags || []) {
+      tags.add(tag)
+    }
+  }
+  return [...tags].sort()
+})
+
+function normalizeTagsForApi(tags) {
+  const seen = new Set()
+  const result = []
+  for (const raw of tags || []) {
+    const tag = String(raw).trim().toLowerCase()
+    if (!tag || seen.has(tag)) continue
+    seen.add(tag)
+    result.push(tag)
+  }
+  return result.slice(0, 20)
+}
+
+function toggleTagFilter(tag) {
+  const normalized = String(tag).trim().toLowerCase()
+  activeTagFilter.value = activeTagFilter.value === normalized ? '' : normalized
+}
 
 function environmentSeverity(environment) {
   const map = {
@@ -507,136 +739,69 @@ async function loadAppliances() {
   }
 }
 
-function openNetScalerDialog() {
-  netScalerEditing.value = false
-  netScalerEditingId.value = null
-  Object.assign(netScalerForm, emptyNetScalerForm())
-  netScalerDialogVisible.value = true
+function openAddDialog() {
+  editing.value = false
+  editingId.value = null
+  addStep.value = 1
+  Object.assign(form, emptyForm())
+  dialogVisible.value = true
 }
 
-function openNetScalerEdit(appliance) {
-  netScalerEditing.value = true
-  netScalerEditingId.value = appliance.id
-  Object.assign(netScalerForm, {
+function openEditDialog(appliance) {
+  const product = resolveApplianceProduct(appliance)
+  editing.value = true
+  editingId.value = appliance.id
+  Object.assign(form, {
+    vendorGroupId: product?.vendorGroupId || 'other',
+    productId: appliance.productId || product?.id || '',
     name: appliance.name,
     environment: appliance.environment,
     host: '',
     username: '',
     password: '',
     notes: appliance.notes,
+    tags: [...(appliance.tags || [])],
     enabled: appliance.enabled
   })
-  netScalerDialogVisible.value = true
+  dialogVisible.value = true
 }
 
-function openOtherDialog() {
-  otherEditing.value = false
-  otherEditingId.value = null
-  Object.assign(otherForm, emptyOtherForm())
-  otherDialogVisible.value = true
-}
-
-function openOtherEdit(appliance) {
-  otherEditing.value = true
-  otherEditingId.value = appliance.id
-  Object.assign(otherForm, {
-    vendor: appliance.vendor,
-    name: appliance.name,
-    environment: appliance.environment,
-    host: '',
-    username: '',
-    password: '',
-    notes: appliance.notes
-  })
-  otherDialogVisible.value = true
-}
-
-function buildNetScalerPayload() {
+function buildPayload() {
+  const product = selectedProduct.value
   const payload = {
-    vendor: NETSCALER_VENDOR,
-    name: netScalerForm.name,
-    environment: netScalerForm.environment,
-    notes: netScalerForm.notes,
-    enabled: netScalerForm.enabled
+    vendor: product.value,
+    productId: form.productId || undefined,
+    name: form.name.trim(),
+    environment: form.environment,
+    notes: form.notes,
+    tags: normalizeTagsForApi(form.tags),
+    enabled: isCopilotEligibleVendor(product.value) ? form.enabled : false
   }
-  if (!netScalerEditing.value) {
-    payload.host = netScalerForm.host
-    payload.username = netScalerForm.username
-    payload.password = netScalerForm.password
+  if (!editing.value) {
+    payload.host = form.host.trim()
+    payload.username = form.username.trim()
+    payload.password = form.password
   } else {
-    if (netScalerForm.host) payload.host = netScalerForm.host
-    if (netScalerForm.username) payload.username = netScalerForm.username
-    if (netScalerForm.password) payload.password = netScalerForm.password
+    if (form.host.trim()) payload.host = form.host.trim()
+    if (form.username.trim()) payload.username = form.username.trim()
+    if (form.password) payload.password = form.password
   }
   return payload
 }
 
-function buildOtherPayload() {
-  const payload = {
-    vendor: otherForm.vendor,
-    name: otherForm.name,
-    environment: otherForm.environment,
-    notes: otherForm.notes,
-    enabled: false
-  }
-  if (!otherEditing.value) {
-    payload.host = otherForm.host
-    payload.username = otherForm.username
-    payload.password = otherForm.password
-  } else {
-    if (otherForm.host) payload.host = otherForm.host
-    if (otherForm.username) payload.username = otherForm.username
-    if (otherForm.password) payload.password = otherForm.password
-  }
-  return payload
-}
-
-async function saveNetScaler() {
+async function saveAppliance() {
+  if (!canSave.value) return
   saving.value = true
   try {
-    const payload = buildNetScalerPayload()
-    if (netScalerEditing.value) {
-      await api.put(`/appliances/${netScalerEditingId.value}`, payload)
-      toast.add({ severity: 'success', summary: 'Updated', detail: 'NetScaler updated', life: 3000 })
+    const payload = buildPayload()
+    if (editing.value) {
+      await api.put(`/appliances/${editingId.value}`, payload)
+      toast.add({ severity: 'success', summary: 'Updated', detail: 'Appliance updated', life: 3000 })
     } else {
       await api.post('/appliances', payload)
-      toast.add({ severity: 'success', summary: 'Created', detail: 'NetScaler created', life: 3000 })
+      toast.add({ severity: 'success', summary: 'Created', detail: 'Appliance created', life: 3000 })
     }
-    netScalerDialogVisible.value = false
-    await loadAppliances()
-  } catch {
-    toast.add({ severity: 'error', summary: 'Error', detail: 'Failed to save NetScaler', life: 3000 })
-  } finally {
-    saving.value = false
-  }
-}
-
-async function saveOtherAppliance() {
-  if (!otherForm.vendor || isNetScalerVendor(otherForm.vendor)) {
-    toast.add({
-      severity: 'warn',
-      summary: 'Vendor required',
-      detail: 'Use Add NetScaler for MPX/VPX appliances.',
-      life: 4000
-    })
-    return
-  }
-  saving.value = true
-  try {
-    const payload = buildOtherPayload()
-    if (otherEditing.value) {
-      await api.put(`/appliances/${otherEditingId.value}`, payload)
-      toast.add({ severity: 'success', summary: 'Updated', detail: 'Appliance saved', life: 3000 })
-    } else {
-      await api.post('/appliances', payload)
-      toast.add({
-        severity: 'success',
-        summary: 'Created',
-        detail: 'Appliance registered — JPilot support coming soon',
-        life: 4000
-      })
-    }
-    otherDialogVisible.value = false
+    dialogVisible.value = false
     await loadAppliances()
   } catch {
     toast.add({ severity: 'error', summary: 'Error', detail: 'Failed to save appliance', life: 3000 })
@@ -677,7 +842,7 @@ async function inspectAppliance(appliance) {
   }
 }
 
-async function testNetScaler(appliance) {
+async function testConnection(appliance) {
   testingId.value = appliance.id
   try {
     const { data } = await api.post(`/appliances/${appliance.id}/test`)
@@ -694,14 +859,14 @@ async function testNetScaler(appliance) {
   }
 }
 
-async function testNetScalerFromDialog() {
+async function testFromDialog() {
   testingDialog.value = true
   try {
     let response
-    if (netScalerEditing.value && !netScalerForm.host && !netScalerForm.username && !netScalerForm.password) {
-      response = await api.post(`/appliances/${netScalerEditingId.value}/test`)
+    if (editing.value && !form.host && !form.username && !form.password) {
+      response = await api.post(`/appliances/${editingId.value}/test`)
     } else {
-      if (!netScalerForm.host || !netScalerForm.username || !netScalerForm.password) {
+      if (!form.host || !form.username || !form.password) {
         toast.add({
           severity: 'warn',
           summary: 'Missing credentials',
@@ -711,9 +876,9 @@ async function testNetScalerFromDialog() {
         return
       }
       response = await api.post('/appliances/test', {
-        host: netScalerForm.host,
-        username: netScalerForm.username,
-        password: netScalerForm.password
+        host: form.host,
+        username: form.username,
+        password: form.password
       })
     }
     toast.add({
@@ -739,7 +904,7 @@ async function toggleEnabled(appliance) {
   }
 }
 
-function confirmDelete(appliance, label) {
+function confirmDelete(appliance) {
   confirm.require({
     message: `Delete "${appliance.name}"? This action cannot be undone.`,
     header: 'Confirm Delete',
@@ -748,7 +913,7 @@ function confirmDelete(appliance, label) {
     accept: async () => {
       try {
         await api.delete(`/appliances/${appliance.id}`)
-        toast.add({ severity: 'success', summary: 'Deleted', detail: `${label} removed`, life: 3000 })
+        toast.add({ severity: 'success', summary: 'Deleted', detail: 'Appliance removed', life: 3000 })
         await loadAppliances()
       } catch {
         toast.add({ severity: 'error', summary: 'Error', detail: 'Failed to delete', life: 3000 })
@@ -801,7 +966,7 @@ onMounted(() => {
 }
 
 .vendor-support-panel {
-  margin-bottom: 1.25rem;
+  margin-top: 1.25rem;
   padding: 1.25rem;
 }
 
@@ -809,11 +974,6 @@ onMounted(() => {
   margin: 0 0 0.35rem;
   font-size: 1rem;
   font-weight: 600;
-}
-
-.roadmap-soon {
-  font-weight: 500;
-  color: var(--p-text-muted-color);
 }
 
 .roadmap-copy {
@@ -842,15 +1002,27 @@ onMounted(() => {
 
 .vendor-card-head {
   display: flex;
-  align-items: center;
+  align-items: flex-start;
   justify-content: space-between;
   gap: 0.5rem;
   margin-bottom: 0.35rem;
 }
 
+.vendor-card-titles {
+  display: flex;
+  flex-direction: column;
+  gap: 0.15rem;
+  min-width: 0;
+}
+
 .vendor-name {
   font-weight: 600;
   font-size: 0.875rem;
+}
+
+.vendor-family {
+  font-size: 0.75rem;
+  color: var(--p-text-muted-color);
 }
 
 .vendor-desc {
@@ -906,6 +1078,134 @@ onMounted(() => {
   font-size: 1rem;
 }
 
+.product-select :deep(.p-select-option.p-disabled) {
+  opacity: 1;
+}
+
+.wizard-trail {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 0.35rem;
+  font-size: 0.8125rem;
+  color: var(--p-text-muted-color);
+}
+
+.wizard-trail-link {
+  background: none;
+  border: none;
+  padding: 0;
+  color: var(--p-primary-color);
+  cursor: pointer;
+  font: inherit;
+}
+
+.wizard-trail-link:disabled {
+  color: var(--p-text-color);
+  cursor: default;
+}
+
+.wizard-trail-sep {
+  opacity: 0.6;
+}
+
+.step-title {
+  margin: 0 0 0.75rem;
+  font-size: 0.9375rem;
+  font-weight: 600;
+}
+
+.picker-list {
+  display: flex;
+  flex-direction: column;
+  gap: 0.5rem;
+}
+
+.picker-item {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.75rem;
+  width: 100%;
+  padding: 0.75rem 0.875rem;
+  border: 1px solid var(--p-content-border-color);
+  border-radius: 0.625rem;
+  background: var(--app-nested-surface);
+  color: var(--p-text-color);
+  cursor: pointer;
+  text-align: left;
+  transition:
+    border-color 0.15s ease,
+    background 0.15s ease;
+}
+
+.picker-item:hover {
+  border-color: var(--p-primary-color);
+  background: color-mix(in srgb, var(--p-primary-color) 6%, var(--app-nested-surface));
+}
+
+.picker-item--soon {
+  opacity: 0.92;
+}
+
+.picker-item-label {
+  font-weight: 500;
+  font-size: 0.875rem;
+}
+
+.picker-item-chevron {
+  font-size: 0.75rem;
+  color: var(--p-text-muted-color);
+}
+
+.picker-item-status {
+  flex-shrink: 0;
+  font-size: 0.75rem;
+  font-weight: 500;
+}
+
+.picker-item-status--ok {
+  color: var(--p-green-600);
+}
+
+.picker-item-status--soon {
+  color: var(--p-text-muted-color);
+}
+
+.unsupported-panel {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  text-align: center;
+  gap: 0.5rem;
+  padding: 1.5rem 1rem;
+  border: 1px dashed var(--p-content-border-color);
+  border-radius: 0.75rem;
+  background: var(--app-nested-surface);
+}
+
+.unsupported-icon {
+  font-size: 1.75rem;
+  color: var(--p-text-muted-color);
+}
+
+.unsupported-title {
+  margin: 0;
+  font-weight: 600;
+  font-size: 0.9375rem;
+}
+
+.unsupported-copy {
+  margin: 0;
+  max-width: 22rem;
+  font-size: 0.8125rem;
+  color: var(--p-text-muted-color);
+}
+
+.block {
+  display: block;
+}
+
 .field-label {
   font-size: 0.8125rem;
   font-weight: 500;
@@ -915,6 +1215,20 @@ onMounted(() => {
 .field-hint {
   color: var(--p-text-muted-color);
   font-size: 0.8125rem;
+}
+
+.text-muted {
+  color: var(--p-text-muted-color);
+}
+
+.tag-filters-label {
+  font-size: 0.8125rem;
+  font-weight: 500;
+  color: var(--p-text-muted-color);
+}
+
+.tag-cell :deep(.tag-chip) {
+  cursor: pointer;
 }
 
 .notes-cell {

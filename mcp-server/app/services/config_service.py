@@ -23,6 +23,10 @@ ALL_TOOL_NAMES = [
     "cisco_ssh_run_command",
     "cisco_run_cli_command",
     "cisco_run_cli_commands",
+    "sdx_test_connection",
+    "sdx_ssh_run_command",
+    "sdx_run_cli_command",
+    "sdx_run_cli_commands",
 ]
 
 

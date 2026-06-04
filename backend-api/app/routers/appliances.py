@@ -5,12 +5,14 @@ from pymongo import ReturnDocument
 from app.dependencies import get_db
 from app.models.appliance import (
     build_appliance_document,
-    is_netscaler_appliance,
+    is_copilot_eligible_appliance,
+    normalize_tags,
     normalize_vendor,
     parse_object_id,
     serialize_appliance,
     utc_now,
 )
+from app.services.vendor_registry import is_vendor_copilot_supported
 from app.schemas.appliance import ApplianceCreate, ApplianceResponse, ApplianceUpdate
 from app.services.encryption_service import encrypt_value
 
@@ -83,12 +85,19 @@ async def update_appliance(
         update_data["environment"] = payload.environment
     if payload.notes is not None:
         update_data["notes"] = payload.notes
-    if payload.enabled is not None:
-        update_data["enabled"] = payload.enabled if is_netscaler_appliance(existing) else False
     if payload.vendor is not None:
         update_data["vendor"] = normalize_vendor(payload.vendor)
-        if update_data["vendor"] != "netscaler":
-            update_data["enabled"] = False
+    if payload.productId is not None:
+        product_id = payload.productId.strip()
+        update_data["productId"] = product_id or None
+    if payload.tags is not None:
+        update_data["tags"] = normalize_tags(payload.tags)
+
+    if payload.enabled is not None:
+        merged = {**existing, **update_data}
+        update_data["enabled"] = payload.enabled if is_copilot_eligible_appliance(merged) else False
+    elif payload.vendor is not None and not is_vendor_copilot_supported(update_data["vendor"]):
+        update_data["enabled"] = False
 
     if _should_update_credential(payload.host):
         update_data["encryptedHost"] = encrypt_value(payload.host)

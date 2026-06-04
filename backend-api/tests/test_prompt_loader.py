@@ -30,3 +30,10 @@ def test_build_system_prompt_uses_vendor_folder():
 def test_unknown_vendor_falls_back_to_netscaler_prompts():
     assert resolve_prompt_vendor("f5") == "netscaler"
     assert prompts_dir("netscaler").is_dir()
+
+
+def test_sdx_operator_prompt_loads():
+    prompt = load_role_prompt("operator", "sdx")
+    assert "NetScaler SDX" in prompt
+    assert "search_sdx_cli_reference" in prompt
+    assert "{{include:" not in prompt

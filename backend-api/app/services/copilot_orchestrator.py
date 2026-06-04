@@ -45,6 +45,7 @@ from app.services.copilot_memory_gate import (
     CLI_MEMORY_SEARCH_TOOL,
     CISCO_CLI_MEMORY_SEARCH_TOOL,
     MEMORY_SEARCH_TOOL,
+    SDX_CLI_MEMORY_SEARCH_TOOL,
     apply_memory_review_gates,
     block_result_for_unconfirmed_destructive,
     destructive_confirmation_required,
@@ -352,7 +353,7 @@ async def _execute_tool_with_memory_gate(
     logger.info("tool_call name=%s executed result=%s", name, (result or "")[:600])
     if name == MEMORY_SEARCH_TOOL:
         nextgen_memory_reviewed = True
-    if name == CLI_MEMORY_SEARCH_TOOL or name == CISCO_CLI_MEMORY_SEARCH_TOOL:
+    if name == CLI_MEMORY_SEARCH_TOOL or name == CISCO_CLI_MEMORY_SEARCH_TOOL or name == SDX_CLI_MEMORY_SEARCH_TOOL:
         cli_memory_reviewed = True
     return result, nextgen_memory_reviewed, cli_memory_reviewed
 

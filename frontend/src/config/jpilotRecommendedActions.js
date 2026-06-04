@@ -2362,7 +2362,7 @@ export function flattenRecommendedActions(groups = jpilotRecommendedGroups) {
 
 export const dashboardQuickActions = [
   { label: 'Open JPilot', icon: 'pi pi-comments', to: '/copilot', adminOnly: false },
-  { label: 'Add NetScaler', icon: 'pi pi-server', to: '/appliances', adminOnly: true },
+  { label: 'Add appliance', icon: 'pi pi-plus', to: '/appliances', adminOnly: true },
   { label: 'SSL certificates', icon: 'pi pi-shield', to: '/appliances?tab=ssl', adminOnly: false },
   { label: 'Settings', icon: 'pi pi-cog', to: '/settings', adminOnly: false },
   { label: 'AI providers', icon: 'pi pi-sparkles', to: '/settings?section=ai-providers', adminOnly: true }

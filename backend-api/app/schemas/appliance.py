@@ -7,6 +7,7 @@ from pydantic import BaseModel, ConfigDict, Field
 EnvironmentType = Literal["LAB", "DEV", "TEST", "UAT", "PROD"]
 VendorType = Literal[
     "netscaler",
+    "sdx",
     "f5",
     "cisco",
     "juniper",
@@ -29,6 +30,8 @@ class ApplianceCreate(BaseModel):
     notes: str = ""
     enabled: bool = True
     vendor: VendorType = "netscaler"
+    productId: str | None = None
+    tags: list[str] = Field(default_factory=list)
 
 
 class ApplianceUpdate(BaseModel):
@@ -40,6 +43,8 @@ class ApplianceUpdate(BaseModel):
     notes: str | None = None
     enabled: bool | None = None
     vendor: VendorType | None = None
+    productId: str | None = None
+    tags: list[str] | None = None
 
 
 class ApplianceResponse(BaseModel):
@@ -51,6 +56,8 @@ class ApplianceResponse(BaseModel):
     enabled: bool
     notes: str
     vendor: str = "netscaler"
+    productId: str | None = None
+    tags: list[str] = Field(default_factory=list)
     copilotEligible: bool = True
     createdAt: datetime = Field(alias="createdAt")
     updatedAt: datetime = Field(alias="updatedAt")

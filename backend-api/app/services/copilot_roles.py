@@ -126,6 +126,10 @@ def build_system_prompt(
     vendor: str | None = DEFAULT_VENDOR_ID,
 ) -> str:
     parsed = role if isinstance(role, JPilotRole) else normalize_role(role if isinstance(role, str) else None)
+    chat_vendor = (vendor or DEFAULT_VENDOR_ID).strip().lower()
+    manifest = get_vendor_manifest(chat_vendor)
+    ssh_vendor = bool(manifest and manifest.connect_mode == "ssh")
+
     if parsed == JPilotRole.ARCHITECT:
         base = load_role_prompt(JPilotRole.ARCHITECT.value, vendor)
         if appliance_name:
@@ -139,13 +143,26 @@ def build_system_prompt(
         )
     if parsed == JPilotRole.ANALYST:
         base = load_role_prompt(JPilotRole.ANALYST.value, vendor)
-        suffix = (
-            f"Active appliance: {appliance_name}\n"
-            f"Next-Gen API login is confirmed. Always pass appliance_name \"{appliance_name}\" to NetScaler tools.\n"
-        )
+        if ssh_vendor:
+            suffix = (
+                f"Active appliance: {appliance_name}\n"
+                f"SSH connectivity is confirmed. Always pass appliance_name \"{appliance_name}\" to tool calls.\n"
+            )
+        else:
+            suffix = (
+                f"Active appliance: {appliance_name}\n"
+                f"Next-Gen API login is confirmed. Always pass appliance_name \"{appliance_name}\" to NetScaler tools.\n"
+            )
         return f"{base}\n{suffix}"
 
     base = load_role_prompt(JPilotRole.OPERATOR.value, vendor)
+    if ssh_vendor:
+        return (
+            f"{base}\n"
+            f"Active appliance: {appliance_name}\n"
+            f"SSH connectivity is confirmed. Always pass appliance_name \"{appliance_name}\" to tool calls.\n"
+            "Official CLI behavioral rules are loaded on demand — do not assume syntax without searching first."
+        )
     return (
         f"{base}\n"
         f"Active appliance: {appliance_name}\n"

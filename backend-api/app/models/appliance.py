@@ -19,6 +19,22 @@ def normalize_vendor(vendor: str | None) -> str:
     return vendor or DEFAULT_VENDOR
 
 
+def normalize_tags(tags: list[str] | None) -> list[str]:
+    if not tags:
+        return []
+    seen: set[str] = set()
+    normalized: list[str] = []
+    for raw in tags:
+        tag = str(raw).strip().lower()
+        if not tag or len(tag) > 40:
+            continue
+        if tag in seen:
+            continue
+        seen.add(tag)
+        normalized.append(tag)
+    return normalized[:20]
+
+
 def is_netscaler_appliance(doc: dict[str, Any]) -> bool:
     return normalize_vendor(doc.get("vendor")) == DEFAULT_VENDOR
 
@@ -29,6 +45,7 @@ def is_copilot_eligible_appliance(doc: dict[str, Any]) -> bool:
 
 def serialize_appliance(doc: dict[str, Any]) -> dict[str, Any]:
     vendor = normalize_vendor(doc.get("vendor"))
+    product_id = doc.get("productId") or None
     return {
         "id": str(doc["_id"]),
         "name": doc["name"],
@@ -36,6 +53,8 @@ def serialize_appliance(doc: dict[str, Any]) -> dict[str, Any]:
         "enabled": doc["enabled"],
         "notes": doc.get("notes", ""),
         "vendor": vendor,
+        "productId": product_id,
+        "tags": normalize_tags(doc.get("tags")),
         "copilotEligible": is_copilot_eligible_appliance(doc),
         "createdAt": doc["createdAt"],
         "updatedAt": doc["updatedAt"],
@@ -48,7 +67,7 @@ def build_appliance_document(payload: dict[str, Any], encrypted_fields: dict[str
     enabled = payload.get("enabled", True)
     if not is_vendor_copilot_supported(vendor) and vendor != DEFAULT_VENDOR:
         enabled = False
-    return {
+    doc: dict[str, Any] = {
         "name": payload["name"],
         "environment": payload["environment"],
         "vendor": vendor,
@@ -57,9 +76,14 @@ def build_appliance_document(payload: dict[str, Any], encrypted_fields: dict[str
         "encryptedPassword": encrypted_fields["encryptedPassword"],
         "enabled": enabled,
         "notes": payload.get("notes", ""),
+        "tags": normalize_tags(payload.get("tags")),
         "createdAt": now,
         "updatedAt": now,
     }
+    product_id = (payload.get("productId") or "").strip()
+    if product_id:
+        doc["productId"] = product_id
+    return doc
 
 
 def parse_object_id(appliance_id: str) -> ObjectId:

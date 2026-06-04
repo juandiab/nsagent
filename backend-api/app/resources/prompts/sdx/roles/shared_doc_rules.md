@@ -1,0 +1,1 @@
+Use NetScaler SDX official documentation on docs.netscaler.com when citing docs. Before any SSH write command, call search_sdx_cli_reference and follow recommendedCommands from netscaler_sdx_cli_memory.md. Read-only show commands may use sdx_ssh_run_command without a prior search. Never configure ADC/VPX features (LB, CS, Gateway, etc.) on SDX — platform/SVM management only.

@@ -557,6 +557,24 @@ CISCO_SEARCH_TOOL = {
     },
 }
 
+SDX_SEARCH_TOOL = {
+    "name": "search_sdx_cli_reference",
+    "description": (
+        "REQUIRED before sdx_run_cli_command or sdx_run_cli_commands. "
+        "Searches netscaler_sdx_cli_memory.md for SDX SVM syntax and recommendedCommands."
+    ),
+    "parameters": {
+        "type": "object",
+        "properties": {
+            "query": {
+                "type": "string",
+                "description": "SDX topic or command, e.g. show virtualserver or start VPX",
+            }
+        },
+        "required": ["query"],
+    },
+}
+
 CISCO_COPILOT_TOOLS = [
     {
         "name": "cisco_test_connection",
@@ -624,6 +642,73 @@ CISCO_COPILOT_TOOLS = [
     },
 ]
 
+SDX_COPILOT_TOOLS = [
+    {
+        "name": "sdx_test_connection",
+        "description": "Test SSH connectivity to a NetScaler SDX Management Service using show version.",
+        "parameters": {
+            "type": "object",
+            "properties": {
+                "appliance_name": {"type": "string", "description": "Inventory name of the SDX appliance"},
+            },
+            "required": ["appliance_name"],
+        },
+    },
+    {
+        "name": "sdx_ssh_run_command",
+        "description": (
+            "Run a read-only NetScaler SDX SVM command over SSH (show only). "
+            "Use search_sdx_cli_reference first when syntax is uncertain."
+        ),
+        "parameters": {
+            "type": "object",
+            "properties": {
+                "appliance_name": {"type": "string"},
+                "command": {"type": "string"},
+                "purpose": {"type": "string", "description": "Why this command is needed"},
+            },
+            "required": ["appliance_name", "command", "purpose"],
+        },
+    },
+    {
+        "name": "sdx_run_cli_command",
+        "description": (
+            "Run a single NetScaler SDX SVM CLI command over SSH. "
+            "Use ONLY after search_sdx_cli_reference confirms syntax from memory."
+        ),
+        "parameters": {
+            "type": "object",
+            "properties": {
+                "appliance_name": {"type": "string"},
+                "command": {"type": "string"},
+                "purpose": {"type": "string"},
+                "confirmed": {
+                    "type": "boolean",
+                    "description": "Required true for destructive commands on retry",
+                },
+            },
+            "required": ["appliance_name", "command", "purpose"],
+        },
+    },
+    {
+        "name": "sdx_run_cli_commands",
+        "description": (
+            "Run ordered NetScaler SDX SVM CLI commands over SSH. "
+            "Use ONLY after search_sdx_cli_reference confirms syntax."
+        ),
+        "parameters": {
+            "type": "object",
+            "properties": {
+                "appliance_name": {"type": "string"},
+                "commands": {"type": "array", "items": {"type": "string"}},
+                "purpose": {"type": "string"},
+                "confirmed": {"type": "boolean"},
+            },
+            "required": ["appliance_name", "commands", "purpose"],
+        },
+    },
+]
+
 MCP_TOOL_MAP = {
     "netscaler_test_connection": "netscaler_test_connection",
     "netscaler_get_system_info": "netscaler_get_system_info",
@@ -646,6 +731,10 @@ MCP_TOOL_MAP = {
     "cisco_ssh_run_command": "cisco_ssh_run_command",
     "cisco_run_cli_command": "cisco_run_cli_command",
     "cisco_run_cli_commands": "cisco_run_cli_commands",
+    "sdx_test_connection": "sdx_test_connection",
+    "sdx_ssh_run_command": "sdx_ssh_run_command",
+    "sdx_run_cli_command": "sdx_run_cli_command",
+    "sdx_run_cli_commands": "sdx_run_cli_commands",
 }
 
 
@@ -785,6 +874,14 @@ async def execute_copilot_tool(
         if not query:
             raise ValueError("query is required")
         return json.dumps(search_cisco_cli_memory(query), separators=(",", ":"))
+
+    if name == "search_sdx_cli_reference":
+        from app.services.sdx_cli_memory_service import search_sdx_cli_memory
+
+        query = arguments.get("query", "").strip()
+        if not query:
+            raise ValueError("query is required")
+        return json.dumps(search_sdx_cli_memory(query), separators=(",", ":"))
 
     if name == "netscaler_list_inventory":
         appliances = await db.appliances.find().sort("name", 1).to_list(length=None)
@@ -959,6 +1056,26 @@ async def execute_copilot_tool(
         mcp_args["commands"] = commands
         mcp_args["purpose"] = purpose
 
+    if name in {"sdx_ssh_run_command", "sdx_run_cli_command"}:
+        command = arguments.get("command", "").strip()
+        purpose = arguments.get("purpose", "").strip()
+        if not command:
+            raise ValueError("command is required")
+        if not purpose:
+            raise ValueError("purpose is required")
+        mcp_args["command"] = command
+        mcp_args["purpose"] = purpose
+
+    if name == "sdx_run_cli_commands":
+        commands = arguments.get("commands") or []
+        purpose = arguments.get("purpose", "").strip()
+        if not commands:
+            raise ValueError("commands is required")
+        if not purpose:
+            raise ValueError("purpose is required")
+        mcp_args["commands"] = commands
+        mcp_args["purpose"] = purpose
+
     return await invoke_mcp_tool(mcp_tool, mcp_args, db=db)
 
 
@@ -980,7 +1097,7 @@ async def get_enabled_copilot_tools(
     enabled = set(settings.enabledTools)
     tools = [
         tool
-        for tool in [*COPILOT_TOOLS, *CISCO_COPILOT_TOOLS]
+        for tool in [*COPILOT_TOOLS, *CISCO_COPILOT_TOOLS, *SDX_COPILOT_TOOLS]
         if tool["name"] == "netscaler_list_inventory" or tool["name"] in enabled
     ]
     tools.append(SELF_CONNECTIVITY_TOOL)
@@ -994,6 +1111,8 @@ async def get_enabled_copilot_tools(
                 tools.append(ARCHITECT_SEARCH_TOOL)
             elif search_tool_name == "search_cisco_cli_reference":
                 tools.append(CISCO_SEARCH_TOOL)
+            elif search_tool_name == "search_sdx_cli_reference":
+                tools.append(SDX_SEARCH_TOOL)
     else:
         tools.extend([SEARCH_TOOL, CLI_SEARCH_TOOL])
     tools = filter_tools_for_role(tools, role, vendor=chat_vendor)
