@@ -5,12 +5,35 @@ from __future__ import annotations
 import re
 from typing import Any
 
-from app.services.memory_paths import get_memory_source_path as _memory_source_path
-from app.services.memory_paths import resolve_memory_file
+from pathlib import Path
+
+from app.services.memory_paths import MEMORY_ROOT, get_memory_source_path as _memory_source_path
+from app.services.memory_paths import memory_dir, memory_file_path, resolve_memory_file
 from app.services.copilot_vendors import DEFAULT_COPILOT_VENDOR
 
 MEMORY_FILENAME = "netscaler_adc_cli_memory.md"
 MEMORY_VENDOR = DEFAULT_COPILOT_VENDOR
+
+
+def _build_memory_candidate_paths() -> tuple[Path, ...]:
+    """Paths checked for CLI memory index cache invalidation (newest mtime wins)."""
+    seen: set[str] = set()
+    candidates: list[Path] = []
+    for path in (
+        memory_file_path(MEMORY_FILENAME, MEMORY_VENDOR),
+        memory_dir(MEMORY_VENDOR) / MEMORY_FILENAME,
+        MEMORY_ROOT / MEMORY_VENDOR / MEMORY_FILENAME,
+        MEMORY_ROOT / MEMORY_FILENAME,
+    ):
+        key = str(path.resolve())
+        if key in seen:
+            continue
+        seen.add(key)
+        candidates.append(path)
+    return tuple(candidates)
+
+
+MEMORY_CANDIDATE_PATHS: tuple[Path, ...] = _build_memory_candidate_paths()
 
 _memory_cache: tuple[float, str] | None = None
 

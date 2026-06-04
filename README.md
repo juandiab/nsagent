@@ -8,7 +8,7 @@ Repository: [github.com/juandiab/nsagent](https://github.com/juandiab/nsagent)
 
 > **Disclaimer:** JPilot is an independent project and is not affiliated with, endorsed by, or sponsored by Citrix Systems, Inc. NetScaler is a trademark of Citrix Systems, Inc.
 
-**Current release:** `v0.29` — About JPilot shows a **Beta** badge beside the installed version.
+**Current release:** `v0.30` — Vendor-scoped recommended actions, background chat notifications, and multi-vendor Architect discovery.
 
 Bump the root [`VERSION`](VERSION) file when tagging a release so in-app update checks match GitHub.
 
@@ -19,7 +19,7 @@ Bump the root [`VERSION`](VERSION) file when tagging a release so in-app update 
 - **JPilot chat** — tool-calling agent bound to the selected appliance; credentials never sent to the LLM.
 - **JPilot roles** — **Architect** (structured discovery and formal design documents), **Operator** (configure the ADC, including from attached `.md` designs), **Analyst** (read-first troubleshooting); dual-pane defaults to Architect + Operator; per-pane **context usage** ring and **Stop** while generating.
 - **Architect design workflow** — choice/boolean `jpilot-form` discovery; deliverable outline with AWS/Azure, Gateway integrations, and AAA topics; downloadable design `.md`; official doc reference index (Citrix Gateway, authentication, Tech Zone).
-- **JPilot command menu** — searchable recommended actions by role with section grouping (~200 prompts).
+- **JPilot command menu** — searchable recommended actions by role with section grouping (~200 prompts); filters to the **selected appliance vendor** (NetScaler, SDX, Cisco, F5).
 - **MCP server** — Model Context Protocol tools for Next-Gen API, classic CLI over SSH, NITRO helpers, diagnostics, and SSL key/CSR generation.
 - **Multi-vendor brain** — `resources/vendors/<id>/manifest.json` drives memory, prompts, tools, and connect mode; NetScaler, Cisco, SDX, and F5 BIG-IP supported today.
 - **Token-optimized chat** — intent-based tool routing, slimmer Architect prompts (on-demand resource search), 18-message history, 10k-char tool results.
@@ -36,9 +36,19 @@ Bump the root [`VERSION`](VERSION) file when tagging a release so in-app update 
 - **Settings → Beta features** — enable MCP tools per beta platform (SDX, Cisco IOS/XE, F5 BIG-IP) next to Next-Gen API; shared SSH settings on the Next-Gen tab.
 - **Dashboard shortcuts** — recommended JPilot prompts and links (health summary, list IPs/vservers, diagnostics, guided LB).
 - **Model usage dashboard** — Settings → AI Providers shows monthly LLM token/request usage and Brave Search query usage with progress bars (tracked locally per calendar month).
-- **Cisco IOS/XE (SSH)** — Operator and Analyst over SSH with `search_cisco_cli_reference` memory gate (beta).
+- **Cisco IOS/XE (SSH)** — Architect, Operator, and Analyst over SSH with `search_cisco_cli_reference` memory gate (beta).
 - **NetScaler SDX (SSH)** — Operator and Analyst for SVM platform and VPX lifecycle with `search_sdx_cli_reference` memory gate (beta).
 - **F5 BIG-IP (SSH / TMSH)** — Operator, Analyst, and Architect (official F5 docs only); `f5_*` MCP tools and `search_f5_tmsh_reference` / `search_f5_documentation` (beta).
+
+## What's new in v0.30
+
+| Area | Highlights |
+|------|------------|
+| **Recommended actions** | Command menu shows only prompts for the **selected appliance vendor**; **15** starter actions each for SDX, Cisco IOS/XE, and F5 BIG-IP (plus Cisco Architect design prompts). |
+| **Background chat** | JPilot keeps generating when you leave the pane or navigate away; **toast + sound** when the reply finishes (Settings → JPilot → Reply notifications); sidebar dot while a pane is busy. |
+| **Architect discovery** | F5 and Cisco Architect roles use **`jpilot-form`** discovery (no checklist loops); server nudge when the model skips forms; **go** produces the design document from chat history. |
+| **Cisco Architect** | New `architect.md` / `architect_discovery.md` prompts (fixes missing role prompt error). |
+| **CLI memory fix** | Restored `MEMORY_CANDIDATE_PATHS` for the NetScaler CLI command index (fixes Operator form execution after CS/LB submissions). |
 
 ## What's new in v0.29
 

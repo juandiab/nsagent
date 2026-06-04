@@ -5,7 +5,9 @@ const STORAGE_KEY = 'copilot_settings'
 const DEFAULT_SETTINGS = {
   allowImages: true,
   allowConfigFiles: true,
-  maxAttachments: 5
+  maxAttachments: 5,
+  notifyWhenReplyComplete: true,
+  playReplySound: true
 }
 
 export function getCopilotSettings() {

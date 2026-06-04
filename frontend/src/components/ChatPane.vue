@@ -1,5 +1,10 @@
 <template>
-  <div class="chat-pane flex flex-column flex-1" :class="{ 'pane-empty': !session.messages.length }">
+  <div
+    class="chat-pane flex flex-column flex-1"
+    :class="{ 'pane-empty': !session.messages.length, 'pane-generating': isGenerating }"
+    @mousedown="markPaneFocused"
+    @focusin="markPaneFocused"
+  >
     <!-- shared hidden file inputs + attach menu -->
     <input
       ref="imageInputRef"
@@ -20,7 +25,7 @@
         data-key="id"
         :allow-empty="false"
         class="pane-role-toggle"
-        :disabled="loading"
+        :disabled="isGenerating"
         aria-label="JPilot role"
       >
         <template #option="slotProps">
@@ -37,7 +42,7 @@
         option-value="name"
         :placeholder="roleNeedsAppliance ? 'Appliance' : 'Appliance (optional)'"
         class="pane-select pane-select-appliance"
-        :disabled="loading || connecting || !roleApplianceOptions.length"
+        :disabled="isGenerating || connecting || !roleApplianceOptions.length"
         :option-disabled="(appliance) => isApplianceDisabledForRole(appliance, session.role)"
         @change="onApplianceChange"
       >
@@ -58,7 +63,7 @@
           option-value="value"
           placeholder="LLM"
           class="pane-select pane-select-llm"
-          :disabled="loading"
+          :disabled="isGenerating"
         />
         <span
           v-else
@@ -100,7 +105,7 @@
         <i class="pi pi-exclamation-circle" /> {{ session.applianceChoice }}
       </span>
       <Button
-        v-if="loading"
+        v-if="isGenerating"
         v-tooltip.bottom="'Stop generating'"
         label="Stop"
         icon="pi pi-stop"
@@ -110,7 +115,7 @@
         @click="stopChat"
       />
       <Button
-        v-if="webSearchAvailable && !loading"
+        v-if="webSearchAvailable && !isGenerating"
         v-tooltip.bottom="session.webSearch ? 'Web search: on (official domains, only when docs fall short). Click to disable.' : 'Web search: off for this chat. Click to enable.'"
         :icon="session.webSearch ? 'pi pi-globe' : 'pi pi-ban'"
         text
@@ -126,7 +131,7 @@
         text
         rounded
         size="small"
-        :disabled="loading"
+        :disabled="isGenerating"
         @click="clearConversation"
       />
       <Button
@@ -156,13 +161,13 @@
             type="text"
             class="glass-input-field"
             :placeholder="rolePlaceholder"
-            :disabled="loading || !ready"
+            :disabled="isGenerating || !ready"
             @keydown.enter.prevent="sendMessage()"
           />
           <button
             class="glass-attach"
             type="button"
-            :disabled="loading || !ready"
+            :disabled="isGenerating || !ready"
             @click="toggleAttachMenu"
           >
             <i class="pi pi-paperclip" />
@@ -182,7 +187,8 @@
         <AskJpilotCommandMenu
           ref="commandMenuRef"
           :active-role="session.role"
-          :disabled="loading || !ready"
+          :appliance-vendor="commandMenuVendor"
+          :disabled="isGenerating || !ready"
           @pick="onCommandPick"
         />
 
@@ -225,7 +231,7 @@
                   icon="pi pi-download"
                   size="small"
                   outlined
-                  :disabled="loading"
+                  :disabled="isGenerating"
                   @click="downloadDesignDocMessage(assistantView(msg).content)"
                 />
               </div>
@@ -258,14 +264,14 @@
             <ChatConfigForm
               v-if="assistantView(msg).inputForm && !assistantView(msg).formSubmitted"
               :form="assistantView(msg).inputForm"
-              :submitting="loading && submittingFormIndex === index"
+              :submitting="isGenerating && submittingFormIndex === index"
               @submit="(values) => submitConfigForm(values, index)"
             />
             <ChatToolTrace v-if="msg.toolCalls?.length" :tools="msg.toolCalls" />
           </div>
         </div>
 
-        <div v-if="loading" class="chat-message chat-message-assistant">
+        <div v-if="isGenerating" class="chat-message chat-message-assistant">
           <div class="chat-bubble chat-bubble-loading">
             <ProgressSpinner style="width: 1.25rem; height: 1.25rem" stroke-width="4" />
             <span>Thinking...</span>
@@ -296,7 +302,7 @@
           icon="pi pi-paperclip"
           text
           rounded
-          :disabled="loading || !ready"
+          :disabled="isGenerating || !ready"
           @click="toggleAttachMenu"
         />
         <Textarea
@@ -305,11 +311,11 @@
           auto-resize
           class="chat-input flex-1"
           :placeholder="rolePlaceholder"
-          :disabled="loading || !ready"
+          :disabled="isGenerating || !ready"
           @keydown.enter.exact.prevent="sendMessage()"
         />
         <Button
-          v-if="loading"
+          v-if="isGenerating"
           v-tooltip.top="'Stop generating'"
           icon="pi pi-stop"
           severity="danger"
@@ -358,6 +364,14 @@ import { estimateSessionContextUsage } from '../utils/contextUsage'
 import { downloadDesignDocument, isDesignDocumentMessage } from '../utils/designDocument'
 import { clearSession, getSession } from '../stores/copilotSessions'
 import {
+  beginChatRun,
+  endChatRun,
+  isSessionLoading,
+  setFocusedChatSession,
+  stopChatRun
+} from '../stores/copilotChatRuns'
+import { notifyReplyReady } from '../services/chatNotifications'
+import {
   DEFAULT_JPILOT_ROLE,
   JPILOT_ROLES,
   getRoleById,
@@ -368,6 +382,7 @@ import {
   isApplianceDisabledForRole
 } from '../config/jpilotApplianceAccess'
 import { isNetScalerVendor } from '../config/applianceVendors'
+import { resolveCommandFilterVendor } from '../config/jpilotRecommendedActions'
 
 const props = defineProps({
   sessionId: { type: String, required: true },
@@ -388,9 +403,12 @@ const toast = useToast()
 const session = getSession(props.sessionId, props.initialRole)
 
 // Transient UI state — fine to reset on remount.
-const loading = ref(false)
-const chatAbortController = ref(null)
 const connecting = ref(false)
+const isGenerating = computed(() => isSessionLoading(props.sessionId))
+
+function markPaneFocused() {
+  setFocusedChatSession(props.sessionId)
+}
 const submittingFormIndex = ref(null)
 const messagesEl = ref(null)
 const pendingAttachments = ref([])
@@ -456,6 +474,11 @@ const selectedAppliance = computed(() =>
   roleApplianceOptions.value.find((appliance) => appliance.name === session.applianceChoice) ||
     props.appliances.find((appliance) => appliance.name === session.applianceChoice) ||
     null
+)
+
+/** Filter recommended actions once an appliance is chosen in this pane. */
+const commandMenuVendor = computed(() =>
+  session.applianceChoice ? resolveCommandFilterVendor(selectedAppliance.value) : null
 )
 
 const connectedApplianceTooltip = computed(() => {
@@ -758,10 +781,11 @@ async function connectAppliance(appliance) {
 }
 
 async function runChat(content, attachments) {
-  chatAbortController.value?.abort()
+  stopChatRun(props.sessionId)
   const controller = new AbortController()
-  chatAbortController.value = controller
-  loading.value = true
+  beginChatRun(props.sessionId, controller)
+  let wasError = false
+  let userStopped = false
   await scrollToBottom()
   try {
     const conversational = session.messages.filter(
@@ -795,12 +819,14 @@ async function runChat(content, attachments) {
     })
   } catch (error) {
     if (isChatAbortError(error)) {
+      userStopped = true
       session.messages.push({
         role: 'assistant',
         content: 'Stopped — generation was cancelled. No further tokens will be used for this reply.'
       })
       return
     }
+    wasError = true
     const content = formatCopilotError(error)
     session.messages.push({
       role: 'assistant',
@@ -809,24 +835,28 @@ async function runChat(content, attachments) {
       providerQuotaError: isProviderQuotaError(error)
     })
   } finally {
-    if (chatAbortController.value === controller) {
-      chatAbortController.value = null
-    }
-    loading.value = false
+    endChatRun(props.sessionId)
     submittingFormIndex.value = null
     await scrollToBottom()
+    if (!userStopped) {
+      notifyReplyReady({
+        toast,
+        sessionId: props.sessionId,
+        role: session.role,
+        wasError
+      })
+    }
   }
 }
 
 function stopChat() {
-  if (!chatAbortController.value) return
-  chatAbortController.value.abort()
+  stopChatRun(props.sessionId)
 }
 
 async function submitConfigForm(values, messageIndex) {
   const msg = session.messages[messageIndex]
   const view = resolveAssistantMessage(msg)
-  if (!view.inputForm || view.formSubmitted || loading.value) return
+  if (!view.inputForm || view.formSubmitted || isGenerating.value) return
 
   const isArchitect = session.role === 'architect'
   const prefix = isArchitect ? 'Planning inputs for:' : 'Configuration inputs for:'
@@ -861,7 +891,7 @@ async function sendMessage(text) {
     mimeType: item.mimeType,
     data: item.data
   }))
-  if ((!content && !attachments.length) || loading.value || !ready.value) return
+  if ((!content && !attachments.length) || isGenerating.value || !ready.value) return
 
   session.messages.push({ role: 'user', content, attachments: attachments.map((item) => ({ ...item })) })
   session.input = ''
@@ -891,14 +921,17 @@ watch(
   { immediate: true }
 )
 
-onMounted(scrollToBottom)
-
-onUnmounted(() => {
-  chatAbortController.value?.abort()
+onMounted(() => {
+  markPaneFocused()
+  scrollToBottom()
 })
 </script>
 
 <style scoped>
+.chat-pane.pane-generating {
+  box-shadow: 0 0 0 1px color-mix(in srgb, var(--p-primary-color) 35%, transparent);
+}
+
 .chat-pane {
   --glass-bg: rgba(255, 255, 255, 0.66);
   --glass-strong: rgba(255, 255, 255, 0.8);

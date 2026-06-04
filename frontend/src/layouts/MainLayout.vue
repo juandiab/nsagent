@@ -10,7 +10,10 @@
           v-tooltip.right="item.label"
           :to="item.path"
           class="nav-btn"
-          :class="{ 'nav-btn-active': isActive(item.path) }"
+          :class="{
+            'nav-btn-active': isActive(item.path),
+            'nav-btn-busy': item.path === '/copilot' && hasActiveChatRuns
+          }"
         >
           <i :class="item.icon" />
         </RouterLink>
@@ -105,6 +108,7 @@ import api from '../services/api'
 import { clearAuth, getStoredUser } from '../services/auth'
 import { checkForUpdates } from '../services/system'
 import { getTheme, toggleTheme } from '../services/theme'
+import { hasActiveChatRuns } from '../stores/copilotChatRuns'
 
 const DISMISS_KEY = 'jpilot_update_dismissed'
 
@@ -301,6 +305,35 @@ function isActive(path) {
   color: var(--p-text-color);
   border-color: var(--p-content-border-color);
   box-shadow: 0 1px 4px rgba(0, 0, 0, 0.06);
+}
+
+.nav-btn-busy {
+  position: relative;
+}
+
+.nav-btn-busy::after {
+  content: '';
+  position: absolute;
+  top: 0.35rem;
+  right: 0.35rem;
+  width: 0.45rem;
+  height: 0.45rem;
+  border-radius: 50%;
+  background: var(--p-primary-color);
+  box-shadow: 0 0 0 2px var(--p-surface-0);
+  animation: nav-busy-pulse 1.4s ease-in-out infinite;
+}
+
+@keyframes nav-busy-pulse {
+  0%,
+  100% {
+    opacity: 1;
+    transform: scale(1);
+  }
+  50% {
+    opacity: 0.55;
+    transform: scale(0.85);
+  }
 }
 
 :global(html.app-dark) .nav-btn:hover:not(.nav-btn-active) {

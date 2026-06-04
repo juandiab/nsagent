@@ -87,8 +87,63 @@ function sidebarItemsForTitle(title) {
   return block?.items || []
 }
 
+/** @type {Record<string, string[]>} */
+const COMMAND_VENDOR_OVERRIDES = {
+  'arch-sdx-multi-tenant': ['sdx']
+}
+
+const DEFAULT_COMMAND_VENDORS = ['netscaler']
+
 /**
- * @param {{ tab?: string, filterTag?: string|null, query?: string }} opts
+ * Vendor id used to filter recommended actions (`netscaler`, `sdx`, `cisco`, `f5`).
+ * @param {import('./jpilotRecommendedActions').JpilotCommand} cmd
+ * @returns {string[]}
+ */
+export function getCommandVendors(cmd) {
+  if (Array.isArray(cmd.vendors) && cmd.vendors.length) return cmd.vendors
+  if (COMMAND_VENDOR_OVERRIDES[cmd.id]) return COMMAND_VENDOR_OVERRIDES[cmd.id]
+  return DEFAULT_COMMAND_VENDORS
+}
+
+/**
+ * @param {import('./jpilotRecommendedActions').JpilotCommand} cmd
+ * @param {string} vendor
+ */
+export function commandMatchesVendor(cmd, vendor) {
+  return getCommandVendors(cmd).includes(vendor)
+}
+
+/**
+ * When an appliance is selected, filter actions to its vendor; otherwise show all.
+ * @param {{ vendor?: string|null } | null | undefined} appliance
+ * @returns {string|null}
+ */
+export function resolveCommandFilterVendor(appliance) {
+  if (!appliance) return null
+  const raw = String(appliance.vendor || 'netscaler').trim().toLowerCase()
+  return raw || 'netscaler'
+}
+
+/**
+ * Sidebar filters that still have at least one command for the active vendor/tab.
+ * @param {{ tab?: string, vendor?: string|null }} opts
+ */
+export function getJpilotCommandSidebar(opts = {}) {
+  const availableTags = new Set(
+    filterJpilotCommands({ tab: opts.tab || 'all', vendor: opts.vendor ?? null }).flatMap(
+      (cmd) => cmd.tags
+    )
+  )
+  return jpilotCommandSidebar
+    .map((section) => ({
+      ...section,
+      items: section.items.filter((item) => availableTags.has(item.id))
+    }))
+    .filter((section) => section.items.length)
+}
+
+/**
+ * @param {{ tab?: string, filterTag?: string|null, query?: string, vendor?: string|null }} opts
  * @returns {{ id: string, title: string, commands: import('./jpilotRecommendedActions').JpilotCommand[] }[]}
  */
 export function getGroupedCommandResults(opts = {}) {
@@ -142,6 +197,7 @@ export function getGroupedCommandResults(opts = {}) {
  * @property {string} [to]
  * @property {'architect'|'operator'|'analyst'} role
  * @property {string[]} tags
+ * @property {string[]} [vendors] — defaults to NetScaler ADC when omitted
  */
 
 /** @type {JpilotCommand[]} */
@@ -520,6 +576,7 @@ export const jpilotCommands = [
     type: 'prompt',
     role: 'architect',
     tags: ['network', 'ha-dr', 'architect'],
+    vendors: ['sdx'],
     text:
       'Design Citrix ADC SDX with multiple VPX instances: channel allocation, management partitioning, and HA per tenant.'
   },
@@ -2268,18 +2325,676 @@ export const jpilotCommands = [
     role: 'analyst',
     tags: ['diagnostics', 'analyst', 'citrix-delivery', 'networking'],
     text: 'Detect duplicate VIPs or IP conflicts affecting Citrix workloads on the connected appliance.'
+  },
+
+  // ═══════════════════════════════════════════════════════════════════════════
+  // SDX — SVM platform (SSH) — 15 actions (+ arch-sdx-multi-tenant above)
+  // ═══════════════════════════════════════════════════════════════════════════
+  {
+    id: 'sdx-arch-capacity-plan',
+    label: 'SDX capacity & growth plan',
+    subtitle: 'Architect · Platform',
+    icon: 'pi pi-chart-bar',
+    type: 'prompt',
+    role: 'architect',
+    tags: ['network', 'ha-dr', 'architect'],
+    vendors: ['sdx'],
+    text:
+      'Plan SDX platform capacity for additional VPX tenants: channel bandwidth, CPU/memory/disk headroom, and management network. Discovery forms, then sizing tables and rollout phases.'
+  },
+  {
+    id: 'sdx-arch-firmware-rollout',
+    label: 'SVM & VPX firmware rollout plan',
+    subtitle: 'Architect · Operations',
+    icon: 'pi pi-upload',
+    type: 'prompt',
+    role: 'architect',
+    tags: ['common', 'architect'],
+    vendors: ['sdx'],
+    text:
+      'Design a controlled firmware upgrade plan for the SDX SVM and hosted VPX instances: prerequisites, maintenance windows, rollback, and verification checklist.'
+  },
+  {
+    id: 'sdx-op-platform-summary',
+    label: 'SDX platform summary',
+    subtitle: 'Operator · Discover',
+    icon: 'pi pi-server',
+    type: 'prompt',
+    role: 'operator',
+    tags: ['discover', 'operator'],
+    vendors: ['sdx'],
+    text:
+      'On the connected SDX, show platform summary: firmware, hostname, channel usage, and VPX instance count (read-only show commands).'
+  },
+  {
+    id: 'sdx-op-list-vpx',
+    label: 'List VPX instances',
+    subtitle: 'Operator · Discover',
+    icon: 'pi pi-table',
+    type: 'prompt',
+    role: 'operator',
+    tags: ['discover', 'operator'],
+    vendors: ['sdx'],
+    text: 'List all VPX instances on the connected SDX with state, allocated resources, and management IPs.'
+  },
+  {
+    id: 'sdx-op-firmware-inventory',
+    label: 'Firmware package inventory',
+    subtitle: 'Operator · Discover',
+    icon: 'pi pi-box',
+    type: 'prompt',
+    role: 'operator',
+    tags: ['discover', 'operator'],
+    vendors: ['sdx'],
+    text:
+      'Show installed and available firmware packages on the connected SDX SVM (read-only). Note versions in use by each VPX.'
+  },
+  {
+    id: 'sdx-op-channel-plan',
+    label: 'Review channel allocation',
+    subtitle: 'Operator · Networking',
+    icon: 'pi pi-sitemap',
+    type: 'prompt',
+    role: 'operator',
+    tags: ['networking', 'operator'],
+    vendors: ['sdx'],
+    text:
+      'Review 10G/40G channel allocation on the connected SDX: which interfaces are assigned to which VPX tenants and what capacity remains.'
+  },
+  {
+    id: 'sdx-op-lacp-channels',
+    label: 'LACP channels & interfaces',
+    subtitle: 'Operator · Networking',
+    icon: 'pi pi-link',
+    type: 'prompt',
+    role: 'operator',
+    tags: ['networking', 'operator'],
+    vendors: ['sdx'],
+    text:
+      'Show LACP channels and physical interface bindings on the connected SDX. Summarize member state and any down links (read-only).'
+  },
+  {
+    id: 'sdx-op-svm-vlans',
+    label: 'SVM VLAN assignments',
+    subtitle: 'Operator · Networking',
+    icon: 'pi pi-map',
+    type: 'prompt',
+    role: 'operator',
+    tags: ['networking', 'operator'],
+    vendors: ['sdx'],
+    text:
+      'List VLANs configured on the connected SDX management platform and which VPX instances use each segment (read-only show vlan).'
+  },
+  {
+    id: 'sdx-op-capacity-headroom',
+    label: 'Platform resource headroom',
+    subtitle: 'Operator · Discover',
+    icon: 'pi pi-gauge',
+    type: 'prompt',
+    role: 'operator',
+    tags: ['discover', 'operator'],
+    vendors: ['sdx'],
+    text:
+      'Report CPU, memory, and disk utilization on the connected SDX SVM and whether resources remain for another VPX (read-only show cpu/memory/disk).'
+  },
+  {
+    id: 'sdx-op-vpx-maintenance-precheck',
+    label: 'VPX maintenance pre-check',
+    subtitle: 'Operator · Discover',
+    icon: 'pi pi-wrench',
+    type: 'prompt',
+    role: 'operator',
+    tags: ['discover', 'operator'],
+    vendors: ['sdx'],
+    text:
+      'Before restarting a named VPX on the connected SDX, gather read-only state: HA role, sync, active sessions impact summary, and peer VPX status.'
+  },
+  {
+    id: 'sdx-an-vpx-health',
+    label: 'VPX instance health check',
+    subtitle: 'Analyst · Diagnostics',
+    icon: 'pi pi-heart',
+    type: 'prompt',
+    role: 'analyst',
+    tags: ['diagnostics', 'analyst'],
+    vendors: ['sdx'],
+    text:
+      'Check health of each VPX on the connected SDX: power state, HA sync indicators, and recent platform alarms (read-only).'
+  },
+  {
+    id: 'sdx-an-mgmt-connectivity',
+    label: 'SVM management connectivity',
+    subtitle: 'Analyst · Networking',
+    icon: 'pi pi-wifi',
+    type: 'prompt',
+    role: 'analyst',
+    tags: ['diagnostics', 'networking', 'analyst'],
+    vendors: ['sdx'],
+    text:
+      'Verify management network reachability from the SDX SVM: routes, DNS, and NTP status without changing configuration.'
+  },
+  {
+    id: 'sdx-an-alarm-audit',
+    label: 'Platform alarm audit',
+    subtitle: 'Analyst · Diagnostics',
+    icon: 'pi pi-bell',
+    type: 'prompt',
+    role: 'analyst',
+    tags: ['diagnostics', 'analyst'],
+    vendors: ['sdx'],
+    text:
+      'Review recent SDX platform alarms and VPX lifecycle events on the connected appliance. Group by severity and recommend next steps (read-only).'
+  },
+  {
+    id: 'sdx-an-vpx-resource-imbalance',
+    label: 'VPX resource imbalance',
+    subtitle: 'Analyst · Diagnostics',
+    icon: 'pi pi-exclamation-triangle',
+    type: 'prompt',
+    role: 'analyst',
+    tags: ['diagnostics', 'analyst'],
+    vendors: ['sdx'],
+    text:
+      'Compare CPU/memory allocation across VPX instances on the connected SDX. Flag tenants over-provisioned or starved (read-only).'
+  },
+  // ═══════════════════════════════════════════════════════════════════════════
+  // Cisco IOS/XE (SSH) — Architect + Operator + Analyst
+  // ═══════════════════════════════════════════════════════════════════════════
+  {
+    id: 'cisco-arch-ios-upgrade',
+    label: 'IOS / IOS-XE upgrade plan',
+    subtitle: 'Architect · Lifecycle',
+    icon: 'pi pi-upload',
+    type: 'prompt',
+    role: 'architect',
+    tags: ['common', 'architect'],
+    vendors: ['cisco'],
+    text:
+      'Design a safe Cisco IOS or IOS-XE upgrade for campus switches: image selection, pre-checks (boot variable, disk space, config backup), maintenance window, reload order, and rollback. Use jpilot-form discovery, then a step-by-step design document with verification commands.'
+  },
+  {
+    id: 'cisco-arch-campus-design',
+    label: 'Campus switching design (access / dist / core)',
+    subtitle: 'Architect · Network',
+    icon: 'pi pi-sitemap',
+    type: 'prompt',
+    role: 'architect',
+    tags: ['network', 'common', 'architect'],
+    vendors: ['cisco'],
+    text:
+      'Design a three-tier campus LAN: access, distribution, and core roles, uplink speeds, and where routing terminates. Discovery questions on site size and PoE needs, then topology diagram description and device placement table.'
+  },
+  {
+    id: 'cisco-arch-vlan-design',
+    label: 'VLAN & segmentation plan',
+    subtitle: 'Architect · Network',
+    icon: 'pi pi-table',
+    type: 'prompt',
+    role: 'architect',
+    tags: ['network', 'security', 'architect'],
+    vendors: ['cisco'],
+    text:
+      'Design VLAN IDs, names, and IP subnets for users, servers, management, and voice. Document which switches carry which VLANs, trunk allowed lists, and pruning strategy.'
+  },
+  {
+    id: 'cisco-arch-l3-svi',
+    label: 'L3 switching & SVI design',
+    subtitle: 'Architect · Network',
+    icon: 'pi pi-map',
+    type: 'prompt',
+    role: 'architect',
+    tags: ['network', 'architect'],
+    vendors: ['cisco'],
+    text:
+      'Design inter-VLAN routing on Cisco L3 switches: SVI IPs, default gateway placement, static routes or routing protocol choice, and DHCP helper addresses where needed.'
+  },
+  {
+    id: 'cisco-arch-stp-design',
+    label: 'Spanning tree (RSTP) design',
+    subtitle: 'Architect · Network',
+    icon: 'pi pi-share-alt',
+    type: 'prompt',
+    role: 'architect',
+    tags: ['network', 'ha-dr', 'architect'],
+    vendors: ['cisco'],
+    text:
+      'Design spanning-tree for a Cisco campus: root bridge placement, portfast/bpduguard on access ports, uplink port types, and MST vs RSTP choice. Include failure scenarios in the design doc.'
+  },
+  {
+    id: 'cisco-arch-port-channel',
+    label: 'Port-channel & LACP design',
+    subtitle: 'Architect · Network',
+    icon: 'pi pi-clone',
+    type: 'prompt',
+    role: 'architect',
+    tags: ['network', 'ha-dr', 'architect'],
+    vendors: ['cisco'],
+    text:
+      'Design port-channels between access and distribution switches: LACP mode, load-balancing, member interfaces, and misconfiguration safeguards. Tables per switch pair.'
+  },
+  {
+    id: 'cisco-arch-access-standards',
+    label: 'Access port standards',
+    subtitle: 'Architect · Operations',
+    icon: 'pi pi-cog',
+    type: 'prompt',
+    role: 'architect',
+    tags: ['common', 'network', 'architect'],
+    vendors: ['cisco'],
+    text:
+      'Define a standard Cisco access-port template: description convention, access VLAN, voice VLAN optional, portfast, storm control, and err-disable recovery. Deliver as a design appendix for Operator handoff.'
+  },
+  {
+    id: 'cisco-arch-mgmt-security',
+    label: 'Management plane hardening',
+    subtitle: 'Architect · Security',
+    icon: 'pi pi-shield',
+    type: 'prompt',
+    role: 'architect',
+    tags: ['security', 'network', 'architect'],
+    vendors: ['cisco'],
+    text:
+      'Design management security for Cisco switches: SSH version, VTY ACLs, dedicated management VLAN or VRF, SNMP read-only community restrictions, and AAA (TACACS+/RADIUS) integration outline.'
+  },
+  {
+    id: 'cisco-arch-first-hop-redundancy',
+    label: 'HSRP / VRRP gateway redundancy',
+    subtitle: 'Architect · HA',
+    icon: 'pi pi-clone',
+    type: 'prompt',
+    role: 'architect',
+    tags: ['ha-dr', 'network', 'architect'],
+    vendors: ['cisco'],
+    text:
+      'Design first-hop redundancy (HSRP or VRRP) on Cisco distribution switches: virtual IP, priority/preempt, tracking, and alignment with spanning-tree root. Document failover behavior.'
+  },
+  {
+    id: 'cisco-arch-qos-basics',
+    label: 'Basic QoS & trust boundary',
+    subtitle: 'Architect · Network',
+    icon: 'pi pi-sliders-h',
+    type: 'prompt',
+    role: 'architect',
+    tags: ['network', 'common', 'architect'],
+    vendors: ['cisco'],
+    text:
+      'Design basic QoS on Cisco IOS/XE for voice and business traffic: trust boundary on access ports, marking on uplinks, and queueing policy outline suitable for a small campus.'
+  },
+  {
+    id: 'cisco-op-version',
+    label: 'IOS version and uptime',
+    subtitle: 'Operator · Discover',
+    icon: 'pi pi-info-circle',
+    type: 'prompt',
+    role: 'operator',
+    tags: ['discover', 'operator'],
+    vendors: ['cisco'],
+    text:
+      'On the connected switch, run read-only show commands for IOS/XE version, hostname, uptime, and serial number. Summarize in a table.'
+  },
+  {
+    id: 'cisco-op-interfaces',
+    label: 'Interface status summary',
+    subtitle: 'Operator · Discover',
+    icon: 'pi pi-link',
+    type: 'prompt',
+    role: 'operator',
+    tags: ['discover', 'networking', 'operator'],
+    vendors: ['cisco'],
+    text:
+      'List interface status on the connected switch: admin/oper state, VLANs, and errors on uplinks and access ports (read-only).'
+  },
+  {
+    id: 'cisco-op-vlan-audit',
+    label: 'VLAN and trunk audit',
+    subtitle: 'Operator · Networking',
+    icon: 'pi pi-sitemap',
+    type: 'prompt',
+    role: 'operator',
+    tags: ['networking', 'operator'],
+    vendors: ['cisco'],
+    text:
+      'Audit VLANs and trunk allowed lists on the connected switch. Highlight inconsistencies before any configuration change.'
+  },
+  {
+    id: 'cisco-op-stp-root',
+    label: 'STP root and topology',
+    subtitle: 'Operator · Networking',
+    icon: 'pi pi-share-alt',
+    type: 'prompt',
+    role: 'operator',
+    tags: ['networking', 'operator'],
+    vendors: ['cisco'],
+    text:
+      'Show spanning-tree root bridge and port roles on the connected switch. Note any blocked ports affecting Citrix or server VLANs.'
+  },
+  {
+    id: 'cisco-op-neighbors',
+    label: 'CDP / LLDP neighbors',
+    subtitle: 'Operator · Discover',
+    icon: 'pi pi-users',
+    type: 'prompt',
+    role: 'operator',
+    tags: ['discover', 'networking', 'operator'],
+    vendors: ['cisco'],
+    text:
+      'Show CDP and LLDP neighbors on the connected switch. Map uplinks to distribution/core and downstream access devices (read-only).'
+  },
+  {
+    id: 'cisco-op-mac-table',
+    label: 'MAC address table review',
+    subtitle: 'Operator · Discover',
+    icon: 'pi pi-table',
+    type: 'prompt',
+    role: 'operator',
+    tags: ['discover', 'operator'],
+    vendors: ['cisco'],
+    text:
+      'Summarize MAC address table entries on the connected switch for a given VLAN or interface. Note flapping or unexpected hosts (read-only).'
+  },
+  {
+    id: 'cisco-op-routing-table',
+    label: 'IP routing table',
+    subtitle: 'Operator · Networking',
+    icon: 'pi pi-map',
+    type: 'prompt',
+    role: 'operator',
+    tags: ['networking', 'operator'],
+    vendors: ['cisco'],
+    text:
+      'Show IP routing table and connected routes on the connected L3 switch (read-only show ip route). Highlight missing or overlapping prefixes.'
+  },
+  {
+    id: 'cisco-op-config-snapshot',
+    label: 'Running config overview',
+    subtitle: 'Operator · Discover',
+    icon: 'pi pi-file',
+    type: 'prompt',
+    role: 'operator',
+    tags: ['discover', 'operator'],
+    vendors: ['cisco'],
+    text:
+      'Produce a concise overview of the running configuration on the connected switch: SVIs, key ACLs, and port-channels (read-only, no secrets).'
+  },
+  {
+    id: 'cisco-op-port-channel',
+    label: 'Port-channel status',
+    subtitle: 'Operator · Networking',
+    icon: 'pi pi-clone',
+    type: 'prompt',
+    role: 'operator',
+    tags: ['networking', 'operator'],
+    vendors: ['cisco'],
+    text:
+      'List port-channel groups on the connected switch: member interfaces, LACP state, and load-balancing (read-only).'
+  },
+  {
+    id: 'cisco-op-access-port-template',
+    label: 'Standard access port config',
+    subtitle: 'Operator · Networking',
+    icon: 'pi pi-cog',
+    type: 'prompt',
+    role: 'operator',
+    tags: ['networking', 'configure', 'operator'],
+    vendors: ['cisco'],
+    text:
+      'After search_cisco_cli_reference, propose IOS commands to configure a new access port (VLAN, description, no shutdown) on the connected switch. Ask for interface ID and VLAN before applying.'
+  },
+  {
+    id: 'cisco-an-cpu-mem',
+    label: 'CPU and memory utilization',
+    subtitle: 'Analyst · Diagnostics',
+    icon: 'pi pi-chart-line',
+    type: 'prompt',
+    role: 'analyst',
+    tags: ['diagnostics', 'analyst'],
+    vendors: ['cisco'],
+    text:
+      'Collect CPU, memory, and buffer utilization on the connected switch (read-only). Flag sustained high utilization.'
+  },
+  {
+    id: 'cisco-an-logs',
+    label: 'Recent syslog highlights',
+    subtitle: 'Analyst · Diagnostics',
+    icon: 'pi pi-file',
+    type: 'prompt',
+    role: 'analyst',
+    tags: ['diagnostics', 'analyst'],
+    vendors: ['cisco'],
+    text:
+      'Review recent syslog messages on the connected switch for interface flaps, STP changes, or auth failures (read-only).'
+  },
+  {
+    id: 'cisco-an-interface-errors',
+    label: 'Interface error counters',
+    subtitle: 'Analyst · Diagnostics',
+    icon: 'pi pi-exclamation-circle',
+    type: 'prompt',
+    role: 'analyst',
+    tags: ['diagnostics', 'networking', 'analyst'],
+    vendors: ['cisco'],
+    text:
+      'Show interface counters and errors on the connected switch. Identify ports with CRC, giants, or input errors (read-only).'
+  },
+  {
+    id: 'cisco-an-stp-instability',
+    label: 'STP instability signals',
+    subtitle: 'Analyst · Diagnostics',
+    icon: 'pi pi-share-alt',
+    type: 'prompt',
+    role: 'analyst',
+    tags: ['diagnostics', 'networking', 'analyst'],
+    vendors: ['cisco'],
+    text:
+      'Check spanning-tree topology changes, blocked ports, and inconsistent roles on the connected switch (read-only).'
+  },
+  {
+    id: 'cisco-an-connectivity-test',
+    label: 'Ping / traceroute from switch',
+    subtitle: 'Analyst · Diagnostics',
+    icon: 'pi pi-send',
+    type: 'prompt',
+    role: 'analyst',
+    tags: ['diagnostics', 'networking', 'analyst'],
+    vendors: ['cisco'],
+    text:
+      'From the connected switch, run read-only ping or traceroute to a target IP I provide. Report reachability and path.'
+  },
+  // ═══════════════════════════════════════════════════════════════════════════
+  // F5 BIG-IP (TMSH / SSH) — 15 actions
+  // ═══════════════════════════════════════════════════════════════════════════
+  {
+    id: 'f5-arch-ha-design',
+    label: 'BIG-IP HA pair design',
+    subtitle: 'Architect · HA',
+    icon: 'pi pi-clone',
+    type: 'prompt',
+    role: 'architect',
+    tags: ['ha-dr', 'common', 'architect'],
+    vendors: ['f5'],
+    text:
+      'Design an F5 BIG-IP active/standby or active/active HA pair: sync groups, floating self IPs, failover triggers, and maintenance windows. Use jpilot-form discovery (one topic per turn, choice/boolean fields — no markdown question tables), then a formal design document.'
+  },
+  {
+    id: 'f5-arch-vs-pool',
+    label: 'Virtual server & pool design',
+    subtitle: 'Architect · Traffic',
+    icon: 'pi pi-server',
+    type: 'prompt',
+    role: 'architect',
+    tags: ['common', 'architect'],
+    vendors: ['f5'],
+    text:
+      'Design BIG-IP virtual servers, pools, monitors, and persistence for an HTTP/HTTPS application. Use jpilot-form discovery for VIP, backends, SSL, and monitors, then a design document with Handoff for Operator.'
+  },
+  {
+    id: 'f5-arch-irules-events',
+    label: 'iRules & event-driven logic',
+    subtitle: 'Architect · Traffic',
+    icon: 'pi pi-code',
+    type: 'prompt',
+    role: 'architect',
+    tags: ['traffic-mgmt', 'common', 'architect'],
+    vendors: ['f5'],
+    text:
+      'Design when to use iRules, iApps, or LTM policies on BIG-IP for traffic steering, header injection, or maintenance pages. Use jpilot-form discovery, then document events, conditions, and testing approach.'
+  },
+  {
+    id: 'f5-op-version',
+    label: 'TMOS version and license',
+    subtitle: 'Operator · Discover',
+    icon: 'pi pi-info-circle',
+    type: 'prompt',
+    role: 'operator',
+    tags: ['discover', 'operator'],
+    vendors: ['f5'],
+    text:
+      'On the connected BIG-IP, show TMOS version, hostname, license state, and failover status (read-only tmsh show commands).'
+  },
+  {
+    id: 'f5-op-list-virtuals',
+    label: 'List virtual servers',
+    subtitle: 'Operator · Discover',
+    icon: 'pi pi-list',
+    type: 'prompt',
+    role: 'operator',
+    tags: ['discover', 'traffic-mgmt', 'operator'],
+    vendors: ['f5'],
+    text: 'List virtual servers on the connected BIG-IP with destination, pool, and availability (read-only).'
+  },
+  {
+    id: 'f5-op-pool-health',
+    label: 'Pool member health',
+    subtitle: 'Operator · Traffic',
+    icon: 'pi pi-heart',
+    type: 'prompt',
+    role: 'operator',
+    tags: ['traffic-mgmt', 'operator'],
+    vendors: ['f5'],
+    text:
+      'For a named pool on the connected BIG-IP, show member state, monitor results, and connection counts (read-only).'
+  },
+  {
+    id: 'f5-op-ssl-profile',
+    label: 'Client SSL profile summary',
+    subtitle: 'Operator · Security',
+    icon: 'pi pi-lock',
+    type: 'prompt',
+    role: 'operator',
+    tags: ['security', 'ssl', 'operator'],
+    vendors: ['f5'],
+    text:
+      'Summarize client SSL profiles and certificate names bound to virtual servers on the connected BIG-IP (read-only).'
+  },
+  {
+    id: 'f5-op-snat-inventory',
+    label: 'SNAT / NAT inventory',
+    subtitle: 'Operator · Networking',
+    icon: 'pi pi-map',
+    type: 'prompt',
+    role: 'operator',
+    tags: ['networking', 'operator'],
+    vendors: ['f5'],
+    text:
+      'List SNAT pools, NAT rules, and self IPs used for outbound connections on the connected BIG-IP (read-only tmsh list/show).'
+  },
+  {
+    id: 'f5-op-persistence-profiles',
+    label: 'Persistence profiles',
+    subtitle: 'Operator · Traffic',
+    icon: 'pi pi-sync',
+    type: 'prompt',
+    role: 'operator',
+    tags: ['traffic-mgmt', 'operator'],
+    vendors: ['f5'],
+    text:
+      'Show persistence profiles and which virtual servers use them on the connected BIG-IP (read-only).'
+  },
+  {
+    id: 'f5-op-monitors-catalog',
+    label: 'Health monitor catalog',
+    subtitle: 'Operator · Discover',
+    icon: 'pi pi-heart-fill',
+    type: 'prompt',
+    role: 'operator',
+    tags: ['discover', 'traffic-mgmt', 'operator'],
+    vendors: ['f5'],
+    text:
+      'List custom and system health monitors on the connected BIG-IP and which pools reference each (read-only).'
+  },
+  {
+    id: 'f5-op-new-pool-vs',
+    label: 'Create pool + virtual server',
+    subtitle: 'Operator · Traffic',
+    icon: 'pi pi-plus',
+    type: 'prompt',
+    role: 'operator',
+    tags: ['traffic-mgmt', 'configure', 'operator', 'guided'],
+    vendors: ['f5'],
+    text:
+      'After search_f5_tmsh_reference, create a basic HTTP pool and virtual server on the connected BIG-IP. Ask for VIP, port, pool members, and monitor before applying TMSH commands.'
+  },
+  {
+    id: 'f5-an-failover',
+    label: 'HA failover readiness',
+    subtitle: 'Analyst · Diagnostics',
+    icon: 'pi pi-clone',
+    type: 'prompt',
+    role: 'analyst',
+    tags: ['diagnostics', 'ha-dr', 'analyst'],
+    vendors: ['f5'],
+    text:
+      'Check BIG-IP HA sync, config sync status, and failover triggers on the connected device without making changes.'
+  },
+  {
+    id: 'f5-an-traffic',
+    label: 'Traffic and connection anomalies',
+    subtitle: 'Analyst · Diagnostics',
+    icon: 'pi pi-chart-bar',
+    type: 'prompt',
+    role: 'analyst',
+    tags: ['diagnostics', 'traffic-mgmt', 'analyst'],
+    vendors: ['f5'],
+    text:
+      'Investigate elevated connections or slow virtual servers on the connected BIG-IP using read-only statistics and logs.'
+  },
+  {
+    id: 'f5-an-pool-down',
+    label: 'Why are pool members down?',
+    subtitle: 'Analyst · Diagnostics',
+    icon: 'pi pi-times-circle',
+    type: 'prompt',
+    role: 'analyst',
+    tags: ['diagnostics', 'traffic-mgmt', 'analyst'],
+    vendors: ['f5'],
+    text:
+      'Troubleshoot unavailable pool members on the connected BIG-IP: monitor failures, network path, and port/service state (read-only).'
+  },
+  {
+    id: 'f5-an-cert-expiry',
+    label: 'Certificate expiry check',
+    subtitle: 'Analyst · Security',
+    icon: 'pi pi-calendar',
+    type: 'prompt',
+    role: 'analyst',
+    tags: ['diagnostics', 'security', 'ssl', 'analyst'],
+    vendors: ['f5'],
+    text:
+      'List SSL certificates on the connected BIG-IP with expiration dates and which client SSL profiles reference them (read-only).'
   }
 ]
 
 /**
- * @param {{ tab?: string, filterTag?: string|null, query?: string }} opts
+ * @param {{ tab?: string, filterTag?: string|null, query?: string, vendor?: string|null }} opts
  */
 export function filterJpilotCommands(opts = {}) {
   const tab = opts.tab || 'all'
   const filterTag = opts.filterTag || null
   const query = (opts.query || '').trim().toLowerCase()
+  const vendor = opts.vendor ?? null
 
   return jpilotCommands.filter((cmd) => {
+    if (vendor && !commandMatchesVendor(cmd, vendor)) return false
     if (tab !== 'all' && cmd.role !== tab) return false
     if (filterTag && !cmd.tags.includes(filterTag)) return false
     if (query) {

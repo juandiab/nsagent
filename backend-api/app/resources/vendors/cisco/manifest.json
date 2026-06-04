@@ -12,7 +12,7 @@
     "cisco_ios_switch_memory.md"
   ],
   "promptsDir": "prompts/cisco/roles",
-  "roles": ["operator", "analyst"],
+  "roles": ["architect", "operator", "analyst"],
   "tools": {
     "vendorPrefix": "cisco_",
     "mcpTools": [

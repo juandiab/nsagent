@@ -295,6 +295,35 @@
                   </div>
                 </div>
               </div>
+
+              <div class="content-panel content-panel-padded">
+                <h2 class="section-title">Reply notifications</h2>
+                <p class="section-copy">
+                  When JPilot finishes while you are on another page, another chat pane, or another browser tab,
+                  show a toast and play a short sound (like Cursor).
+                </p>
+
+                <div class="flex flex-column gap-4 mt-4">
+                  <div class="flex align-items-center justify-content-between gap-3 setting-row">
+                    <div>
+                      <div class="setting-label">Notify when reply completes</div>
+                      <div class="setting-hint">Toast when you are not viewing that chat pane</div>
+                    </div>
+                    <ToggleSwitch
+                      v-model="copilotSettings.notifyWhenReplyComplete"
+                      @update:model-value="saveCopilotPrefs"
+                    />
+                  </div>
+
+                  <div class="flex align-items-center justify-content-between gap-3 setting-row">
+                    <div>
+                      <div class="setting-label">Play completion sound</div>
+                      <div class="setting-hint">Short tone with the toast (browser may require a prior click)</div>
+                    </div>
+                    <ToggleSwitch v-model="copilotSettings.playReplySound" @update:model-value="saveCopilotPrefs" />
+                  </div>
+                </div>
+              </div>
             </div>
   
             <div class="col-12 lg:col-4">

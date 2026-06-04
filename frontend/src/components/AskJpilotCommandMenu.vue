@@ -50,7 +50,7 @@
             <i v-if="cmd.type === 'link'" class="pi pi-arrow-right cmd-result-arrow" />
           </button>
         </template>
-        <p v-if="!flatResults.length" class="cmd-empty">No actions match this tab.</p>
+        <p v-if="!flatResults.length" class="cmd-empty">{{ emptyResultsHint }}</p>
       </div>
       <button type="button" class="cmd-show-all" @click="openMenu">
         Show all {{ flatResults.length }} actions by section
@@ -131,14 +131,14 @@
                 <i v-if="cmd.type === 'link'" class="pi pi-arrow-right cmd-result-arrow" />
               </button>
             </template>
-            <p v-if="!flatResults.length" class="cmd-empty">No matching actions. Try another tab or filter.</p>
+            <p v-if="!flatResults.length" class="cmd-empty">{{ emptyResultsHint }}</p>
           </div>
         </div>
 
         <div class="cmd-dialog-divider" />
 
         <aside class="cmd-dialog-sidebar">
-          <div v-for="(section, si) in jpilotCommandSidebar" :key="si" class="cmd-sidebar-section">
+          <div v-for="(section, si) in commandSidebar" :key="si" class="cmd-sidebar-section">
             <h5 class="cmd-sidebar-title">{{ section.title }}</h5>
             <button
               v-for="item in section.items"
@@ -178,12 +178,14 @@ import InputText from 'primevue/inputtext'
 import {
   defaultCommandTabForRole,
   getGroupedCommandResults,
-  jpilotCommandSidebar,
+  getJpilotCommandSidebar,
   jpilotCommandTabs
 } from '../config/jpilotRecommendedActions'
 
 const props = defineProps({
   activeRole: { type: String, default: 'operator' },
+  /** When set (appliance selected), only show actions for this vendor. */
+  applianceVendor: { type: String, default: null },
   disabled: { type: Boolean, default: false }
 })
 
@@ -202,12 +204,27 @@ const inlinePerSection = 3
 const filterOpts = computed(() => ({
   tab: selectedTab.value,
   filterTag: filterTag.value,
-  query: searchQuery.value
+  query: searchQuery.value,
+  vendor: props.applianceVendor || null
 }))
+
+const commandSidebar = computed(() =>
+  getJpilotCommandSidebar({
+    tab: selectedTab.value,
+    vendor: props.applianceVendor || null
+  })
+)
 
 const groupedResults = computed(() => getGroupedCommandResults(filterOpts.value))
 
 const flatResults = computed(() => groupedResults.value.flatMap((g) => g.commands))
+
+const emptyResultsHint = computed(() => {
+  if (props.applianceVendor) {
+    return 'No recommended actions for this appliance vendor on this tab. Try another role tab or clear the appliance filter.'
+  }
+  return 'No actions match this tab.'
+})
 
 function flatIndex(cmdId) {
   return flatResults.value.findIndex((c) => c.id === cmdId)
@@ -216,6 +233,14 @@ function flatIndex(cmdId) {
 watch([selectedTab, filterTag, searchQuery], () => {
   selectedIndex.value = 0
 })
+
+watch(
+  () => props.applianceVendor,
+  () => {
+    filterTag.value = null
+    selectedIndex.value = 0
+  }
+)
 
 watch(
   () => props.activeRole,

@@ -52,6 +52,10 @@ from app.services.copilot_memory_gate import (
     block_result_for_unconfirmed_destructive,
     destructive_confirmation_required,
 )
+from app.services.copilot_architect_discovery import (
+    architect_discovery_should_retry,
+    sanitize_architect_reply,
+)
 from app.services.copilot_retry import build_tool_retry_hint
 from app.services.copilot_roles import (
     JPilotRole,
@@ -219,6 +223,15 @@ def _response_has_input_form(content: str) -> bool:
     return form is not None
 
 
+def _architect_discovery_retry_nudge(
+    content: str,
+    user_message: str,
+    role: str | None,
+    vendor: str | None,
+) -> str | None:
+    return architect_discovery_should_retry(content, user_message, role, vendor)
+
+
 def _should_force_tool_execution(
     user_message: str,
     tool_traces: list[ToolCallTrace],
@@ -320,6 +333,8 @@ def _finalize_chat_response(
     user_message: str = "",
     role: str | None = None,
 ) -> ChatResponse:
+    if normalize_role(role) == JPilotRole.ARCHITECT:
+        content = sanitize_architect_reply(content)
     cleaned, input_form = parse_input_form(content)
     cleaned, input_form = attach_default_lb_form_if_missing(
         user_message, cleaned, input_form, role=role
@@ -683,7 +698,16 @@ async def _run_openai_loop(
         tool_calls = choice.get("tool_calls") or []
 
         if not tool_calls:
-            content = choice.get("content") or ""
+            content = sanitize_architect_reply(choice.get("content") or "")
+            architect_nudge = _architect_discovery_retry_nudge(
+                content, user_message, jpilot_role, chat_vendor
+            )
+            if architect_nudge:
+                logger.warning("architect_discovery_nudge — checklist or missing jpilot-form")
+                if content.strip():
+                    messages.append({"role": "assistant", "content": content})
+                messages.append({"role": "system", "content": architect_nudge})
+                continue
             if _should_force_tool_execution(user_message, tool_traces, content, role=jpilot_role):
                 logger.warning(
                     "execution_nudge — model replied without running write tools; forcing another iteration"
@@ -795,7 +819,16 @@ async def _run_gemini_loop(
         text_parts = [part.get("text", "") for part in parts if part.get("text")]
 
         if not function_calls:
-            content = "\n".join(text_parts).strip()
+            content = sanitize_architect_reply("\n".join(text_parts).strip())
+            architect_nudge = _architect_discovery_retry_nudge(
+                content, user_message, jpilot_role, chat_vendor
+            )
+            if architect_nudge:
+                logger.warning("architect_discovery_nudge — checklist or missing jpilot-form")
+                if content:
+                    contents.append({"role": "model", "parts": [{"text": content}]})
+                contents.append({"role": "user", "parts": [{"text": architect_nudge}]})
+                continue
             if _should_force_tool_execution(user_message, tool_traces, content, role=jpilot_role):
                 logger.warning(
                     "execution_nudge — model replied without running write tools; forcing another iteration"
@@ -893,7 +926,16 @@ async def _run_anthropic_loop(
         stop_reason = data.get("stop_reason")
 
         if stop_reason != "tool_use" and not tool_uses:
-            content = "\n".join(text_blocks).strip()
+            content = sanitize_architect_reply("\n".join(text_blocks).strip())
+            architect_nudge = _architect_discovery_retry_nudge(
+                content, user_message, jpilot_role, chat_vendor
+            )
+            if architect_nudge:
+                logger.warning("architect_discovery_nudge — checklist or missing jpilot-form")
+                if content:
+                    messages.append({"role": "assistant", "content": content})
+                messages.append({"role": "user", "content": [{"type": "text", "text": architect_nudge}]})
+                continue
             if _should_force_tool_execution(user_message, tool_traces, content, role=jpilot_role):
                 logger.warning(
                     "execution_nudge — model replied without running write tools; forcing another iteration"
