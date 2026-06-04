@@ -8,8 +8,9 @@
       <h2 class="section-title mt-2">Documentation web search</h2>
       <p class="section-copy">
         Brave Search is optional and separate from your LLM providers above.
-        JPilot always uses the official NetScaler Next-Gen API guide from memory; enable Brave only when you
-        want broader internet documentation results alongside that guide.
+        JPilot always uses built-in vendor memory first; enable Brave when you want live official documentation
+        alongside that memory. Each appliance vendor is restricted to its own official domains (Citrix/NetScaler,
+        Cisco, or F5).
       </p>
     </div>
 
@@ -47,9 +48,26 @@
       <div class="flex flex-column gap-2 setting-row">
         <div class="setting-label">Allowed domains</div>
         <div class="setting-hint">
-          Web search results are restricted to these domains. Official NetScaler/Citrix domains are always
-          included; add internal doc sites below.
+          NetScaler/Citrix chat uses the domains below plus any extras you add. Cisco and F5 searches use only
+          their own official domains (shown in settings API as vendorLockedDomains).
         </div>
+        <div v-if="vendorLockedDomains.cisco?.length" class="vendor-domain-group">
+          <div class="setting-label text-sm">Cisco (cisco appliances only)</div>
+          <div class="domain-chips">
+            <span v-for="d in vendorLockedDomains.cisco" :key="'cisco-' + d" class="domain-chip domain-chip-locked">
+              <i class="pi pi-lock" /> {{ d }}
+            </span>
+          </div>
+        </div>
+        <div v-if="vendorLockedDomains.f5?.length" class="vendor-domain-group">
+          <div class="setting-label text-sm">F5 (BIG-IP appliances only)</div>
+          <div class="domain-chips">
+            <span v-for="d in vendorLockedDomains.f5" :key="'f5-' + d" class="domain-chip domain-chip-locked">
+              <i class="pi pi-lock" /> {{ d }}
+            </span>
+          </div>
+        </div>
+        <div class="setting-label text-sm">NetScaler / Citrix (default)</div>
         <div class="domain-chips">
           <span v-for="d in lockedDomains" :key="d" class="domain-chip domain-chip-locked">
             <i class="pi pi-lock" /> {{ d }}
@@ -126,6 +144,7 @@ const platformSettings = reactive({
   extraDomains: []
 })
 const lockedDomains = ref([])
+const vendorLockedDomains = ref({})
 const newDomain = ref('')
 
 async function loadSettings() {
@@ -138,6 +157,7 @@ async function loadSettings() {
       extraDomains: [...(settings.extraDomains || [])]
     })
     lockedDomains.value = settings.lockedDomains || []
+    vendorLockedDomains.value = settings.vendorLockedDomains || {}
   } catch (error) {
     message.value = error.response?.data?.detail || 'Failed to load Brave Search settings'
     messageSeverity.value = 'error'
@@ -161,6 +181,7 @@ async function saveSettings() {
       extraDomains: [...(saved.extraDomains || [])]
     })
     lockedDomains.value = saved.lockedDomains || []
+    vendorLockedDomains.value = saved.vendorLockedDomains || {}
     message.value = 'Brave Search settings saved.'
     messageSeverity.value = 'success'
     emit('usage-changed')

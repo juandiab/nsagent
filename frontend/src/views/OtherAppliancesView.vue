@@ -181,17 +181,14 @@
           v-for="item in vendorSupport"
           :key="item.id"
           class="vendor-card"
-          :class="{ 'vendor-card--supported': item.status === 'supported' }"
+          :class="{ 'vendor-card--supported': item.status === 'supported' || item.status === 'beta' }"
         >
           <div class="vendor-card-head">
             <div class="vendor-card-titles">
               <span class="vendor-name">{{ item.label }}</span>
               <span class="vendor-family">{{ item.vendorGroupLabel }}</span>
             </div>
-            <Tag
-              :value="item.status === 'supported' ? 'Available' : 'Coming soon'"
-              :severity="item.status === 'supported' ? 'success' : 'secondary'"
-            />
+            <Tag :value="item.statusLabel" :severity="item.tagSeverity" />
           </div>
           <p class="vendor-desc">{{ item.description }}</p>
         </div>

@@ -19,6 +19,7 @@ NEXTGEN_MEMORY_SEARCH_TOOL = "search_netscaler_nextgen_api"
 CLI_MEMORY_SEARCH_TOOL = "search_netscaler_cli_reference"
 CISCO_CLI_MEMORY_SEARCH_TOOL = "search_cisco_cli_reference"
 SDX_CLI_MEMORY_SEARCH_TOOL = "search_sdx_cli_reference"
+F5_CLI_MEMORY_SEARCH_TOOL = "search_f5_tmsh_reference"
 SSH_TOOL = "netscaler_ssh_run_command"
 CLI_WRITE_TOOL = "netscaler_run_cli_command"
 CLI_BATCH_TOOL = "netscaler_run_cli_commands"
@@ -28,6 +29,9 @@ CISCO_CLI_BATCH_TOOL = "cisco_run_cli_commands"
 SDX_SSH_TOOL = "sdx_ssh_run_command"
 SDX_CLI_WRITE_TOOL = "sdx_run_cli_command"
 SDX_CLI_BATCH_TOOL = "sdx_run_cli_commands"
+F5_SSH_TOOL = "f5_ssh_run_command"
+F5_CLI_WRITE_TOOL = "f5_run_tmsh_command"
+F5_CLI_BATCH_TOOL = "f5_run_tmsh_commands"
 NEXTGEN_REQUEST_TOOL = "netscaler_nextgen_request"
 WRITE_IP_TOOL = "netscaler_add_ip_address"
 
@@ -73,6 +77,8 @@ def cli_memory_review_required(tool_name: str) -> bool:
         CISCO_CLI_BATCH_TOOL,
         SDX_CLI_WRITE_TOOL,
         SDX_CLI_BATCH_TOOL,
+        F5_CLI_WRITE_TOOL,
+        F5_CLI_BATCH_TOOL,
     }
 
 
@@ -87,6 +93,27 @@ def classify_cisco_command(command: str) -> str:
         return "read"
     joined = " ".join(tokens)
     if any(term in joined for term in ("reload", "erase", "write erase", "delete")):
+        return "destructive"
+    return "write"
+
+
+def classify_f5_command(command: str) -> str:
+    lowered = (command or "").strip().lower()
+    if not lowered:
+        return "read"
+    if lowered.startswith(
+        (
+            "tmsh show ",
+            "tmsh list ",
+            "show ",
+            "list ",
+            "ping ",
+            "traceroute ",
+        )
+    ):
+        return "read"
+    destructive_terms = ("delete ", "restart ", "reboot ", "remove ", "uninstall ", "load sys config")
+    if any(term in lowered for term in destructive_terms):
         return "destructive"
     return "write"
 
@@ -148,6 +175,8 @@ def destructive_confirmation_required(tool_name: str, arguments: dict[str, Any])
         return classify_cli_command(arguments.get("command", "")) == "destructive"
     if tool_name == CISCO_CLI_WRITE_TOOL:
         return classify_cisco_command(arguments.get("command", "")) == "destructive"
+    if tool_name == F5_CLI_WRITE_TOOL:
+        return classify_f5_command(arguments.get("command", "")) == "destructive"
     if tool_name == SDX_CLI_WRITE_TOOL:
         return classify_sdx_command(arguments.get("command", "")) == "destructive"
     if tool_name == CLI_BATCH_TOOL:
@@ -158,6 +187,11 @@ def destructive_confirmation_required(tool_name: str, arguments: dict[str, Any])
     if tool_name == CISCO_CLI_BATCH_TOOL:
         for command in arguments.get("commands") or []:
             if classify_cisco_command(str(command)) == "destructive":
+                return True
+        return False
+    if tool_name == F5_CLI_BATCH_TOOL:
+        for command in arguments.get("commands") or []:
+            if classify_f5_command(str(command)) == "destructive":
                 return True
         return False
     if tool_name == SDX_CLI_BATCH_TOOL:
@@ -182,8 +216,12 @@ def block_result_for_unconfirmed_destructive(tool_name: str, arguments: dict[str
         operation = "; ".join(str(cmd) for cmd in (arguments.get("commands") or []))
     elif tool_name == CISCO_CLI_BATCH_TOOL:
         operation = "; ".join(str(cmd) for cmd in (arguments.get("commands") or []))
+    elif tool_name == F5_CLI_WRITE_TOOL:
+        operation = arguments.get("command", "")
     elif tool_name == SDX_CLI_WRITE_TOOL:
         operation = arguments.get("command", "")
+    elif tool_name == F5_CLI_BATCH_TOOL:
+        operation = "; ".join(str(cmd) for cmd in (arguments.get("commands") or []))
     elif tool_name == SDX_CLI_BATCH_TOOL:
         operation = "; ".join(str(cmd) for cmd in (arguments.get("commands") or []))
     else:
@@ -226,6 +264,9 @@ def block_result_for_missing_cli_memory(tool_name: str) -> str:
     if tool_name.startswith("cisco_"):
         memory_hint = "cisco_ios_switch_memory.md"
         search_tool = CISCO_CLI_MEMORY_SEARCH_TOOL
+    elif tool_name.startswith("f5_"):
+        memory_hint = "f5_bigip_tmsh_memory.md"
+        search_tool = F5_CLI_MEMORY_SEARCH_TOOL
     elif tool_name.startswith("sdx_"):
         memory_hint = "netscaler_sdx_cli_memory.md"
         search_tool = SDX_CLI_MEMORY_SEARCH_TOOL

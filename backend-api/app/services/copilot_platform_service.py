@@ -8,15 +8,10 @@ from app.services.encryption_service import decrypt_value, encrypt_value
 
 SETTINGS_ID = "default"
 
-# Official NetScaler / Citrix documentation domains. These are always allowed and
-# cannot be removed by the user — they are the locked baseline for web search.
-LOCKED_DOMAINS = (
-    "developer-docs.netscaler.com",
-    "docs.netscaler.com",
-    "docs.citrix.com",
-    "community.citrix.com",
-    "citrix.com",
-    "netscaler.com",
+from app.services.vendor_doc_domains import (
+    LOCKED_DOMAINS,
+    all_locked_domain_groups,
+    get_allowed_domains_for_vendor,
 )
 
 _DOMAIN_RE = re.compile(r"^[a-z0-9.-]+\.[a-z]{2,}$")
@@ -32,6 +27,7 @@ class CopilotPlatformSettingsResponse(BaseModel):
     allowWebSearch: bool = False
     hasBraveSearchApiKey: bool = False
     lockedDomains: list[str] = []
+    vendorLockedDomains: dict[str, list[str]] = {}
     extraDomains: list[str] = []
 
 
@@ -78,6 +74,7 @@ async def get_platform_settings(db: AsyncIOMotorDatabase) -> CopilotPlatformSett
         allowWebSearch=document.get("allowWebSearch", False),
         hasBraveSearchApiKey=bool(api_key.strip()),
         lockedDomains=list(LOCKED_DOMAINS),
+        vendorLockedDomains=all_locked_domain_groups(),
         extraDomains=list(document.get("extraDomains", [])),
     )
 
@@ -88,11 +85,8 @@ async def get_brave_api_key(db: AsyncIOMotorDatabase) -> str:
     return decrypt_value(document.get("encryptedBraveSearchApiKey", "")).strip()
 
 
-async def get_allowed_domains(db: AsyncIOMotorDatabase) -> list[str]:
-    await ensure_default_settings(db)
-    document = await db.copilotPlatformSettings.find_one({"_id": SETTINGS_ID}) or {}
-    extra = [d for d in document.get("extraDomains", []) if d not in LOCKED_DOMAINS]
-    return list(LOCKED_DOMAINS) + extra
+async def get_allowed_domains(db: AsyncIOMotorDatabase, vendor: str | None = "netscaler") -> list[str]:
+    return await get_allowed_domains_for_vendor(db, vendor)
 
 
 async def is_web_search_enabled(db: AsyncIOMotorDatabase) -> bool:

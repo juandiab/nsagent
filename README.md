@@ -1,6 +1,6 @@
 # JPilot
 
-**JPilot** — an AI-assisted management platform for network appliances. Register NetScaler ADC (MPX/VPX), SDX, and Cisco IOS/XE switches; connect **your own** AI provider keys; and use JPilot chat with vendor-specific tools, prompts, and memory.
+**JPilot** — an AI-assisted management platform for network appliances. Register NetScaler ADC (MPX/VPX), SDX, Cisco IOS/XE switches, and F5 BIG-IP; connect **your own** AI provider keys; and use JPilot chat with vendor-specific tools, prompts, and memory.
 
 The **Free edition** is offered at no charge so teams can try the product and so practitioners can see how it works. **Nexxus-Tech SAS does not supply or pay for AI inference** — you choose the provider, you hold the API keys, and **you pay that provider** under its terms. JPilot only connects to what you configure.
 
@@ -8,20 +8,20 @@ Repository: [github.com/juandiab/nsagent](https://github.com/juandiab/nsagent)
 
 > **Disclaimer:** JPilot is an independent project and is not affiliated with, endorsed by, or sponsored by Citrix Systems, Inc. NetScaler is a trademark of Citrix Systems, Inc.
 
-**Current release:** `v0.26` — proprietary licensing, legal updates, and JPilot branding.
+**Current release:** `v0.27` — F5 BIG-IP beta, beta features settings, and vendor-isolated documentation search.
 
 Bump the root [`VERSION`](VERSION) file when tagging a release so in-app update checks match GitHub.
 
 ## Features
 
-- **Appliance inventory** — vendor → device → credentials wizard; **tags** for filtering; MPX, VPX, SDX, and Cisco product lines; encrypted credentials (Fernet).
+- **Appliance inventory** — vendor → device → credentials wizard; **tags** for filtering; MPX, VPX, SDX, Cisco, and F5 product lines; **Beta Available** badges on SDX, Cisco, and F5; encrypted credentials (Fernet).
 - **AI provider management** — OpenAI, Anthropic, Gemini, Grok, DeepSeek, LM Studio, and OpenAI-compatible endpoints.
 - **JPilot chat** — tool-calling agent bound to the selected appliance; credentials never sent to the LLM.
 - **JPilot roles** — **Architect** (structured discovery and formal design documents), **Operator** (configure the ADC, including from attached `.md` designs), **Analyst** (read-first troubleshooting); dual-pane defaults to Architect + Operator.
 - **Architect design workflow** — choice/boolean `jpilot-form` discovery; deliverable outline with AWS/Azure, Gateway integrations, and AAA topics; downloadable design `.md`; official doc reference index (Citrix Gateway, authentication, Tech Zone).
 - **JPilot command menu** — searchable recommended actions by role with section grouping (~200 prompts).
 - **MCP server** — Model Context Protocol tools for Next-Gen API, classic CLI over SSH, NITRO helpers, diagnostics, and SSL key/CSR generation.
-- **Multi-vendor brain** — `resources/vendors/<id>/manifest.json` drives memory, prompts, tools, and connect mode; NetScaler, Cisco, and SDX supported today.
+- **Multi-vendor brain** — `resources/vendors/<id>/manifest.json` drives memory, prompts, tools, and connect mode; NetScaler, Cisco, SDX, and F5 BIG-IP supported today.
 - **Token-optimized chat** — intent-based tool routing, slimmer Architect prompts (on-demand resource search), 18-message history, 10k-char tool results.
 - **Memory-guided RAG** — `backend-api/app/resources/memory/<vendor>/` gates API/CLI usage before execution.
 - **Classic + Next-Gen** — list virtual servers from Next-Gen applications and classic `lbvserver`; create apps via Next-Gen or multi-step LB setup via CLI.
@@ -32,11 +32,22 @@ Bump the root [`VERSION`](VERSION) file when tagging a release so in-app update 
 - **User management** — admin CRUD for users (roles `admin` / `user`), email for resets, initial password on create, passkey count and removal.
 - **SSL certificate tools** — generate CSRs or self-signed certificates on the appliance (UI + API + MCP).
 - **NetScaler diagnostics** — ICMP ping/traceroute, TCP port reachability via telnet from the appliance shell, and read-only `nsconmsg` performance/event collection.
-- **Optional Brave Search** — domain-restricted web augmentation when local memory/docs are weak (Settings → AI Providers).
+- **Optional Brave Search** — vendor-isolated official-doc web search (Citrix/NetScaler, Cisco, or F5 domains only; Settings → AI Providers).
+- **Settings → Beta features** — enable MCP tools per beta platform (SDX, Cisco IOS/XE, F5 BIG-IP) next to Next-Gen API; shared SSH settings on the Next-Gen tab.
 - **Dashboard shortcuts** — recommended JPilot prompts and links (health summary, list IPs/vservers, diagnostics, guided LB).
 - **Model usage dashboard** — Settings → AI Providers shows monthly LLM token/request usage and Brave Search query usage with progress bars (tracked locally per calendar month).
-- **Cisco IOS/XE (SSH)** — Operator and Analyst over SSH with `search_cisco_cli_reference` memory gate.
-- **NetScaler SDX (SSH)** — Operator and Analyst for SVM platform and VPX lifecycle with `search_sdx_cli_reference` memory gate.
+- **Cisco IOS/XE (SSH)** — Operator and Analyst over SSH with `search_cisco_cli_reference` memory gate (beta).
+- **NetScaler SDX (SSH)** — Operator and Analyst for SVM platform and VPX lifecycle with `search_sdx_cli_reference` memory gate (beta).
+- **F5 BIG-IP (SSH / TMSH)** — Operator, Analyst, and Architect (official F5 docs only); `f5_*` MCP tools and `search_f5_tmsh_reference` / `search_f5_documentation` (beta).
+
+## What's new in v0.27
+
+| Area | Highlights |
+|------|------------|
+| **F5 BIG-IP** | Vendor `f5`: TMSH over SSH (`f5_*` MCP tools), memory, Operator/Analyst/Architect prompts, manifest, and memory gate for destructive TMSH ops. |
+| **Beta features settings** | Settings → **Beta features** tab (after Next-Gen API): per-platform tool toggles, doc links, enable/disable all for SDX, Cisco, and F5. |
+| **Vendor-isolated web search** | Brave results scoped per vendor (`vendor_doc_domains.py`); Cisco and F5 CLI/doc search use only official vendor domains; Citrix/NetScaler extras unchanged. |
+| **UI** | **Beta Available** tags on SDX, Cisco IOS/XE, and F5 in Add appliance and Vendor support; Brave Search panel shows locked domains per vendor. |
 
 ## What's new in v0.26
 

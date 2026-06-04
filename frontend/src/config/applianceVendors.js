@@ -51,6 +51,7 @@ export const APPLIANCE_PRODUCTS = [
     label: 'NetScaler SDX',
     description: 'JPilot Operator/Analyst over SSH for SVM platform and VPX lifecycle.',
     status: 'supported',
+    beta: true,
     hostHint: 'SSH to the SDX Management Service (SVM).',
     supportsInspect: false,
     supportsConnectionTest: false
@@ -62,6 +63,7 @@ export const APPLIANCE_PRODUCTS = [
     label: 'Cisco IOS/XE Switches',
     description: 'JPilot Operator/Analyst over SSH (show/configure).',
     status: 'supported',
+    beta: true,
     hostHint: 'SSH on port 22.',
     supportsInspect: false,
     supportsConnectionTest: false
@@ -95,9 +97,12 @@ export const APPLIANCE_PRODUCTS = [
     vendorGroupId: 'f5',
     value: 'f5',
     label: 'F5 BIG-IP',
-    description: 'iControl REST API and TMSH over SSH.',
-    status: 'coming_soon',
-    hostHint: 'Management IP for HTTPS API and/or SSH.'
+    description: 'JPilot Operator/Analyst over SSH (TMSH show/configure) and Architect from official F5 docs.',
+    status: 'supported',
+    beta: true,
+    hostHint: 'SSH on port 22 to the management IP (TMSH).',
+    supportsInspect: false,
+    supportsConnectionTest: false
   },
   {
     id: 'juniper-junos',
@@ -165,12 +170,36 @@ export const APPLIANCE_PRODUCTS = [
   }
 ]
 
+export function productAvailabilityStatus(product) {
+  if (!product || product.status !== 'supported') {
+    return 'coming_soon'
+  }
+  return product.beta ? 'beta' : 'supported'
+}
+
+export function productAvailabilityLabel(product) {
+  const status = productAvailabilityStatus(product)
+  if (status === 'beta') return 'Beta Available'
+  if (status === 'supported') return 'Available'
+  return 'Coming soon'
+}
+
+/** PrimeVue Tag severity for product availability badges */
+export function productAvailabilitySeverity(product) {
+  const status = productAvailabilityStatus(product)
+  if (status === 'beta') return 'warn'
+  if (status === 'supported') return 'success'
+  return 'secondary'
+}
+
 /** Flat list for Vendor support panel under inventory */
 export const VENDOR_SUPPORT = APPLIANCE_PRODUCTS.map((product) => ({
   id: product.id,
   label: product.label,
   description: product.description,
-  status: product.status === 'supported' ? 'supported' : 'coming_soon',
+  status: productAvailabilityStatus(product),
+  statusLabel: productAvailabilityLabel(product),
+  tagSeverity: productAvailabilitySeverity(product),
   vendorGroupLabel: VENDOR_GROUPS.find((g) => g.id === product.vendorGroupId)?.label || product.vendorGroupId
 }))
 
@@ -183,7 +212,7 @@ export const OTHER_APPLIANCE_VENDORS = APPLIANCE_PRODUCTS.filter((p) => p.value)
     access: p.status === 'supported' ? ['JPilot'] : []
   }))
 
-export const COPILOT_SUPPORTED_VENDORS = ['netscaler', 'cisco', 'sdx']
+export const COPILOT_SUPPORTED_VENDORS = ['netscaler', 'cisco', 'sdx', 'f5']
 
 export function getVendorGroupLabel(groupId) {
   return VENDOR_GROUPS.find((g) => g.id === groupId)?.label || groupId
@@ -251,6 +280,7 @@ export function productSelectOptions(groupId) {
     description: product.description,
     status: product.status,
     disabled: !isProductSupported(product),
-    statusLabel: product.status === 'supported' ? 'Available' : 'Coming soon'
+    statusLabel: productAvailabilityLabel(product),
+    tagSeverity: productAvailabilitySeverity(product)
   }))
 }

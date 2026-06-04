@@ -85,6 +85,22 @@ SDX_ROLE_BASE_PACKS: dict[str, frozenset[str]] = {
     "operator": frozenset({"core_read", "read", "cli_search"}),
 }
 
+F5_PACK_TOOLS: dict[str, frozenset[str]] = {
+    "core_read": frozenset({"f5_test_connection"}),
+    "read": frozenset({"f5_ssh_run_command"}),
+    "cli_write": frozenset({"f5_run_tmsh_command", "f5_run_tmsh_commands"}),
+    "cli_search": frozenset({"search_f5_tmsh_reference"}),
+    "architect_search": frozenset({"search_f5_documentation"}),
+    "doc_connectivity": frozenset({"jpilot_check_doc_connectivity"}),
+    "inventory": frozenset({"netscaler_list_inventory"}),
+}
+
+F5_ROLE_BASE_PACKS: dict[str, frozenset[str]] = {
+    "architect": frozenset({"architect_search", "doc_connectivity", "inventory"}),
+    "analyst": frozenset({"core_read", "read", "cli_search"}),
+    "operator": frozenset({"core_read", "read", "cli_search"}),
+}
+
 MIN_ROUTED_TOOLS = 3
 
 
@@ -103,6 +119,8 @@ def classify_tool_packs(
     attachments = attachment_names or []
     if vendor == "cisco":
         packs: set[str] = set(CISCO_ROLE_BASE_PACKS.get(role, CISCO_ROLE_BASE_PACKS["operator"]))
+    elif vendor == "f5":
+        packs = set(F5_ROLE_BASE_PACKS.get(role, F5_ROLE_BASE_PACKS["operator"]))
     elif vendor == "sdx":
         packs = set(SDX_ROLE_BASE_PACKS.get(role, SDX_ROLE_BASE_PACKS["operator"]))
     else:
@@ -236,6 +254,8 @@ def pack_tool_names(packs: set[str], vendor: str = "netscaler") -> set[str]:
     names: set[str] = set()
     if vendor == "cisco":
         source = CISCO_PACK_TOOLS
+    elif vendor == "f5":
+        source = F5_PACK_TOOLS
     elif vendor == "sdx":
         source = SDX_PACK_TOOLS
     else:
@@ -272,7 +292,7 @@ def route_copilot_tools(
     if not enabled_tools:
         return enabled_tools
 
-    if vendor in {"cisco", "sdx"}:
+    if vendor in {"cisco", "sdx", "f5"}:
         return enabled_tools
 
     if vendor != "netscaler":

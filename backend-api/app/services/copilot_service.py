@@ -539,6 +539,42 @@ ARCHITECT_SEARCH_TOOL = {
     },
 }
 
+F5_SEARCH_TOOL = {
+    "name": "search_f5_tmsh_reference",
+    "description": (
+        "REQUIRED before f5_run_tmsh_command or f5_run_tmsh_commands. "
+        "Searches f5_bigip_tmsh_memory.md for TMSH syntax and recommendedCommands."
+    ),
+    "parameters": {
+        "type": "object",
+        "properties": {
+            "query": {
+                "type": "string",
+                "description": "TMSH topic or command, e.g. virtual server or pool members",
+            }
+        },
+        "required": ["query"],
+    },
+}
+
+F5_DOC_SEARCH_TOOL = {
+    "name": "search_f5_documentation",
+    "description": (
+        "Search official F5 documentation (clouddocs.f5.com, techdocs.f5.com, devcentral.f5.com). "
+        "Use for architecture, HA, sizing, and design questions — cite only returned official URLs."
+    ),
+    "parameters": {
+        "type": "object",
+        "properties": {
+            "query": {
+                "type": "string",
+                "description": "F5 architecture topic, e.g. active-standby HA or iApp deployment",
+            }
+        },
+        "required": ["query"],
+    },
+}
+
 CISCO_SEARCH_TOOL = {
     "name": "search_cisco_cli_reference",
     "description": (
@@ -628,6 +664,73 @@ CISCO_COPILOT_TOOLS = [
         "description": (
             "Run ordered Cisco IOS/XE commands over SSH. "
             "Use ONLY after search_cisco_cli_reference confirms syntax."
+        ),
+        "parameters": {
+            "type": "object",
+            "properties": {
+                "appliance_name": {"type": "string"},
+                "commands": {"type": "array", "items": {"type": "string"}},
+                "purpose": {"type": "string"},
+                "confirmed": {"type": "boolean"},
+            },
+            "required": ["appliance_name", "commands", "purpose"],
+        },
+    },
+]
+
+F5_COPILOT_TOOLS = [
+    {
+        "name": "f5_test_connection",
+        "description": "Test SSH connectivity to an F5 BIG-IP using tmsh show sys version.",
+        "parameters": {
+            "type": "object",
+            "properties": {
+                "appliance_name": {"type": "string", "description": "Inventory name of the BIG-IP"},
+            },
+            "required": ["appliance_name"],
+        },
+    },
+    {
+        "name": "f5_ssh_run_command",
+        "description": (
+            "Run a read-only F5 TMSH command over SSH (tmsh show/list, ping, traceroute). "
+            "Use search_f5_tmsh_reference first when syntax is uncertain."
+        ),
+        "parameters": {
+            "type": "object",
+            "properties": {
+                "appliance_name": {"type": "string"},
+                "command": {"type": "string"},
+                "purpose": {"type": "string", "description": "Why this command is needed"},
+            },
+            "required": ["appliance_name", "command", "purpose"],
+        },
+    },
+    {
+        "name": "f5_run_tmsh_command",
+        "description": (
+            "Run a single F5 TMSH configuration command over SSH. "
+            "Use ONLY after search_f5_tmsh_reference confirms syntax from memory."
+        ),
+        "parameters": {
+            "type": "object",
+            "properties": {
+                "appliance_name": {"type": "string"},
+                "command": {"type": "string"},
+                "purpose": {"type": "string"},
+                "confirmed": {
+                    "type": "boolean",
+                    "description": "Required true for destructive commands on retry",
+                },
+            },
+            "required": ["appliance_name", "command", "purpose"],
+        },
+    },
+    {
+        "name": "f5_run_tmsh_commands",
+        "description": (
+            "Run ordered F5 TMSH commands over SSH. "
+            "Use ONLY after search_f5_tmsh_reference confirms syntax."
         ),
         "parameters": {
             "type": "object",
@@ -735,6 +838,10 @@ MCP_TOOL_MAP = {
     "sdx_ssh_run_command": "sdx_ssh_run_command",
     "sdx_run_cli_command": "sdx_run_cli_command",
     "sdx_run_cli_commands": "sdx_run_cli_commands",
+    "f5_test_connection": "f5_test_connection",
+    "f5_ssh_run_command": "f5_ssh_run_command",
+    "f5_run_tmsh_command": "f5_run_tmsh_command",
+    "f5_run_tmsh_commands": "f5_run_tmsh_commands",
 }
 
 
@@ -771,18 +878,27 @@ def set_web_search_allowed(allowed: bool) -> None:
     _web_search_allowed.set(bool(allowed))
 
 
-async def _web_search_block(db, query: str, topic_hint: str, local_weak: bool) -> dict[str, Any]:
+async def _web_search_block(
+    db,
+    query: str,
+    topic_hint: str,
+    local_weak: bool,
+    *,
+    vendor: str = "netscaler",
+    always_search: bool = False,
+) -> dict[str, Any]:
     """Domain-restricted Brave results, only when web search is permitted AND local docs fell short."""
     if not _web_search_allowed.get():
         return {"webSearchEnabled": False, "webSearchReason": "disabled for this chat"}
 
     from app.services.copilot_platform_service import get_web_search_runtime
+    from app.services.vendor_doc_domains import get_allowed_domains_for_vendor
 
     runtime = await get_web_search_runtime(db)
     if not runtime.get("enabled"):
         return {"webSearchEnabled": False}
 
-    if not local_weak:
+    if not local_weak and not always_search:
         # Local memory/official docs already answered — don't fetch external content.
         return {
             "webSearchEnabled": True,
@@ -791,12 +907,13 @@ async def _web_search_block(db, query: str, topic_hint: str, local_weak: bool) -
 
     from app.services.brave_search_service import search_web
 
+    allowed_domains = await get_allowed_domains_for_vendor(db, vendor)
     try:
         raw = await search_web(
             runtime["apiKey"],
             query,
             count=5,
-            allowed_domains=runtime["allowedDomains"],
+            allowed_domains=allowed_domains,
             topic_hint=topic_hint,
         )
         from app.services.model_usage_service import record_brave_search_usage
@@ -839,11 +956,14 @@ async def execute_copilot_tool(
             or guide_matches.get("matchingApiPaths")
             or (guide_matches.get("excerptCount") or 0) >= 2
         )
-        web_block = await _web_search_block(db, query, "NetScaler Next-Gen API", local_weak=not local_strong)
+        chat_vendor = (vendor or "netscaler").strip().lower()
+        web_block = await _web_search_block(
+            db, query, "NetScaler Next-Gen API", local_weak=not local_strong, vendor=chat_vendor
+        )
         payload = {
             "guideMatches": guide_matches,
             "officialDocsOnly": True,
-            "allowedDomains": await get_allowed_domains(db),
+            "allowedDomains": await get_allowed_domains(db, chat_vendor),
             **web_block,
         }
         return json.dumps(payload, separators=(",", ":"))
@@ -856,7 +976,12 @@ async def execute_copilot_tool(
             raise ValueError("query is required")
         result = await search_cli_reference(query)
         local_strong = bool(result.get("memoryExcerptCount") or result.get("recommendedCommands"))
-        result.update(await _web_search_block(db, query, "NetScaler ADC CLI", local_weak=not local_strong))
+        chat_vendor = (vendor or "netscaler").strip().lower()
+        result.update(
+            await _web_search_block(
+                db, query, "NetScaler ADC CLI", local_weak=not local_strong, vendor=chat_vendor
+            )
+        )
         return json.dumps(result, separators=(",", ":"))
 
     if name == "search_jpilot_architect_resources":
@@ -869,11 +994,60 @@ async def execute_copilot_tool(
 
     if name == "search_cisco_cli_reference":
         from app.services.cisco_cli_memory_service import search_cisco_cli_memory
+        from app.services.vendor_doc_domains import get_allowed_domains_for_vendor
 
         query = arguments.get("query", "").strip()
         if not query:
             raise ValueError("query is required")
-        return json.dumps(search_cisco_cli_memory(query), separators=(",", ":"))
+        result = search_cisco_cli_memory(query)
+        local_strong = bool(result.get("memoryExcerpts") or result.get("recommendedCommands"))
+        result.update(
+            await _web_search_block(
+                db, query, "Cisco IOS CLI", local_weak=not local_strong, vendor="cisco"
+            )
+        )
+        result["officialDocsOnly"] = True
+        result["allowedDomains"] = await get_allowed_domains_for_vendor(db, "cisco")
+        return json.dumps(result, separators=(",", ":"))
+
+    if name == "search_f5_tmsh_reference":
+        from app.services.f5_tmsh_memory_service import search_f5_tmsh_memory
+        from app.services.vendor_doc_domains import get_allowed_domains_for_vendor
+
+        query = arguments.get("query", "").strip()
+        if not query:
+            raise ValueError("query is required")
+        result = search_f5_tmsh_memory(query)
+        local_strong = bool(result.get("memoryExcerpts") or result.get("recommendedCommands"))
+        result.update(
+            await _web_search_block(db, query, "F5 BIG-IP TMSH", local_weak=not local_strong, vendor="f5")
+        )
+        result["officialDocsOnly"] = True
+        result["allowedDomains"] = await get_allowed_domains_for_vendor(db, "f5")
+        return json.dumps(result, separators=(",", ":"))
+
+    if name == "search_f5_documentation":
+        from app.services.vendor_doc_domains import get_allowed_domains_for_vendor
+
+        query = arguments.get("query", "").strip()
+        if not query:
+            raise ValueError("query is required")
+        web_block = await _web_search_block(
+            db,
+            query,
+            "F5 BIG-IP",
+            local_weak=True,
+            vendor="f5",
+            always_search=True,
+        )
+        payload = {
+            "vendor": "f5",
+            "query": query,
+            "officialDocsOnly": True,
+            "allowedDomains": await get_allowed_domains_for_vendor(db, "f5"),
+            **web_block,
+        }
+        return json.dumps(payload, separators=(",", ":"))
 
     if name == "search_sdx_cli_reference":
         from app.services.sdx_cli_memory_service import search_sdx_cli_memory
@@ -1076,6 +1250,26 @@ async def execute_copilot_tool(
         mcp_args["commands"] = commands
         mcp_args["purpose"] = purpose
 
+    if name in {"f5_ssh_run_command", "f5_run_tmsh_command"}:
+        command = arguments.get("command", "").strip()
+        purpose = arguments.get("purpose", "").strip()
+        if not command:
+            raise ValueError("command is required")
+        if not purpose:
+            raise ValueError("purpose is required")
+        mcp_args["command"] = command
+        mcp_args["purpose"] = purpose
+
+    if name == "f5_run_tmsh_commands":
+        commands = arguments.get("commands") or []
+        purpose = arguments.get("purpose", "").strip()
+        if not commands:
+            raise ValueError("commands is required")
+        if not purpose:
+            raise ValueError("purpose is required")
+        mcp_args["commands"] = commands
+        mcp_args["purpose"] = purpose
+
     return await invoke_mcp_tool(mcp_tool, mcp_args, db=db)
 
 
@@ -1097,22 +1291,24 @@ async def get_enabled_copilot_tools(
     enabled = set(settings.enabledTools)
     tools = [
         tool
-        for tool in [*COPILOT_TOOLS, *CISCO_COPILOT_TOOLS, *SDX_COPILOT_TOOLS]
+        for tool in [*COPILOT_TOOLS, *CISCO_COPILOT_TOOLS, *SDX_COPILOT_TOOLS, *F5_COPILOT_TOOLS]
         if tool["name"] == "netscaler_list_inventory" or tool["name"] in enabled
     ]
     tools.append(SELF_CONNECTIVITY_TOOL)
     if manifest:
+        search_tool_map = {
+            "search_netscaler_nextgen_api": SEARCH_TOOL,
+            "search_netscaler_cli_reference": CLI_SEARCH_TOOL,
+            "search_jpilot_architect_resources": ARCHITECT_SEARCH_TOOL,
+            "search_cisco_cli_reference": CISCO_SEARCH_TOOL,
+            "search_sdx_cli_reference": SDX_SEARCH_TOOL,
+            "search_f5_tmsh_reference": F5_SEARCH_TOOL,
+            "search_f5_documentation": F5_DOC_SEARCH_TOOL,
+        }
         for search_tool_name in manifest.search_tools:
-            if search_tool_name == "search_netscaler_nextgen_api":
-                tools.append(SEARCH_TOOL)
-            elif search_tool_name == "search_netscaler_cli_reference":
-                tools.append(CLI_SEARCH_TOOL)
-            elif search_tool_name == "search_jpilot_architect_resources":
-                tools.append(ARCHITECT_SEARCH_TOOL)
-            elif search_tool_name == "search_cisco_cli_reference":
-                tools.append(CISCO_SEARCH_TOOL)
-            elif search_tool_name == "search_sdx_cli_reference":
-                tools.append(SDX_SEARCH_TOOL)
+            mapped = search_tool_map.get(search_tool_name)
+            if mapped:
+                tools.append(mapped)
     else:
         tools.extend([SEARCH_TOOL, CLI_SEARCH_TOOL])
     tools = filter_tools_for_role(tools, role, vendor=chat_vendor)

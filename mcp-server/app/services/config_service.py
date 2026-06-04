@@ -27,6 +27,10 @@ ALL_TOOL_NAMES = [
     "sdx_ssh_run_command",
     "sdx_run_cli_command",
     "sdx_run_cli_commands",
+    "f5_test_connection",
+    "f5_ssh_run_command",
+    "f5_run_tmsh_command",
+    "f5_run_tmsh_commands",
 ]
 
 

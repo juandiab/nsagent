@@ -1,0 +1,34 @@
+{
+  "id": "f5",
+  "label": "F5 BIG-IP",
+  "supported": true,
+  "connect": {
+    "mode": "ssh",
+    "testTool": "f5_test_connection",
+    "testCommand": "tmsh show sys version"
+  },
+  "memoryDir": "memory/f5",
+  "memoryFiles": [
+    "f5_bigip_tmsh_memory.md"
+  ],
+  "promptsDir": "prompts/f5/roles",
+  "roles": ["operator", "analyst", "architect"],
+  "tools": {
+    "vendorPrefix": "f5_",
+    "mcpTools": [
+      "f5_test_connection",
+      "f5_ssh_run_command",
+      "f5_run_tmsh_command",
+      "f5_run_tmsh_commands"
+    ],
+    "searchTools": [
+      "search_f5_tmsh_reference",
+      "search_f5_documentation"
+    ],
+    "analystBlocked": [
+      "f5_run_tmsh_command",
+      "f5_run_tmsh_commands"
+    ]
+  },
+  "router": "f5"
+}

@@ -12,6 +12,11 @@ from app.services.smtp_settings_service import (
     test_smtp_settings,
     update_smtp_settings,
 )
+from app.services.beta_features_catalog import (
+    get_beta_feature_options,
+    get_beta_features_info,
+    get_beta_products,
+)
 from app.services.nextgen_catalog import get_nextgen_api_info, get_nextgen_options, get_tool_catalog
 from app.services.nextgen_api_reference import get_api_categories
 
@@ -40,6 +45,9 @@ async def read_mcp_config(
         "nextGenApi": get_nextgen_api_info(),
         "nextGenOptions": get_nextgen_options(),
         "nextGenApiCategories": get_api_categories(),
+        "betaFeatures": get_beta_features_info(),
+        "betaProducts": get_beta_products(),
+        "betaFeatureOptions": get_beta_feature_options(),
     }
 
 

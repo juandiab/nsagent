@@ -7,14 +7,10 @@ import httpx
 BRAVE_SEARCH_URL = "https://api.search.brave.com/res/v1/web/search"
 NEXTGEN_SEARCH_PREFIX = "NetScaler Next-Gen API"
 
-OFFICIAL_DOC_DOMAINS = (
-    "developer-docs.netscaler.com",
-    "docs.netscaler.com",
-    "docs.citrix.com",
-    "community.citrix.com",
-    "citrix.com",
-    "netscaler.com",
-)
+from app.services.vendor_doc_domains import NETSCALER_DOC_DOMAINS
+
+# Default when no vendor is specified (NetScaler / Citrix only).
+OFFICIAL_DOC_DOMAINS = NETSCALER_DOC_DOMAINS
 
 
 def _is_allowed_url(url: str, allowed_domains: tuple[str, ...]) -> bool:

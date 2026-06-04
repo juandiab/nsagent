@@ -46,6 +46,23 @@ def test_resolve_chat_vendor_for_sdx_appliance():
     assert resolve_chat_vendor(appliance_vendor="sdx", role="operator", appliance_name="sdx01") == "sdx"
 
 
+def test_f5_is_supported_vendor():
+    assert is_vendor_copilot_supported("f5")
+    assert "f5" in get_supported_vendor_ids()
+
+
+def test_f5_manifest_paths():
+    manifest = get_vendor_manifest("f5")
+    assert manifest is not None
+    assert (manifest.memory_dir / "f5_bigip_tmsh_memory.md").is_file()
+    assert (manifest.prompts_dir / "operator.md").is_file()
+    assert (manifest.prompts_dir / "architect.md").is_file()
+
+
+def test_resolve_chat_vendor_for_f5_appliance():
+    assert resolve_chat_vendor(appliance_vendor="f5", role="operator", appliance_name="bigip01") == "f5"
+
+
 def test_validate_vendor_resources_clean():
     warnings = validate_vendor_resources()
     assert warnings == []

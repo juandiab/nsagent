@@ -329,6 +329,11 @@
           <section v-if="activeSection === 'nextgen'">
             <NextGenApiPanel />
           </section>
+
+          <!-- Beta features (SDX, Cisco, F5) -->
+          <section v-if="activeSection === 'beta-features'">
+            <BetaFeaturesPanel />
+          </section>
   
           <!-- Security -->
           <section v-if="activeSection === 'security'" class="settings-section-full">
@@ -435,6 +440,7 @@ import Tag from 'primevue/tag'
 import ToggleSwitch from 'primevue/toggleswitch'
 import ModelUsageDashboard from '../components/ModelUsageDashboard.vue'
 import NextGenApiPanel from '../components/NextGenApiPanel.vue'
+import BetaFeaturesPanel from '../components/BetaFeaturesPanel.vue'
 import AIProvidersPanel from '../components/AIProvidersPanel.vue'
 import BraveSearchPanel from '../components/BraveSearchPanel.vue'
 import UsersPanel from '../components/UsersPanel.vue'
@@ -464,6 +470,7 @@ const allSections = [
   { key: 'jpilot', label: 'JPilot', icon: 'pi pi-comments', adminOnly: true, group: 'platform' },
   { key: 'mcp', label: 'MCP Server', icon: 'pi pi-server', adminOnly: true, group: 'platform' },
   { key: 'nextgen', label: 'Next-Gen API', icon: 'pi pi-code', adminOnly: true, group: 'platform' },
+  { key: 'beta-features', label: 'Beta features', icon: 'pi pi-flag', adminOnly: true, group: 'platform' },
   { key: 'users', label: 'Users', icon: 'pi pi-users', adminOnly: true, group: 'people' },
   { key: 'security', label: 'Security', icon: 'pi pi-shield', group: 'personal' },
   { key: 'about', label: 'About', icon: 'pi pi-info-circle', group: 'app' },
