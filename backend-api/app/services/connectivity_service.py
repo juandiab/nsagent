@@ -13,6 +13,7 @@ DOC_TARGETS = (
     "https://developer-docs.netscaler.com/",
     "https://docs.netscaler.com/",
     "https://docs.citrix.com/",
+    "https://community.citrix.com/tech-zone/",
 )
 BRAVE_HOST = "https://api.search.brave.com/"
 

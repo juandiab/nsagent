@@ -97,9 +97,10 @@
           <span>Ask JPilot — {{ activeRole.label }}</span>
         </div>
         <p class="glass-role-hint">{{ activeRole.description }}</p>
-        <div class="glass-input">
+        <div class="glass-input" @click="focusAskInput">
           <i class="pi pi-search glass-input-icon" />
           <input
+            ref="askInputRef"
             v-model="session.input"
             type="text"
             class="glass-input-field"
@@ -127,29 +128,12 @@
           </div>
         </div>
 
-        <div class="glass-recommended">
-          <p class="glass-recommended-intro">Recommended actions</p>
-          <div
-            v-for="group in recommendedGroups"
-            :key="group.id"
-            class="glass-prompt-group"
-          >
-            <div class="glass-prompt-group-title">{{ group.title }}</div>
-            <div class="glass-prompts">
-              <button
-                v-for="action in group.actions"
-                :key="action.id"
-                class="glass-prompt"
-                :disabled="!ready && action.type === 'prompt'"
-                @click="runRecommendedAction(action)"
-              >
-                <i :class="action.icon" />
-                <span>{{ action.label }}</span>
-                <i v-if="action.type === 'link'" class="pi pi-arrow-right glass-prompt-link" />
-              </button>
-            </div>
-          </div>
-        </div>
+        <AskJpilotCommandMenu
+          ref="commandMenuRef"
+          :active-role="session.role"
+          :disabled="loading || !ready"
+          @pick="onCommandPick"
+        />
 
         <p v-if="!ready" class="glass-hint">No enabled language model — configure one in Settings → AI Providers.</p>
       </div>
@@ -175,6 +159,19 @@
             </div>
             <div v-if="assistantView(msg).content && msg.role === 'assistant'" :class="{ 'chat-error-block': msg.isError }">
               <ChatMarkdown :content="assistantView(msg).content" />
+              <div
+                v-if="session.role === 'architect' && canDownloadDesignDoc(assistantView(msg).content)"
+                class="design-doc-download"
+              >
+                <Button
+                  label="Download design document"
+                  icon="pi pi-download"
+                  size="small"
+                  outlined
+                  :disabled="loading"
+                  @click="downloadDesignDocMessage(assistantView(msg).content)"
+                />
+              </div>
             </div>
             <div v-else-if="msg.content" class="chat-content">{{ msg.content }}</div>
             <div v-if="msg.webSources?.length" class="web-sources">
@@ -268,6 +265,7 @@ import SelectButton from 'primevue/selectbutton'
 import Textarea from 'primevue/textarea'
 import ChatAppliancePicker from './ChatAppliancePicker.vue'
 import ChatConfigForm from './ChatConfigForm.vue'
+import AskJpilotCommandMenu from './AskJpilotCommandMenu.vue'
 import ChatMarkdown from './ChatMarkdown.vue'
 import ChatToolTrace from './ChatToolTrace.vue'
 import api from '../services/api'
@@ -281,8 +279,8 @@ import {
   listCopilotAppliances
 } from '../services/copilot'
 import { parseInputFormFromContent, resolveAssistantMessage } from '../utils/copilotForm'
+import { downloadDesignDocument, isDesignDocumentMessage } from '../utils/designDocument'
 import { clearSession, getSession } from '../stores/copilotSessions'
-import { jpilotRecommendedGroups } from '../config/jpilotRecommendedActions'
 import {
   DEFAULT_JPILOT_ROLE,
   JPILOT_ROLES,
@@ -317,9 +315,10 @@ const pendingAttachments = ref([])
 const imageInputRef = ref(null)
 const configInputRef = ref(null)
 const attachMenu = ref(null)
+const askInputRef = ref(null)
+const commandMenuRef = ref(null)
 
 const configAccept = CONFIG_ACCEPT
-const recommendedGroups = jpilotRecommendedGroups
 
 const ready = computed(() => props.providers.length > 0)
 const roleOptions = JPILOT_ROLES
@@ -329,7 +328,7 @@ const rolePlaceholder = computed(() => {
   if (activeRole.value.id === 'architect') {
     return 'Plan a deployment, HA design, migration, or ask NetScaler architecture questions…'
   }
-  if (activeRole.value.id === 'investigator') {
+  if (activeRole.value.id === 'analyst') {
     return 'Describe the issue; attach logs or screenshots; connect an appliance for live checks…'
   }
   return 'Ask about your NetScalers, attach configs or images…'
@@ -354,7 +353,11 @@ const attachMenuItems = computed(() => {
     items.push({ label: 'Attach image', icon: 'pi pi-image', command: () => imageInputRef.value?.click() })
   }
   if (settings.allowConfigFiles) {
-    items.push({ label: 'Attach config file', icon: 'pi pi-file', command: () => configInputRef.value?.click() })
+    items.push({
+      label: 'Attach config or Markdown',
+      icon: 'pi pi-file',
+      command: () => configInputRef.value?.click()
+    })
   }
   if (!items.length) {
     items.push({ label: 'Attachments disabled — open Settings', icon: 'pi pi-cog', command: () => router.push('/settings') })
@@ -366,13 +369,31 @@ function toggleAttachMenu(event) {
   attachMenu.value.toggle(event)
 }
 
-function runRecommendedAction(action) {
-  if (action.type === 'link') {
-    router.push(action.to)
+function canDownloadDesignDoc(content) {
+  return isDesignDocumentMessage(content)
+}
+
+function downloadDesignDocMessage(content) {
+  const filename = downloadDesignDocument(content)
+  toast.add({
+    severity: 'success',
+    summary: 'Design document downloaded',
+    detail: filename,
+    life: 3000
+  })
+}
+
+function onCommandPick(cmd) {
+  if (cmd.type === 'link') {
+    router.push(cmd.to)
     return
   }
   if (!ready.value) return
-  sendMessage(action.text)
+  sendMessage(cmd.text)
+}
+
+function focusAskInput() {
+  askInputRef.value?.focus()
 }
 
 async function addFiles(fileList) {
@@ -558,14 +579,21 @@ async function submitConfigForm(values, messageIndex) {
   const view = resolveAssistantMessage(msg)
   if (!view.inputForm || view.formSubmitted || loading.value) return
 
-  const lines = [`Configuration inputs for: ${view.inputForm.title}`]
+  const isArchitect = session.role === 'architect'
+  const prefix = isArchitect ? 'Planning inputs for:' : 'Configuration inputs for:'
+  const lines = [`${prefix} ${view.inputForm.title}`]
   for (const field of view.inputForm.fields) {
     const value = values[field.id]
     const rendered =
       field.type === 'boolean' ? (value ? 'yes' : 'no') : String(value ?? '').trim() || '(not provided)'
     lines.push(`- ${field.label}: ${rendered}`)
   }
-  lines.push('', 'Proceed with the configuration using these values.')
+  lines.push(
+    '',
+    isArchitect
+      ? 'Continue design discovery or move to the next question.'
+      : 'Proceed with the configuration on the connected appliance using these values. Do not ask the same questions in prose again.'
+  )
 
   msg.formSubmitted = true
   submittingFormIndex.value = messageIndex
@@ -875,6 +903,12 @@ onMounted(scrollToBottom)
 .chat-error-block {
   border-left: 3px solid var(--p-orange-500);
   padding-left: 0.75rem;
+}
+
+.design-doc-download {
+  margin-top: 0.75rem;
+  padding-top: 0.75rem;
+  border-top: 1px solid var(--glass-border);
 }
 
 .chat-bubble-loading {

@@ -14,6 +14,7 @@ LOCKED_DOMAINS = (
     "developer-docs.netscaler.com",
     "docs.netscaler.com",
     "docs.citrix.com",
+    "community.citrix.com",
     "citrix.com",
     "netscaler.com",
 )

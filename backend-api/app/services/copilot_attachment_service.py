@@ -29,6 +29,8 @@ CONFIG_EXTENSIONS = {
     ".ns",
     ".cs",
     ".csv",
+    ".md",
+    ".markdown",
 }
 
 
@@ -76,6 +78,7 @@ def _validate_config_attachment(attachment: ChatAttachment) -> None:
         "application/xml",
         "application/yaml",
         "application/x-yaml",
+        "application/markdown",
     }:
         content = _read_config_text(attachment)
         if len(content.encode("utf-8")) > MAX_CONFIG_BYTES:
@@ -111,6 +114,9 @@ def _looks_like_base64(value: str) -> bool:
 
 
 def _config_context_block(name: str, content: str) -> str:
+    ext = _file_extension(name)
+    if ext in {".md", ".markdown"}:
+        return f"\n\n--- Attached design document: {name} ---\n{content}\n--- end ---\n"
     return f"\n\n--- Attached configuration: {name} ---\n{content}\n--- end ---\n"
 
 

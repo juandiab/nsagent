@@ -64,7 +64,8 @@ export function normalizeSelectOptions(options) {
     }
     const value = opt.value != null ? String(opt.value) : String(opt.label || '')
     const label = opt.label != null ? String(opt.label) : value
-    return { label, value }
+    const description = opt.description != null ? String(opt.description) : ''
+    return description ? { label, value, description } : { label, value }
   })
 }
 
@@ -74,7 +75,10 @@ function normalizeForm(form) {
     ...form,
     fields: (form.fields || []).map((field) => ({
       ...field,
-      options: field.type === 'select' ? normalizeSelectOptions(field.options) : field.options
+      options:
+        field.type === 'select' || field.type === 'choice'
+          ? normalizeSelectOptions(field.options)
+          : field.options
     }))
   }
   return normalizeLbFormFields(normalized)
@@ -121,7 +125,10 @@ function validateForm(rawForm) {
     submitLabel: rawForm.submitLabel || 'Submit',
     fields: rawForm.fields.map((field) => ({
       ...field,
-      options: field.type === 'select' ? normalizeSelectOptions(field.options) : field.options
+      options:
+        field.type === 'select' || field.type === 'choice'
+          ? normalizeSelectOptions(field.options)
+          : field.options
     }))
   })
 }

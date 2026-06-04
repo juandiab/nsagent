@@ -1,3 +1,4 @@
+import httpx
 from fastapi import APIRouter, Depends, HTTPException, status
 from motor.motor_asyncio import AsyncIOMotorDatabase
 
@@ -14,6 +15,7 @@ from app.services.copilot_platform_service import (
 from app.services.copilot_orchestrator import get_default_provider, resolve_chat_provider, run_copilot_chat
 from app.services.ai_provider_errors import (
     AiProviderError,
+    build_gateway_timeout_detail,
     enrich_ai_provider_error,
     maybe_parse_ai_provider_error,
 )
@@ -167,7 +169,7 @@ async def copilot_chat(
     if role_requires_appliance(chat_role) and not appliance_name:
         raise HTTPException(
             status_code=status.HTTP_400_BAD_REQUEST,
-            detail="Select and connect to a NetScaler appliance for Operator and Investigator roles",
+            detail="Select and connect to a NetScaler appliance for Operator and Analyst roles",
         )
 
     provider = await resolve_chat_provider(db, payload.providerId)
@@ -201,6 +203,11 @@ async def copilot_chat(
                 detail=detail,
             ) from exc
         raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail=str(exc)) from exc
+    except httpx.TimeoutException as exc:
+        raise HTTPException(
+            status_code=status.HTTP_504_GATEWAY_TIMEOUT,
+            detail=build_gateway_timeout_detail(),
+        ) from exc
     except Exception as exc:
         provider_type = provider.get("providerType", "") if provider else ""
         model = provider.get("model", "") if provider else ""

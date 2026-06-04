@@ -128,6 +128,35 @@ def _provider_label(provider_type: str, provider_name: str, model: str) -> str:
     return f"**{name}**{model_part}"
 
 
+def build_gateway_timeout_detail() -> str:
+    """User-facing message when nginx, the backend, or the provider times out."""
+    lines = [
+        "JPilot did not finish in time (gateway or upstream timeout).",
+        "",
+        "The proxy or AI provider stopped waiting while your request was running. "
+        "Architect discovery with tools can take several minutes.",
+        "",
+        "**What you can do:**",
+        "1. **Retry** — your message is already in the chat thread.",
+        "2. Start a **new chat** if the thread is long (shorter context is faster).",
+        "3. Use a faster **Model**, or turn off **Web** search for this turn.",
+    ]
+    return "\n".join(lines)
+
+
+def build_context_limit_detail() -> str:
+    """User-facing message when the model rejects an oversized prompt."""
+    lines = [
+        "The selected model ran out of context or token budget for this request.",
+        "",
+        "**What you can do:**",
+        "1. Start a **new chat** and paste your latest planning inputs to continue discovery.",
+        "2. Switch to a model with a larger context window under **AI Providers**.",
+        "3. Open **Settings → Usage** to review monthly token limits and remaining quota.",
+    ]
+    return "\n".join(lines)
+
+
 def _build_user_message(
     *,
     kind: str,
@@ -210,6 +239,39 @@ def parse_ai_provider_error(
     )
 
 
+_CONTEXT_LIMIT_HINTS = (
+    "context length",
+    "context window",
+    "maximum context",
+    "max_tokens",
+    "token limit",
+    "too many tokens",
+    "prompt is too long",
+    "input is too long",
+    "request too large",
+)
+
+
+def maybe_parse_context_limit_error(
+    error_text: str,
+    *,
+    provider_type: str = "",
+    model: str = "",
+    provider_name: str = "",
+) -> AiProviderError | None:
+    combined = (error_text or "").strip().lower()
+    if not combined or not any(hint in combined for hint in _CONTEXT_LIMIT_HINTS):
+        return None
+    return AiProviderError(
+        build_context_limit_detail(),
+        kind="quota",
+        provider_type=provider_type,
+        model=model,
+        provider_name=provider_name,
+        raw_error=error_text,
+    )
+
+
 def maybe_parse_ai_provider_error(
     error_text: str,
     *,
@@ -221,6 +283,15 @@ def maybe_parse_ai_provider_error(
     text = (error_text or "").strip()
     if not text:
         return None
+
+    context_limit = maybe_parse_context_limit_error(
+        text,
+        provider_type=provider_type,
+        model=model,
+        provider_name=provider_name,
+    )
+    if context_limit is not None:
+        return context_limit
 
     status_code = None
     status_match = re.search(r"\bHTTP\s+(\d{3})\b", text, flags=re.IGNORECASE)

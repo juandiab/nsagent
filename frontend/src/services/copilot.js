@@ -23,7 +23,8 @@ export function saveCopilotSettings(settings) {
 }
 
 export const IMAGE_ACCEPT = 'image/png,image/jpeg,image/webp,image/gif'
-export const CONFIG_ACCEPT = '.conf,.cfg,.txt,.json,.yaml,.yml,.xml,.properties,.ini,.ns,.cs,.csv'
+export const CONFIG_ACCEPT =
+  '.conf,.cfg,.txt,.json,.yaml,.yml,.xml,.properties,.ini,.ns,.cs,.csv,.md,.markdown'
 
 export const MAX_IMAGE_BYTES = 5 * 1024 * 1024
 export const MAX_CONFIG_BYTES = 1024 * 1024

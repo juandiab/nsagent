@@ -1,4 +1,5 @@
 import { reactive, watch } from 'vue'
+import { normalizeRoleId } from '../config/jpilotRoles'
 
 // Persistent JPilot chat sessions, keyed by pane slot id (e.g. 'pane-1', 'pane-2').
 // Lives in-memory (survives pane add/remove, orientation flips, and route navigation)
@@ -34,8 +35,10 @@ const state = reactive({ sessions: loadPersisted() })
 export function getSession(id, defaultRole = 'operator') {
   if (!state.sessions[id]) {
     const session = blankSession()
-    session.role = defaultRole || 'operator'
+    session.role = normalizeRoleId(defaultRole || 'operator')
     state.sessions[id] = session
+  } else {
+    state.sessions[id].role = normalizeRoleId(state.sessions[id].role)
   }
   return state.sessions[id]
 }

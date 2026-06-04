@@ -14,12 +14,13 @@ from app.schemas.copilot import InputForm as ResponseInputForm
 class SelectOption(BaseModel):
     value: str
     label: str
+    description: str = ""
 
 
 class InputFormField(BaseModel):
     id: str = Field(min_length=1, max_length=64, pattern=r"^[a-zA-Z0-9_-]+$")
     label: str = Field(min_length=1, max_length=200)
-    type: str = Field(default="text", pattern=r"^(text|number|textarea|boolean|select)$")
+    type: str = Field(default="text", pattern=r"^(text|number|textarea|boolean|select|choice)$")
     required: bool = False
     placeholder: str = ""
     hint: str = ""
@@ -48,8 +49,12 @@ class InputFormField(BaseModel):
             if isinstance(item, dict):
                 val = str(item.get("value", item.get("label", ""))).strip()
                 label = str(item.get("label", val)).strip() or val
+                description = str(item.get("description", "")).strip()
                 if val:
-                    normalized.append({"value": val, "label": label})
+                    entry: dict[str, str] = {"value": val, "label": label}
+                    if description:
+                        entry["description"] = description
+                    normalized.append(entry)
             elif item is not None:
                 text = str(item).strip()
                 if text:
@@ -232,8 +237,21 @@ def parse_input_form(content: str) -> tuple[str, InputForm | None]:
     return content, None
 
 
-def format_form_submission(form: InputForm, values: dict[str, Any]) -> str:
-    lines = [f"Configuration inputs for: {form.title}"]
+def _form_submission_prefix(role: str | None = None) -> str:
+    from app.services.copilot_roles import JPilotRole, normalize_role
+
+    if normalize_role(role) == JPilotRole.ARCHITECT:
+        return "Planning inputs for:"
+    return "Configuration inputs for:"
+
+
+def format_form_submission(
+    form: InputForm,
+    values: dict[str, Any],
+    role: str | None = None,
+) -> str:
+    prefix = _form_submission_prefix(role)
+    lines = [f"{prefix} {form.title}"]
     for field in form.fields:
         value = values.get(field.id)
         if field.type == "boolean":
@@ -244,7 +262,13 @@ def format_form_submission(form: InputForm, values: dict[str, Any]) -> str:
             rendered = str(value).strip()
         lines.append(f"- {field.label}: {rendered}")
     lines.append("")
-    lines.append("Proceed with the configuration using these values.")
+    if prefix.startswith("Planning"):
+        lines.append("Continue design discovery or move to the next question.")
+    else:
+        lines.append(
+            "Proceed with the configuration on the connected appliance using these values. "
+            "Do not ask the same questions in prose again."
+        )
     return "\n".join(lines)
 
 
@@ -256,7 +280,72 @@ def to_response_input_form(form: InputForm | None) -> ResponseInputForm | None:
 
 
 def is_form_submission(user_message: str) -> bool:
-    return user_message.strip().startswith("Configuration inputs for:")
+    stripped = user_message.strip()
+    return stripped.startswith("Configuration inputs for:") or stripped.startswith("Planning inputs for:")
+
+
+_DESIGN_IMPLEMENT_VERBS = frozenset(
+    {
+        "configure",
+        "implement",
+        "apply",
+        "deploy",
+        "provision",
+        "build",
+        "execute",
+        "roll out",
+        "rollout",
+    }
+)
+
+_DESIGN_DOC_EXTENSIONS = (".md", ".markdown")
+
+
+def attachment_is_design_document(filename: str) -> bool:
+    name = (filename or "").lower()
+    return name.endswith(_DESIGN_DOC_EXTENSIONS)
+
+
+def user_requests_design_implementation(
+    user_message: str,
+    attachment_names: list[str] | None = None,
+) -> bool:
+    """User wants Operator to apply an attached or referenced design on the connected appliance."""
+    lowered = (user_message or "").lower()
+    if not any(verb in lowered for verb in _DESIGN_IMPLEMENT_VERBS):
+        return False
+    if any(
+        phrase in lowered
+        for phrase in (
+            "design document",
+            "design doc",
+            "attached design",
+            "this design",
+            "from the design",
+            "per the design",
+            "based on the design",
+            "jpilot-design",
+        )
+    ):
+        return True
+    if attachment_names and any(attachment_is_design_document(n) for n in attachment_names):
+        return True
+    return False
+
+
+def is_design_implementation_form_submission(user_message: str) -> bool:
+    if not is_form_submission(user_message):
+        return False
+    lowered = user_message.lower()
+    return any(
+        phrase in lowered
+        for phrase in (
+            "design implementation",
+            "implement on",
+            "connected appliance",
+            "proceed with the configuration on",
+        )
+    )
 
 
 _LB_CREATE_VERBS = ("create", "add", "new", "setup", "set up", "configure", "provision")

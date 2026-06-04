@@ -38,6 +38,7 @@ from app.services.copilot_form import (
     attach_default_lb_form_if_missing,
     parse_input_form,
     to_response_input_form,
+    user_requests_design_implementation,
 )
 from app.services.model_usage_service import UsageAccumulator, flush_usage_accumulator, record_provider_usage
 from app.services.copilot_memory_gate import (
@@ -411,6 +412,15 @@ async def run_copilot_chat(
     enabled_tools = await get_enabled_copilot_tools(db, role=chat_role.value)
     enabled_tool_names = {tool["name"] for tool in enabled_tools}
     system_prompt = build_system_prompt(chat_role, appliance_name)
+    attachment_names = [a.name for a in attachment_list]
+    if (
+        chat_role == JPilotRole.OPERATOR
+        and appliance_name
+        and user_requests_design_implementation(user_message, attachment_names)
+    ):
+        from app.services.copilot_roles import operator_design_implementation_suffix
+
+        system_prompt += "\n" + operator_design_implementation_suffix(appliance_name)
     history = trim_chat_history(history)
 
     from app.services.copilot_port_check import try_auto_tcp_port_check
@@ -635,7 +645,9 @@ async def _run_openai_loop(
                     "content": _truncate_tool_result(result),
                 }
             )
-            retry_hint = build_tool_retry_hint(name, result, user_message)
+            retry_hint = build_tool_retry_hint(
+                name, result, user_message, [a.name for a in attachments]
+            )
             if retry_hint:
                 retry_hints.append(retry_hint)
 
@@ -731,7 +743,9 @@ async def _run_gemini_loop(
                     }
                 }
             )
-            retry_hint = build_tool_retry_hint(name, result, user_message)
+            retry_hint = build_tool_retry_hint(
+                name, result, user_message, [a.name for a in attachments]
+            )
             if retry_hint:
                 response_parts.append({"text": retry_hint})
 
@@ -822,7 +836,9 @@ async def _run_anthropic_loop(
                     "content": result,
                 }
             )
-            retry_hint = build_tool_retry_hint(name, result, user_message)
+            retry_hint = build_tool_retry_hint(
+                name, result, user_message, [a.name for a in attachments]
+            )
             if retry_hint:
                 tool_results.append({"type": "text", "text": retry_hint})
 

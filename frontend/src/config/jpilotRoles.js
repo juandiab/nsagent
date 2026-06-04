@@ -20,11 +20,11 @@ export const JPILOT_ROLES = [
     icon: 'pi pi-cog'
   },
   {
-    id: 'investigator',
-    label: 'Investigator',
+    id: 'analyst',
+    label: 'Analyst',
     description: 'Troubleshoot incidents with read-first checks on a connected appliance.',
     requiresAppliance: true,
-    suggestedPaneLabel: 'Investigate',
+    suggestedPaneLabel: 'Analyze',
     handoffTarget: 'operator',
     icon: 'pi pi-search'
   }
@@ -32,8 +32,17 @@ export const JPILOT_ROLES = [
 
 export const DEFAULT_JPILOT_ROLE = 'operator'
 
+/** @deprecated Renamed to analyst; kept for persisted sessions. */
+const LEGACY_ROLE_ALIASES = { investigator: 'analyst' }
+
+export function normalizeRoleId(roleId) {
+  if (!roleId) return DEFAULT_JPILOT_ROLE
+  return LEGACY_ROLE_ALIASES[roleId] || roleId
+}
+
 export function getRoleById(roleId) {
-  return JPILOT_ROLES.find((r) => r.id === roleId) || JPILOT_ROLES.find((r) => r.id === DEFAULT_JPILOT_ROLE)
+  const id = normalizeRoleId(roleId)
+  return JPILOT_ROLES.find((r) => r.id === id) || JPILOT_ROLES.find((r) => r.id === DEFAULT_JPILOT_ROLE)
 }
 
 export function roleRequiresAppliance(roleId) {

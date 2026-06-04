@@ -4,7 +4,7 @@ from typing import Any, Literal
 
 from pydantic import BaseModel, Field
 
-ChatRole = Literal["architect", "operator", "investigator"]
+ChatRole = Literal["architect", "operator", "analyst"]
 
 
 class CopilotSettings(BaseModel):

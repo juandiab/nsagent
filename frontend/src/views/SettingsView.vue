@@ -277,8 +277,8 @@
   
                   <div class="flex align-items-center justify-content-between gap-3 setting-row">
                     <div>
-                      <div class="setting-label">Allow configuration files</div>
-                      <div class="setting-hint">.conf, .cfg, .txt, .json, .yaml, .xml, .ns, .cs — up to 1 MB each</div>
+                      <div class="setting-label">Allow configuration and document files</div>
+                      <div class="setting-hint">.conf, .cfg, .txt, .json, .yaml, .xml, .md, .ns, .cs — up to 1 MB each</div>
                     </div>
                     <ToggleSwitch v-model="copilotSettings.allowConfigFiles" @update:model-value="saveCopilotPrefs" />
                   </div>
@@ -302,6 +302,7 @@
                 <h3 class="info-title">Attachment tips</h3>
                 <ul class="info-list m-0 pl-3">
                   <li>Attach NetScaler configs for analysis or troubleshooting.</li>
+                  <li>Attach Markdown (.md) design documents or requirements for Architect review.</li>
                   <li>Attach screenshots of errors, dashboards, or topology diagrams.</li>
                   <li>Vision support depends on your default language model.</li>
                 </ul>

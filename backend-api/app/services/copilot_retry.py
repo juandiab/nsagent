@@ -1,7 +1,11 @@
 import json
 from typing import Any
 
-from app.services.copilot_form import is_form_submission, user_requests_lb_vserver_create
+from app.services.copilot_form import (
+    is_form_submission,
+    user_requests_design_implementation,
+    user_requests_lb_vserver_create,
+)
 
 
 def _parse_tool_payload(result: str) -> Any:
@@ -33,7 +37,12 @@ def _user_asks_for_management_ip_only(user_message: str) -> bool:
     return any(term in lowered for term in ("management ip", "mgmt ip", "management address"))
 
 
-def build_tool_retry_hint(tool_name: str, result: str, user_message: str) -> str | None:
+def build_tool_retry_hint(
+    tool_name: str,
+    result: str,
+    user_message: str,
+    attachment_names: list[str] | None = None,
+) -> str | None:
     data = _parse_tool_payload(result)
 
     if _user_asks_for_all_ips(user_message) and tool_name in {
@@ -67,6 +76,12 @@ def build_tool_retry_hint(tool_name: str, result: str, user_message: str) -> str
     missing_expected = False
 
     if tool_name == "netscaler_get_system_info" and isinstance(data, dict):
+        if user_requests_design_implementation(user_message, attachment_names):
+            return (
+                "System info loaded for design implementation. "
+                "Reply with a short intro, then ```jpilot-form``` for values still missing on THIS appliance "
+                "(site/hostname/IPs/VLANs/features). No prose question lists. No writes until form submit."
+            )
         msg = user_message.lower()
         asks_firmware = any(term in msg for term in ("firmware", "version", "build", "release"))
         if asks_firmware and not data.get("firmwareVersion") and not data.get("version"):
@@ -118,7 +133,14 @@ def build_tool_retry_hint(tool_name: str, result: str, user_message: str) -> str
             return (
                 "The user submitted the configuration form. EXECUTE now with "
                 "netscaler_run_cli_commands (full sequence + save ns config) using the provided values. "
-                "Do not ask the same questions again."
+                "Do not ask the same questions again in prose."
+            )
+        if user_requests_design_implementation(user_message, attachment_names):
+            return (
+                "The user wants to implement an attached or referenced design on the connected appliance only. "
+                "Reply with a short intro (≤3 sentences), then a ```jpilot-form``` JSON block with inputForm.fields "
+                "for missing/TBD values (choice, select, boolean, text, textarea; Other + *_other as needed). "
+                "Do NOT list numbered questions in prose. Do NOT run write tools until the user submits the form."
             )
         if user_requests_lb_vserver_create(user_message):
             return (
