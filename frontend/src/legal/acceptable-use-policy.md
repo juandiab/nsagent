@@ -2,7 +2,7 @@
 
 **Last updated: June 2, 2026**
 
-This Acceptable Use Policy ("AUP") governs your use of **JPilot** (also referred to as "NSAgent") (the "Service") provided by **Nexxus-Tech SAS** ("Nexxus Tech", "Nexxus"). It is incorporated into, and forms part of, the **Terms of Service** and **EULA**. Capitalized terms have the meanings given there.
+This Acceptable Use Policy ("AUP") governs your use of **JPilot** (the "Service") provided by **Nexxus-Tech SAS** ("Nexxus Tech", "Nexxus"). It is incorporated into, and forms part of, the **Terms of Service** and **EULA**. Capitalized terms have the meanings given there.
 
 The goal of this AUP is simple: use JPilot only on systems you are authorized to manage, and don't use it to harm others.
 
@@ -58,4 +58,4 @@ We may update this AUP from time to time. Material changes take effect upon post
 
 ## 8. Contact
 
-**Nexxus-Tech SAS** — **Carrera 13A # 28-21, Bogotá D.C., Colombia** — **contact@nexxus-tech.com**.
+**Nexxus Tech SAS Colombia** — **contact@nexxus-tech.com**.

@@ -72,7 +72,7 @@ function collect() {
     admin_password: $("admin_password").value,
     admin_email: $("admin_email").value.trim(),
     domain: $("domain").value.trim() || "localhost",
-    app_name: $("app_name").value.trim() || "NSAgent",
+    app_name: $("app_name").value.trim() || "JPilot",
     cert_mode: mode,
     certificate: mode === "custom" ? $("certificate").value : "",
     chain: mode === "custom" ? $("chain").value : "",

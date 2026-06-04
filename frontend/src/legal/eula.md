@@ -2,25 +2,27 @@
 
 **Last updated: June 3, 2026**
 
-This End-User License Agreement ("EULA") is a legal agreement between you (an individual or a single entity, "you") and **Nexxus-Tech SAS** ("Nexxus Tech", "Nexxus", "we", "us", or "our") for the **JPilot** software, also referred to as "NSAgent," including its components, installers, and accompanying documentation (the "Software").
+This End-User License Agreement ("EULA") is a legal agreement between you (an individual or a single entity, "you") and **Nexxus-Tech SAS** ("Nexxus Tech", "Nexxus", "we", "us", or "our") for the **JPilot** software, including its components, installers, and accompanying documentation (the "Software").
 
 By installing, copying, or otherwise using the Software—including via the Docker installer for self-hosted deployments—you agree to this EULA. If you do not agree, do not install or use the Software.
 
-This EULA governs the **software license**. Use of the hosted service is governed by the **Terms of Service**, and data handling by the **Privacy Policy**.
+This EULA governs the **software license** for the **Free edition** of the Software. Use of the hosted service is governed by the **Terms of Service**, and data handling by the **Privacy Policy**.
+
+**Licensed offerings (separate agreement).** **Paid editions, Enterprise editions, custom deployments, professional services, and any use not expressly permitted under the Free edition** (including MSP and sublicensing use) are **not licensed by this EULA alone**. They require a **separate written agreement** executed by authorized representatives of both parties—for example, an Enterprise Agreement, master services agreement, order form, or statement of work (each, a **"Commercial Agreement"**). Where a Commercial Agreement applies, it sets the **license scope, fees, term, support, and other commercial terms** for your licensed Software. **If there is a conflict** between the Commercial Agreement and this EULA or the Terms of Service, **the Commercial Agreement prevails** with respect to that conflict; otherwise this EULA and the Terms continue to apply.
 
 ---
 
 ## 1. License grant
 
-Subject to your compliance with this EULA, Nexxus grants you a limited, non-exclusive, non-transferable, non-sublicensable, revocable license to install and run the Software on infrastructure you own or control, for the **internal business or personal use of any individual or company**, for the edition you are entitled to (Free or, where applicable, Enterprise under a separate Enterprise Agreement).
+Subject to your compliance with this EULA, Nexxus grants you a limited, non-exclusive, non-transferable, non-sublicensable, revocable license to install and run the **Free edition** of the Software on infrastructure you own or control, for the **internal business or personal use of any individual or company**. Rights to **paid or Enterprise editions** are granted only under an applicable **Commercial Agreement**.
 
-**Managed Service Providers.** If you use the Software to manage infrastructure for, or deliver services to, third parties (for example, as a managed-services or hosting provider), you must obtain an **Enterprise license per managed server**, priced by Nexxus Tech according to the **scope, functionalities, and time/effort** involved.
+**Managed Service Providers.** If you use the Software to manage infrastructure for, or deliver services to, third parties (for example, as a managed-services or hosting provider), you must obtain an **Enterprise license per managed server** under a Commercial Agreement, priced by Nexxus Tech according to the **scope, functionalities, and time/effort** involved.
 
 ## 2. Restrictions
 
 You will not, except as expressly permitted by this EULA or applicable law:
 
-- **resell**, copy, distribute, sell, rent, lease, sublicense, or make the Software available to third parties as a service or product (hosted or otherwise), whether or not for a fee, except under an Enterprise Agreement that expressly permits it;
+- **resell**, copy, distribute, sell, rent, lease, sublicense, or make the Software available to third parties as a service or product (hosted or otherwise), whether or not for a fee, except under a Commercial Agreement that expressly permits it;
 - modify, adapt, translate, or create derivative works of the Software, or reverse engineer, decompile, or disassemble it;
 - remove, alter, or obscure any proprietary notices, branding, or labels;
 - circumvent license, edition, or usage controls; or
@@ -57,11 +59,25 @@ The Software can connect to third-party services you configure (AI providers, we
 
 ## 8. Updates; no obligation to maintain
 
-Nexxus may, but is **not obligated to**, provide updates, patches, improvements, or support for the Free edition, and may **discontinue the Software or any feature at any time**. Support and update commitments, if any, for Enterprise editions are defined in the applicable Enterprise Agreement. Updates may be subject to this EULA unless accompanied by separate terms.
+Nexxus may, but is **not obligated to**, provide updates, patches, improvements, or support for the Free edition, and may **discontinue the Software or any feature at any time**. Support and update commitments, if any, for paid or Enterprise editions are defined in the applicable Commercial Agreement. Updates may be subject to this EULA unless accompanied by separate terms.
 
 ## 9. Trademarks and no affiliation
 
-"NetScaler" and "Citrix" are trademarks of their respective owner (Cloud Software Group). "OpenAI", "Anthropic", "Claude", "Google", "Gemini", "xAI", "Grok", "DeepSeek", "Brave", and other names are trademarks of their respective owners. **Nexxus Tech and JPilot are independent and are not affiliated with, sponsored by, or endorsed by any of these companies.** Such names are used solely for identification and interoperability.
+The following names are trademarks of their respective owners and are used only for identification and interoperability:
+
+- **Cloud Software Group / Citrix:** NetScaler, NetScaler MPX, NetScaler VPX, NetScaler SDX, Citrix ADC, Citrix Gateway, Citrix Virtual Apps and Desktops (CVAD), StoreFront, Citrix, and related product names.
+- **Cisco Systems:** Cisco, IOS, IOS-XE, ASA, Firepower, FTD, ACI, and related product names.
+- **F5:** F5, BIG-IP, NGINX, and related product names.
+- **Juniper Networks:** Juniper, Junos, SRX, EX, QFX, and related product names.
+- **Palo Alto Networks:** PAN-OS, Panorama, and related product names.
+- **Fortinet:** FortiGate, FortiADC, and related product names.
+- **Check Point Software Technologies:** Check Point and related product names.
+- **A10 Networks:** A10, Thunder ADC, and related product names.
+- **Radware:** Radware, Alteon, AppWall, and related product names.
+- **HAProxy / Kemp:** HAProxy, Kemp, and related product names.
+- **AI, search, email, and deployment (as you configure):** OpenAI, Anthropic, Claude, Google, Gemini, xAI, Grok, DeepSeek, Brave, LM Studio, Docker, MongoDB, Hetzner, and related product names.
+
+**Nexxus Tech and JPilot are independent and are not affiliated with, sponsored by, or endorsed by any of these companies.** Such names are used solely for identification and interoperability.
 
 ## 10. Term and termination
 
@@ -73,7 +89,7 @@ THE SOFTWARE IS PROVIDED **"AS IS" WITHOUT WARRANTY OF ANY KIND**, EXPRESS OR IM
 
 ## 12. Limitation of liability
 
-TO THE FULLEST EXTENT PERMITTED BY LAW, NEXXUS WILL NOT BE LIABLE FOR ANY INDIRECT, INCIDENTAL, SPECIAL, CONSEQUENTIAL, OR PUNITIVE DAMAGES, OR FOR LOSS OF PROFITS, DATA, OR GOODWILL, OR FOR DAMAGE TO OR OUTAGE OF SYSTEMS YOU CONNECT, ARISING FROM OR RELATED TO THE SOFTWARE. NEXXUS'S TOTAL AGGREGATE LIABILITY WILL NOT EXCEED THE GREATER OF THE AMOUNTS YOU PAID FOR THE APPLICABLE LICENSE IN THE **TWELVE (12) MONTHS** PRECEDING THE CLAIM OR **USD $100**.
+TO THE FULLEST EXTENT PERMITTED BY LAW, NEXXUS WILL NOT BE LIABLE FOR ANY INDIRECT, INCIDENTAL, SPECIAL, CONSEQUENTIAL, OR PUNITIVE DAMAGES, OR FOR LOSS OF PROFITS, DATA, OR GOODWILL, OR FOR DAMAGE TO OR OUTAGE OF SYSTEMS YOU CONNECT, ARISING FROM OR RELATED TO THE SOFTWARE. NEXXUS'S TOTAL AGGREGATE LIABILITY WILL NOT EXCEED THE GREATER OF THE AMOUNTS YOU PAID FOR THE APPLICABLE LICENSE IN THE **TWELVE (12) MONTHS** PRECEDING THE CLAIM OR **COP 1,000**.
 
 Nothing in this EULA excludes or limits liability that **cannot be excluded or limited under applicable law**, including mandatory consumer or personal-injury rights where you are located.
 
@@ -81,8 +97,8 @@ Nothing in this EULA excludes or limits liability that **cannot be excluded or l
 
 You may not use or export the Software in violation of applicable export-control or sanctions laws.
 
-**Governing law.** This EULA is governed by the laws of the **Republic of Colombia**, without regard to conflict-of-laws rules, except that mandatory laws of your country of residence or establishment may apply to the extent they cannot be waived by contract. Subject to mandatory local rules, exclusive jurisdiction and venue lie in the **competent courts of Bogotá D.C., Colombia**. For Enterprise licensees, the Enterprise Agreement controls.
+**Governing law.** This EULA is governed by the laws of the **Republic of Colombia**, without regard to conflict-of-laws rules, except that mandatory laws of your country of residence or establishment may apply to the extent they cannot be waived by contract. Subject to mandatory local rules, exclusive jurisdiction and venue lie in the **competent courts of Bogotá D.C., Colombia**. For licensees with a Commercial Agreement, that agreement controls.
 
 ## 14. Contact
 
-**Nexxus-Tech SAS** — **Carrera 13A # 28-21, Bogotá D.C., Colombia** — **contact@nexxus-tech.com**.
+**Nexxus Tech SAS Colombia** — **contact@nexxus-tech.com**.

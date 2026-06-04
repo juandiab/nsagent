@@ -1,12 +1,14 @@
 # JPilot
 
-**JPilot** — an AI-assisted management platform for network appliances. Register NetScaler ADC (MPX/VPX), SDX, and Cisco IOS/XE switches; configure AI providers; and use JPilot chat with vendor-specific tools, prompts, and memory.
+**JPilot** — an AI-assisted management platform for network appliances. Register NetScaler ADC (MPX/VPX), SDX, and Cisco IOS/XE switches; connect **your own** AI provider keys; and use JPilot chat with vendor-specific tools, prompts, and memory.
+
+The **Free edition** is offered at no charge so teams can try the product and so practitioners can see how it works. **Nexxus-Tech SAS does not supply or pay for AI inference** — you choose the provider, you hold the API keys, and **you pay that provider** under its terms. JPilot only connects to what you configure.
 
 Repository: [github.com/juandiab/nsagent](https://github.com/juandiab/nsagent)
 
 > **Disclaimer:** JPilot is an independent project and is not affiliated with, endorsed by, or sponsored by Citrix Systems, Inc. NetScaler is a trademark of Citrix Systems, Inc.
 
-**Current release:** `v0.25` — NetScaler SDX, appliance tags, and stepped Add appliance inventory UX.
+**Current release:** `v0.26` — proprietary licensing, legal updates, and JPilot branding.
 
 Bump the root [`VERSION`](VERSION) file when tagging a release so in-app update checks match GitHub.
 
@@ -35,6 +37,15 @@ Bump the root [`VERSION`](VERSION) file when tagging a release so in-app update 
 - **Model usage dashboard** — Settings → AI Providers shows monthly LLM token/request usage and Brave Search query usage with progress bars (tracked locally per calendar month).
 - **Cisco IOS/XE (SSH)** — Operator and Analyst over SSH with `search_cisco_cli_reference` memory gate.
 - **NetScaler SDX (SSH)** — Operator and Analyst for SVM platform and VPX lifecycle with `search_sdx_cli_reference` memory gate.
+
+## What's new in v0.26
+
+| Area | Highlights |
+|------|------------|
+| **License** | Root `LICENSE` is proprietary (Nexxus-Tech SAS); Free edition remains available under the EULA and Terms; third-party OSS stays in `THIRD_PARTY_NOTICES.txt`. |
+| **Legal** | Updated EULA, Terms, Privacy, and AUP: Commercial Agreement for paid/Enterprise use, expanded trademark notices, BYOK AI and token costs on the user, contact as Nexxus Tech SAS Colombia, liability cap in COP. |
+| **Product naming** | JPilot as the product name in legal docs and installer defaults (NSAgent retired as public codename). |
+| **README** | Free edition and bring-your-own AI keys documented at the top and in the License section. |
 
 ## What's new in v0.25
 
@@ -621,6 +632,6 @@ docker run --rm -v nsagent_nsagent_mongodb_data:/data/db mongo:8.2 mongod --repa
 
 ## License
 
-**JPilot** distributed via Docker or installer is **proprietary software** licensed under the [EULA](frontend/src/legal/eula.md) (Nexxus-Tech SAS). Open-source **third-party** components are listed in [THIRD_PARTY_NOTICES.txt](THIRD_PARTY_NOTICES.txt) (regenerate with `./scripts/generate-third-party-notices.sh`).
+**JPilot** is **proprietary software** owned by **Nexxus-Tech SAS**. The **Free edition** stays available at no charge when you accept the [EULA](frontend/src/legal/eula.md) and [Terms of Service](frontend/src/legal/terms-of-service.md) — that is **not** an open-source license (no right to redistribute, resell, or offer JPilot to others as a product or MSP service). Paid and Enterprise use requires a separate Commercial Agreement. Details: root [`LICENSE`](LICENSE).
 
-The repository `LICENSE` file applies only where expressly stated for specific open-source artifacts; it does not grant rights to the commercial product.
+Open-source **third-party** components are listed in [THIRD_PARTY_NOTICES.txt](THIRD_PARTY_NOTICES.txt) (regenerate with `./scripts/generate-third-party-notices.sh`). Those licenses apply only to the bundled dependencies, not to Nexxus application code.

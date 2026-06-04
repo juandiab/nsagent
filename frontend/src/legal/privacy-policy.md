@@ -2,9 +2,9 @@
 
 **Last updated: June 3, 2026**
 
-This Privacy Policy explains how **Nexxus-Tech SAS** ("Nexxus Tech", "Nexxus", "we", "us", or "our") collects, uses, discloses, and protects information in connection with **JPilot** (also referred to as "NSAgent"), our AI assistant for NetScaler / Citrix ADC administration (the "Service").
+This Privacy Policy explains how **Nexxus-Tech SAS** ("Nexxus Tech", "Nexxus", "we", "us", or "our") collects, uses, discloses, and protects information in connection with **JPilot**, our AI assistant for NetScaler / Citrix ADC administration (the "Service").
 
-Nexxus Tech is registered at **Carrera 13A # 28-21, Bogotá D.C., Colombia**. For any privacy question, contact us at **contact@nexxus-tech.com**.
+**Nexxus Tech SAS Colombia**. For any privacy question, contact us at **contact@nexxus-tech.com**.
 
 ---
 
@@ -120,4 +120,4 @@ We may update this Policy from time to time. Material changes will be indicated 
 
 ## 14. Contact
 
-Questions or requests: **contact@nexxus-tech.com** — **Nexxus-Tech SAS**, **Bogotá D.C., Colombia**.
+Questions or requests: **contact@nexxus-tech.com** — **Nexxus Tech SAS Colombia**.

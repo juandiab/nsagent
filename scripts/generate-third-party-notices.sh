@@ -22,7 +22,7 @@ section() {
 THIRD-PARTY NOTICES
 ===================
 
-JPilot / NSAgent (Nexxus-Tech SAS) includes open-source software components.
+JPilot (Nexxus-Tech SAS) includes open-source software components.
 The Nexxus application code is proprietary and licensed under the End-User
 License Agreement (EULA), not under the licenses below. The following notices
 apply only to bundled third-party components.
