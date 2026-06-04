@@ -17,9 +17,13 @@ NEXTGEN_WRITE_TOOLS = frozenset({"netscaler_create_application", "netscaler_next
 
 NEXTGEN_MEMORY_SEARCH_TOOL = "search_netscaler_nextgen_api"
 CLI_MEMORY_SEARCH_TOOL = "search_netscaler_cli_reference"
+CISCO_CLI_MEMORY_SEARCH_TOOL = "search_cisco_cli_reference"
 SSH_TOOL = "netscaler_ssh_run_command"
 CLI_WRITE_TOOL = "netscaler_run_cli_command"
 CLI_BATCH_TOOL = "netscaler_run_cli_commands"
+CISCO_SSH_TOOL = "cisco_ssh_run_command"
+CISCO_CLI_WRITE_TOOL = "cisco_run_cli_command"
+CISCO_CLI_BATCH_TOOL = "cisco_run_cli_commands"
 NEXTGEN_REQUEST_TOOL = "netscaler_nextgen_request"
 WRITE_IP_TOOL = "netscaler_add_ip_address"
 
@@ -56,7 +60,29 @@ def nextgen_memory_review_required(tool_name: str) -> bool:
 
 
 def cli_memory_review_required(tool_name: str) -> bool:
-    return tool_name in {SSH_TOOL, CLI_WRITE_TOOL, CLI_BATCH_TOOL, WRITE_IP_TOOL}
+    return tool_name in {
+        SSH_TOOL,
+        CLI_WRITE_TOOL,
+        CLI_BATCH_TOOL,
+        WRITE_IP_TOOL,
+        CISCO_CLI_WRITE_TOOL,
+        CISCO_CLI_BATCH_TOOL,
+    }
+
+
+CISCO_DESTRUCTIVE_VERBS = frozenset({"reload", "erase", "delete", "write"})
+
+
+def classify_cisco_command(command: str) -> str:
+    tokens = (command or "").strip().lower().split()
+    if not tokens:
+        return "read"
+    if tokens[0] in {"show", "display", "ping", "traceroute", "traceroute6"}:
+        return "read"
+    joined = " ".join(tokens)
+    if any(term in joined for term in ("reload", "erase", "write erase", "delete")):
+        return "destructive"
+    return "write"
 
 
 def classify_cli_command(command: str) -> str:
@@ -91,9 +117,16 @@ def destructive_confirmation_required(tool_name: str, arguments: dict[str, Any])
         return False
     if tool_name == CLI_WRITE_TOOL:
         return classify_cli_command(arguments.get("command", "")) == "destructive"
+    if tool_name == CISCO_CLI_WRITE_TOOL:
+        return classify_cisco_command(arguments.get("command", "")) == "destructive"
     if tool_name == CLI_BATCH_TOOL:
         for command in arguments.get("commands") or []:
             if classify_cli_command(str(command)) == "destructive":
+                return True
+        return False
+    if tool_name == CISCO_CLI_BATCH_TOOL:
+        for command in arguments.get("commands") or []:
+            if classify_cisco_command(str(command)) == "destructive":
                 return True
         return False
     if tool_name == NEXTGEN_REQUEST_TOOL:
@@ -107,7 +140,11 @@ def destructive_confirmation_required(tool_name: str, arguments: dict[str, Any])
 def block_result_for_unconfirmed_destructive(tool_name: str, arguments: dict[str, Any]) -> str:
     if tool_name == CLI_WRITE_TOOL:
         operation = arguments.get("command", "")
+    elif tool_name == CISCO_CLI_WRITE_TOOL:
+        operation = arguments.get("command", "")
     elif tool_name == CLI_BATCH_TOOL:
+        operation = "; ".join(str(cmd) for cmd in (arguments.get("commands") or []))
+    elif tool_name == CISCO_CLI_BATCH_TOOL:
         operation = "; ".join(str(cmd) for cmd in (arguments.get("commands") or []))
     else:
         operation = f"{arguments.get('method', '')} {arguments.get('path', '')}".strip()

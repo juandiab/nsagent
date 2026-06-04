@@ -1,0 +1,1 @@
+Use Cisco IOS/XE official documentation on cisco.com when citing docs. Before any SSH write command, call search_cisco_cli_reference and follow recommendedCommands from cisco_ios_switch_memory.md. Read-only show/ping/traceroute may use cisco_ssh_run_command without a prior search.

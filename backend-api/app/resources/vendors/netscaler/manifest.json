@@ -1,0 +1,51 @@
+{
+  "id": "netscaler",
+  "label": "NetScaler ADC",
+  "supported": true,
+  "connect": {
+    "mode": "nextgen",
+    "testTool": "netscaler_test_connection"
+  },
+  "memoryDir": "memory/netscaler",
+  "memoryFiles": [
+    "netscaler_adc_cli_memory.md",
+    "netscaler_nextgen_api_memory.md"
+  ],
+  "architectDir": "architect/netscaler",
+  "promptsDir": "prompts/netscaler/roles",
+  "roles": ["architect", "operator", "analyst"],
+  "tools": {
+    "vendorPrefix": "netscaler_",
+    "mcpTools": [
+      "netscaler_test_connection",
+      "netscaler_get_system_info",
+      "netscaler_list_applications",
+      "netscaler_list_virtual_servers",
+      "netscaler_list_virtual_ips",
+      "netscaler_list_ip_addresses",
+      "netscaler_nextgen_get",
+      "netscaler_create_application",
+      "netscaler_add_ip_address",
+      "netscaler_ssh_run_command",
+      "netscaler_run_cli_command",
+      "netscaler_run_cli_commands",
+      "netscaler_run_diagnostic",
+      "netscaler_telnet",
+      "netscaler_collect_nsconmsg",
+      "netscaler_nextgen_request",
+      "netscaler_generate_csr"
+    ],
+    "searchTools": [
+      "search_netscaler_nextgen_api",
+      "search_netscaler_cli_reference",
+      "search_jpilot_architect_resources"
+    ],
+    "analystBlocked": [
+      "netscaler_create_application",
+      "netscaler_add_ip_address",
+      "netscaler_nextgen_request",
+      "netscaler_run_cli_commands"
+    ]
+  },
+  "router": "netscaler"
+}

@@ -13,7 +13,7 @@ from app.services.netscaler_service import (
     list_lb_vservers,
     test_appliance_connection,
 )
-from app.tools.netscaler_tools import NETSCALER_TOOLS, call_netscaler_tool, get_enabled_tools
+from app.tools.tool_dispatch import call_mcp_tool, get_enabled_tools
 
 mcp_app = Server("netscaler-copilot")
 sse = SseServerTransport("/messages")
@@ -26,7 +26,7 @@ async def handle_list_tools():
 
 @mcp_app.call_tool()
 async def handle_call_tool(name: str, arguments: dict):
-    return await call_netscaler_tool(name, arguments)
+    return await call_mcp_tool(name, arguments)
 
 
 async def handle_sse(request):
@@ -87,7 +87,7 @@ async def invoke_tool(request: Request):
     name = payload.get("name", "")
     arguments = payload.get("arguments", {})
     try:
-        result = await call_netscaler_tool(name, arguments)
+        result = await call_mcp_tool(name, arguments)
         return JSONResponse({"success": True, "result": result[0].text if result else ""})
     except Exception as exc:
         return JSONResponse({"success": False, "message": str(exc)})

@@ -1,7 +1,11 @@
+"""Appliance inventory helpers."""
+
 from datetime import datetime, timezone
 from typing import Any
 
 from bson import ObjectId
+
+from app.services.vendor_registry import is_vendor_copilot_supported
 
 
 def utc_now() -> datetime:
@@ -19,6 +23,10 @@ def is_netscaler_appliance(doc: dict[str, Any]) -> bool:
     return normalize_vendor(doc.get("vendor")) == DEFAULT_VENDOR
 
 
+def is_copilot_eligible_appliance(doc: dict[str, Any]) -> bool:
+    return is_vendor_copilot_supported(normalize_vendor(doc.get("vendor")))
+
+
 def serialize_appliance(doc: dict[str, Any]) -> dict[str, Any]:
     vendor = normalize_vendor(doc.get("vendor"))
     return {
@@ -28,7 +36,7 @@ def serialize_appliance(doc: dict[str, Any]) -> dict[str, Any]:
         "enabled": doc["enabled"],
         "notes": doc.get("notes", ""),
         "vendor": vendor,
-        "copilotEligible": is_netscaler_appliance(doc),
+        "copilotEligible": is_copilot_eligible_appliance(doc),
         "createdAt": doc["createdAt"],
         "updatedAt": doc["updatedAt"],
     }
@@ -38,7 +46,7 @@ def build_appliance_document(payload: dict[str, Any], encrypted_fields: dict[str
     now = utc_now()
     vendor = normalize_vendor(payload.get("vendor"))
     enabled = payload.get("enabled", True)
-    if vendor != DEFAULT_VENDOR:
+    if not is_vendor_copilot_supported(vendor) and vendor != DEFAULT_VENDOR:
         enabled = False
     return {
         "name": payload["name"],

@@ -1,0 +1,33 @@
+{
+  "id": "cisco",
+  "label": "Cisco IOS/XE Switches",
+  "supported": true,
+  "connect": {
+    "mode": "ssh",
+    "testTool": "cisco_test_connection",
+    "testCommand": "show version"
+  },
+  "memoryDir": "memory/cisco",
+  "memoryFiles": [
+    "cisco_ios_switch_memory.md"
+  ],
+  "promptsDir": "prompts/cisco/roles",
+  "roles": ["operator", "analyst"],
+  "tools": {
+    "vendorPrefix": "cisco_",
+    "mcpTools": [
+      "cisco_test_connection",
+      "cisco_ssh_run_command",
+      "cisco_run_cli_command",
+      "cisco_run_cli_commands"
+    ],
+    "searchTools": [
+      "search_cisco_cli_reference"
+    ],
+    "analystBlocked": [
+      "cisco_run_cli_command",
+      "cisco_run_cli_commands"
+    ]
+  },
+  "router": "cisco"
+}

@@ -1,25 +1,27 @@
 # JPilot
 
-**JPilot** — an AI-assisted management platform for Citrix NetScaler ADC appliances. Register appliances, configure AI providers, and use the JPilot chat that reads and writes configuration through the **NetScaler Next-Gen API**, **read-only NITRO**, and **SSH CLI** — with official documentation baked into memory files so the assistant does not invent syntax.
+**JPilot** — an AI-assisted management platform for network appliances. Register NetScaler ADC and Cisco IOS/XE switches, configure AI providers, and use JPilot chat with vendor-specific tools, prompts, and memory — NetScaler via Next-Gen API / NITRO / SSH; Cisco via SSH CLI with official-syntax memory so the assistant does not invent commands.
 
 Repository: [github.com/juandiab/nsagent](https://github.com/juandiab/nsagent)
 
 > **Disclaimer:** JPilot is an independent project and is not affiliated with, endorsed by, or sponsored by Citrix Systems, Inc. NetScaler is a trademark of Citrix Systems, Inc.
 
-**Current release:** `v0.23` — Architect discovery forms, design documents, expanded JPilot command menu, and clearer chat errors.
+**Current release:** `v0.24` — Multi-vendor brain layout, token-optimized chat, Cisco switch SSH support, and manifest-driven vendor packs.
 
 Bump the root [`VERSION`](VERSION) file when tagging a release so in-app update checks match GitHub.
 
 ## Features
 
-- **Appliance inventory** — store NetScaler hosts and encrypted credentials (Fernet).
+- **Appliance inventory** — store NetScaler and other vendor hosts with encrypted credentials (Fernet); Cisco switches eligible for JPilot when enabled.
 - **AI provider management** — OpenAI, Anthropic, Gemini, Grok, DeepSeek, LM Studio, and OpenAI-compatible endpoints.
 - **JPilot chat** — tool-calling agent bound to the selected appliance; credentials never sent to the LLM.
 - **JPilot roles** — **Architect** (structured discovery and formal design documents), **Operator** (configure the ADC, including from attached `.md` designs), **Analyst** (read-first troubleshooting); dual-pane defaults to Architect + Operator.
 - **Architect design workflow** — choice/boolean `jpilot-form` discovery; deliverable outline with AWS/Azure, Gateway integrations, and AAA topics; downloadable design `.md`; official doc reference index (Citrix Gateway, authentication, Tech Zone).
 - **JPilot command menu** — searchable recommended actions by role with section grouping (~200 prompts).
 - **MCP server** — Model Context Protocol tools for Next-Gen API, classic CLI over SSH, NITRO helpers, diagnostics, and SSL key/CSR generation.
-- **Memory-guided RAG** — `netscaler_nextgen_api_memory.md` and `netscaler_adc_cli_memory.md` gate API/CLI usage before execution.
+- **Multi-vendor brain** — `resources/vendors/<id>/manifest.json` drives memory, prompts, tools, and connect mode per platform; NetScaler and Cisco supported today.
+- **Token-optimized chat** — intent-based tool routing, slimmer Architect prompts (on-demand resource search), 18-message history, 10k-char tool results.
+- **Memory-guided RAG** — `backend-api/app/resources/memory/<vendor>/` gates API/CLI usage before execution.
 - **Classic + Next-Gen** — list virtual servers from Next-Gen applications and classic `lbvserver`; create apps via Next-Gen or multi-step LB setup via CLI.
 - **Guided load balancer forms** — JPilot can embed interactive `jpilot-form` blocks in chat (VIP, service type, backends, monitors); submissions drive CLI execution after reference lookup.
 - **Smart form routing** — responder, rewrite, transform, and other policy-on-vserver requests do not trigger the LB creation form.
@@ -31,6 +33,18 @@ Bump the root [`VERSION`](VERSION) file when tagging a release so in-app update 
 - **Optional Brave Search** — domain-restricted web augmentation when local memory/docs are weak (Settings → AI Providers).
 - **Dashboard shortcuts** — recommended JPilot prompts and links (health summary, list IPs/vservers, diagnostics, guided LB).
 - **Model usage dashboard** — Settings → AI Providers shows monthly LLM token/request usage and Brave Search query usage with progress bars (tracked locally per calendar month).
+- **Cisco IOS/XE (SSH)** — Operator and Analyst roles over SSH: `show` / configure with `search_cisco_cli_reference` memory gate; connect via `show version`.
+
+## What's new in v0.24
+
+| Area | Highlights |
+|------|------------|
+| **Vendor manifests** | `resources/vendors/{netscaler,cisco}/manifest.json` — single source of truth for tools, memory, prompts, connect mode, and roles (`vendor_registry.py`). |
+| **Brain layout** | `memory/<vendor>/`, `prompts/<vendor>/roles/`, `architect/<vendor>/`; prod bind-mounts all of `resources/`. |
+| **Prompts as files** | Live system prompts loaded from markdown with `{{include:…}}` fragments; `search_jpilot_architect_resources` for Architect outline on demand. |
+| **Token optimization** | `copilot_tool_router.py` sends a subset of tools per intent; Architect prompt slimmed (~3k vs ~15k+ chars). |
+| **Cisco switches** | MCP tools `cisco_*`, memory `cisco_ios_switch_memory.md`, Operator/Analyst prompts, SSH connect test, inventory `copilotEligible`. |
+| **Tests** | Vendor registry, prompt loader, and tool router unit tests. |
 
 ## What's new in v0.23
 
@@ -419,14 +433,43 @@ The backend also attaches a default classic LB form when the user clearly asks t
 
 Enable or disable tools under **Settings → MCP Server**. **SSH fallback must be enabled** for diagnostic and SSL shell tools.
 
+## Vendor brain layout
+
+Each supported platform is defined under `backend-api/app/resources/vendors/<vendor>/manifest.json` and points at:
+
+- `memory/<vendor>/` — RAG markdown (e.g. `cisco_ios_switch_memory.md`)
+- `prompts/<vendor>/roles/` — live system prompts (`operator.md`, `analyst.md`, …)
+- `architect/<vendor>/` — planning templates (NetScaler today)
+- MCP tool names + connect mode (`nextgen` vs `ssh`) in the manifest
+
+Registry: `backend-api/app/services/vendor_registry.py` loads manifests and drives tool filtering, prompt paths, and appliance eligibility.
+
+**Supported today:** `netscaler`, `cisco` (IOS/XE switches via SSH).
+
 ## Memory files
 
-Official-syntax references mounted into the backend (edit at repo root):
+Official-syntax references for JPilot RAG live under `backend-api/app/resources/memory/<vendor>/`:
 
-- `netscaler_nextgen_api_memory.md` — Next-Gen API endpoints, payloads, behavioral rules
-- `netscaler_adc_cli_memory.md` — ADC CLI namespaces, commands, behavioral rules
+- `memory/netscaler/netscaler_nextgen_api_memory.md` — Next-Gen API endpoints, payloads, behavioral rules
+- `memory/netscaler/netscaler_adc_cli_memory.md` — ADC CLI namespaces, commands, behavioral rules
+- `memory/f5/`, `memory/cisco/` — placeholders for future vendor memory packs
 
-JPilot search tools read these before executing NetScaler write operations. Blocked tool responses include `requiredAction` telling the model to search first.
+Architect planning references: `backend-api/app/resources/architect/<vendor>/` (NetScaler: design outline, Citrix integration refs).
+
+## Prompts (vendor + role)
+
+Live chat system prompts load from `backend-api/app/resources/prompts/<vendor>/`:
+
+- `prompts/netscaler/roles/architect.md`, `operator.md`, `analyst.md` — sent to the LLM based on chat role and connected appliance vendor
+- `prompts/netscaler/roles/shared_doc_rules.md`, `architect_discovery.md` — shared fragments included via `{{include:…}}`
+- `prompts/netscaler/netscaler-copilot-prompt.md` — original project build spec (reference only, not loaded at chat runtime)
+- `prompts/f5/`, `prompts/cisco/` — placeholders for future vendor prompt packs
+
+Selection logic: `resolve_chat_vendor()` + `prompt_loader.load_role_prompt()` (see `prompt_paths.py`, `copilot_vendors.py`).
+
+Add more `.md` files under the vendor memory folder; register filenames in `copilot_vendors.py` and wire a memory service. In production, `resources/` is bind-mounted so you can update memory and prompts without rebuilding the image.
+
+JPilot search tools read memory before executing NetScaler write operations. Blocked tool responses include `requiredAction` telling the model to search first.
 
 ## API endpoints (backend)
 
@@ -554,6 +597,7 @@ docker run --rm -v nsagent_nsagent_mongodb_data:/data/db mongo:8.2 mongod --repa
 ```
 ├── frontend/          # Vue 3 + PrimeVue UI
 ├── backend-api/       # FastAPI backend, JPilot orchestrator
+│   └── app/resources/ # memory/<vendor>/, architect/<vendor>/, prompts/<vendor>/
 ├── mcp-server/        # MCP NetScaler tool server
 ├── backend-api/tests/ # Backend unit tests (e.g. form heuristics)
 ├── docker-compose.yml
@@ -561,8 +605,6 @@ docker run --rm -v nsagent_nsagent_mongodb_data:/data/db mongo:8.2 mongod --repa
 ├── compose.sh              # picks dev/prod compose from .env
 ├── scripts/prod-up.sh      # production build + up (from repo root)
 ├── scripts/upgrade.sh      # git pull + dev or prod rebuild (picker)
-├── netscaler_nextgen_api_memory.md
-├── netscaler_adc_cli_memory.md
 └── .env.example
 ```
 

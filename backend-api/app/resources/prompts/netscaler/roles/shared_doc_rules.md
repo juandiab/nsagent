@@ -1,0 +1,3 @@
+Use only official documentation domains: developer-docs.netscaler.com, docs.netscaler.com, docs.citrix.com, community.citrix.com (Citrix Tech Zone) (plus any extra domains the admin allowed). When a search tool returns webResults (domain-restricted live web search), you may use and cite those URLs. Never cite or rely on other websites.
+Before any Next-Gen API work, call search_netscaler_nextgen_api and read memoryExcerpts from netscaler_nextgen_api_memory.md.
+Before any SSH CLI work, call search_netscaler_cli_reference and read recommendedCommands. Exception: ping/traceroute/tcp_port diagnostics use netscaler_run_diagnostic or netscaler_telnet without a prior search.

@@ -521,6 +521,109 @@ CLI_SEARCH_TOOL = {
     },
 }
 
+ARCHITECT_SEARCH_TOOL = {
+    "name": "search_jpilot_architect_resources",
+    "description": (
+        "Search Architect design outline and Citrix integration reference markdown. "
+        "Use before producing a design document or when discovery needs AWS, Gateway, AAA, or integration option lists."
+    ),
+    "parameters": {
+        "type": "object",
+        "properties": {
+            "query": {
+                "type": "string",
+                "description": "Topic to look up, e.g. AWS deployment, Gateway authentication, design outline",
+            }
+        },
+        "required": ["query"],
+    },
+}
+
+CISCO_SEARCH_TOOL = {
+    "name": "search_cisco_cli_reference",
+    "description": (
+        "REQUIRED before cisco_run_cli_command or cisco_run_cli_commands. "
+        "Searches cisco_ios_switch_memory.md for IOS/XE syntax and recommendedCommands."
+    ),
+    "parameters": {
+        "type": "object",
+        "properties": {
+            "query": {
+                "type": "string",
+                "description": "IOS topic or command, e.g. show vlan brief or access port",
+            }
+        },
+        "required": ["query"],
+    },
+}
+
+CISCO_COPILOT_TOOLS = [
+    {
+        "name": "cisco_test_connection",
+        "description": "Test SSH connectivity to a Cisco IOS/XE switch using show version.",
+        "parameters": {
+            "type": "object",
+            "properties": {
+                "appliance_name": {"type": "string", "description": "Inventory name of the switch"},
+            },
+            "required": ["appliance_name"],
+        },
+    },
+    {
+        "name": "cisco_ssh_run_command",
+        "description": (
+            "Run a read-only Cisco IOS/XE command over SSH (show, display, ping, traceroute). "
+            "Use search_cisco_cli_reference first when syntax is uncertain."
+        ),
+        "parameters": {
+            "type": "object",
+            "properties": {
+                "appliance_name": {"type": "string"},
+                "command": {"type": "string"},
+                "purpose": {"type": "string", "description": "Why this command is needed"},
+            },
+            "required": ["appliance_name", "command", "purpose"],
+        },
+    },
+    {
+        "name": "cisco_run_cli_command",
+        "description": (
+            "Run a single Cisco IOS/XE command over SSH. "
+            "Use ONLY after search_cisco_cli_reference confirms syntax from memory."
+        ),
+        "parameters": {
+            "type": "object",
+            "properties": {
+                "appliance_name": {"type": "string"},
+                "command": {"type": "string"},
+                "purpose": {"type": "string"},
+                "confirmed": {
+                    "type": "boolean",
+                    "description": "Required true for destructive commands on retry",
+                },
+            },
+            "required": ["appliance_name", "command", "purpose"],
+        },
+    },
+    {
+        "name": "cisco_run_cli_commands",
+        "description": (
+            "Run ordered Cisco IOS/XE commands over SSH. "
+            "Use ONLY after search_cisco_cli_reference confirms syntax."
+        ),
+        "parameters": {
+            "type": "object",
+            "properties": {
+                "appliance_name": {"type": "string"},
+                "commands": {"type": "array", "items": {"type": "string"}},
+                "purpose": {"type": "string"},
+                "confirmed": {"type": "boolean"},
+            },
+            "required": ["appliance_name", "commands", "purpose"],
+        },
+    },
+]
+
 MCP_TOOL_MAP = {
     "netscaler_test_connection": "netscaler_test_connection",
     "netscaler_get_system_info": "netscaler_get_system_info",
@@ -539,6 +642,10 @@ MCP_TOOL_MAP = {
     "netscaler_collect_nsconmsg": "netscaler_collect_nsconmsg",
     "netscaler_nextgen_request": "netscaler_nextgen_request",
     "netscaler_list_lb_vservers": "netscaler_list_virtual_servers",
+    "cisco_test_connection": "cisco_test_connection",
+    "cisco_ssh_run_command": "cisco_ssh_run_command",
+    "cisco_run_cli_command": "cisco_run_cli_command",
+    "cisco_run_cli_commands": "cisco_run_cli_commands",
 }
 
 
@@ -547,12 +654,13 @@ async def resolve_appliance_credentials(db, appliance_name: str) -> tuple[str, s
     if appliance is None:
         raise ValueError(f"Appliance '{appliance_name}' not found in inventory")
 
-    from app.models.appliance import is_netscaler_appliance
     from app.services.encryption_service import decrypt_value
+    from app.services.vendor_registry import is_vendor_copilot_supported
 
-    if not is_netscaler_appliance(appliance):
+    vendor = str(appliance.get("vendor") or "netscaler").strip().lower()
+    if not is_vendor_copilot_supported(vendor):
         raise ValueError(
-            f"Appliance '{appliance_name}' is not a NetScaler. JPilot tools support NetScaler only."
+            f"Appliance '{appliance_name}' (vendor '{vendor}') is not supported for JPilot chat yet."
         )
 
     return (
@@ -616,10 +724,11 @@ async def execute_copilot_tool(
     arguments: dict[str, Any],
     default_appliance_name: str | None = None,
     role: str | None = None,
+    vendor: str | None = None,
 ) -> str:
     from app.services.copilot_roles import assert_tool_allowed_for_role
 
-    assert_tool_allowed_for_role(name, role)
+    assert_tool_allowed_for_role(name, role, vendor=vendor)
 
     if name == "jpilot_check_doc_connectivity":
         from app.services.connectivity_service import check_doc_connectivity
@@ -648,7 +757,7 @@ async def execute_copilot_tool(
             "allowedDomains": await get_allowed_domains(db),
             **web_block,
         }
-        return json.dumps(payload, indent=2)
+        return json.dumps(payload, separators=(",", ":"))
 
     if name == "search_netscaler_cli_reference":
         from app.services.cli_reference_service import search_cli_reference
@@ -659,7 +768,23 @@ async def execute_copilot_tool(
         result = await search_cli_reference(query)
         local_strong = bool(result.get("memoryExcerptCount") or result.get("recommendedCommands"))
         result.update(await _web_search_block(db, query, "NetScaler ADC CLI", local_weak=not local_strong))
-        return json.dumps(result, indent=2)
+        return json.dumps(result, separators=(",", ":"))
+
+    if name == "search_jpilot_architect_resources":
+        from app.services.architect_resource_service import search_architect_resources
+
+        query = arguments.get("query", "").strip()
+        if not query:
+            raise ValueError("query is required")
+        return json.dumps(search_architect_resources(query, vendor=vendor or "netscaler"), separators=(",", ":"))
+
+    if name == "search_cisco_cli_reference":
+        from app.services.cisco_cli_memory_service import search_cisco_cli_memory
+
+        query = arguments.get("query", "").strip()
+        if not query:
+            raise ValueError("query is required")
+        return json.dumps(search_cisco_cli_memory(query), separators=(",", ":"))
 
     if name == "netscaler_list_inventory":
         appliances = await db.appliances.find().sort("name", 1).to_list(length=None)
@@ -668,9 +793,9 @@ async def execute_copilot_tool(
                 "name": item["name"],
                 "environment": item["environment"],
                 "enabled": item.get("enabled", True),
+                "vendor": item.get("vendor", "netscaler"),
             }
             for item in appliances
-            if item.get("vendor", "netscaler") == "netscaler" or "vendor" not in item
         ]
         return json.dumps(items, indent=2)
 
@@ -814,24 +939,65 @@ async def execute_copilot_tool(
         if arguments.get("servers_protocol"):
             mcp_args["servers_protocol"] = arguments["servers_protocol"].strip()
 
+    if name in {"cisco_ssh_run_command", "cisco_run_cli_command"}:
+        command = arguments.get("command", "").strip()
+        purpose = arguments.get("purpose", "").strip()
+        if not command:
+            raise ValueError("command is required")
+        if not purpose:
+            raise ValueError("purpose is required")
+        mcp_args["command"] = command
+        mcp_args["purpose"] = purpose
+
+    if name == "cisco_run_cli_commands":
+        commands = arguments.get("commands") or []
+        purpose = arguments.get("purpose", "").strip()
+        if not commands:
+            raise ValueError("commands is required")
+        if not purpose:
+            raise ValueError("purpose is required")
+        mcp_args["commands"] = commands
+        mcp_args["purpose"] = purpose
+
     return await invoke_mcp_tool(mcp_tool, mcp_args, db=db)
 
 
-async def get_enabled_copilot_tools(db, role: str | None = None) -> list[dict[str, Any]]:
-    from app.services.copilot_roles import filter_tools_for_role
+async def get_enabled_copilot_tools(
+    db,
+    role: str | None = None,
+    vendor: str | None = None,
+) -> list[dict[str, Any]]:
+    from app.services.copilot_roles import filter_tools_for_role, normalize_role
+    from app.services.copilot_vendors import filter_tools_by_vendor
     from app.services.mcp_config_service import get_mcp_settings
+    from app.services.vendor_registry import get_vendor_manifest, resolve_chat_vendor
+
+    parsed_role = normalize_role(role)
+    chat_vendor = resolve_chat_vendor(appliance_vendor=vendor, role=parsed_role.value)
+    manifest = get_vendor_manifest(chat_vendor)
 
     settings = await get_mcp_settings(db)
     enabled = set(settings.enabledTools)
     tools = [
         tool
-        for tool in COPILOT_TOOLS
+        for tool in [*COPILOT_TOOLS, *CISCO_COPILOT_TOOLS]
         if tool["name"] == "netscaler_list_inventory" or tool["name"] in enabled
     ]
-    tools.append(SEARCH_TOOL)
-    tools.append(CLI_SEARCH_TOOL)
     tools.append(SELF_CONNECTIVITY_TOOL)
-    return filter_tools_for_role(tools, role)
+    if manifest:
+        for search_tool_name in manifest.search_tools:
+            if search_tool_name == "search_netscaler_nextgen_api":
+                tools.append(SEARCH_TOOL)
+            elif search_tool_name == "search_netscaler_cli_reference":
+                tools.append(CLI_SEARCH_TOOL)
+            elif search_tool_name == "search_jpilot_architect_resources":
+                tools.append(ARCHITECT_SEARCH_TOOL)
+            elif search_tool_name == "search_cisco_cli_reference":
+                tools.append(CISCO_SEARCH_TOOL)
+    else:
+        tools.extend([SEARCH_TOOL, CLI_SEARCH_TOOL])
+    tools = filter_tools_for_role(tools, role, vendor=chat_vendor)
+    return filter_tools_by_vendor(tools, chat_vendor)
 
 
 def to_openai_tools(tools: list[dict[str, Any]] | None = None) -> list[dict[str, Any]]:

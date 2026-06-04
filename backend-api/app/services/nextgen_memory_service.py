@@ -3,41 +3,31 @@
 from __future__ import annotations
 
 import re
-from pathlib import Path
 from typing import Any
 
-MEMORY_FILENAME = "netscaler_nextgen_api_memory.md"
+from app.services.memory_paths import get_memory_source_path as _memory_source_path
+from app.services.memory_paths import resolve_memory_file
+from app.services.copilot_vendors import DEFAULT_COPILOT_VENDOR
 
-# Checked in order — docker-compose can bind-mount the repo-root file over resources.
-MEMORY_CANDIDATE_PATHS = (
-    Path(__file__).resolve().parent.parent / "resources" / MEMORY_FILENAME,
-    Path(__file__).resolve().parents[3] / MEMORY_FILENAME,
-)
+MEMORY_FILENAME = "netscaler_nextgen_api_memory.md"
+MEMORY_VENDOR = DEFAULT_COPILOT_VENDOR
 
 _memory_cache: tuple[float, str] | None = None
 
 
 def _load_memory_markdown() -> str:
     global _memory_cache
-    for path in MEMORY_CANDIDATE_PATHS:
-        if path.is_file():
-            mtime = path.stat().st_mtime
-            if _memory_cache and _memory_cache[0] == mtime:
-                return _memory_cache[1]
-            text = path.read_text(encoding="utf-8")
-            _memory_cache = (mtime, text)
-            return text
-    raise FileNotFoundError(
-        f"NetScaler Next-Gen API memory file not found. Expected one of: "
-        f"{', '.join(str(p) for p in MEMORY_CANDIDATE_PATHS)}"
-    )
+    path = resolve_memory_file(MEMORY_FILENAME, MEMORY_VENDOR)
+    mtime = path.stat().st_mtime
+    if _memory_cache and _memory_cache[0] == mtime:
+        return _memory_cache[1]
+    text = path.read_text(encoding="utf-8")
+    _memory_cache = (mtime, text)
+    return text
 
 
 def get_memory_source_path() -> str:
-    for path in MEMORY_CANDIDATE_PATHS:
-        if path.is_file():
-            return str(path)
-    return str(MEMORY_CANDIDATE_PATHS[0])
+    return _memory_source_path(MEMORY_FILENAME, MEMORY_VENDOR)
 
 
 def _split_sections(markdown: str) -> list[dict[str, str]]:

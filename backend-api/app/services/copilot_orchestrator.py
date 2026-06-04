@@ -43,6 +43,7 @@ from app.services.copilot_form import (
 from app.services.model_usage_service import UsageAccumulator, flush_usage_accumulator, record_provider_usage
 from app.services.copilot_memory_gate import (
     CLI_MEMORY_SEARCH_TOOL,
+    CISCO_CLI_MEMORY_SEARCH_TOOL,
     MEMORY_SEARCH_TOOL,
     apply_memory_review_gates,
     block_result_for_unconfirmed_destructive,
@@ -55,11 +56,13 @@ from app.services.copilot_roles import (
     normalize_role,
     role_requires_appliance,
 )
+from app.services.copilot_tool_router import route_copilot_tools
+from app.services.vendor_registry import resolve_chat_vendor
 from app.services.encryption_service import decrypt_value
 
 MAX_TOOL_ITERATIONS = 20
-MAX_HISTORY_MESSAGES = 16
-MAX_TOOL_RESULT_CHARS = 6000
+MAX_HISTORY_MESSAGES = 18
+MAX_TOOL_RESULT_CHARS = 10000
 
 # Tools that change appliance state. Used to detect fabricated execution claims.
 WRITE_EXEC_TOOL_NAMES = frozenset(
@@ -326,6 +329,7 @@ async def _execute_tool_with_memory_gate(
     nextgen_memory_reviewed: bool,
     cli_memory_reviewed: bool,
     role: str | None = None,
+    vendor: str | None = None,
 ) -> tuple[str, bool, bool]:
     logger.info("tool_call name=%s args=%s", name, json.dumps(arguments, default=str)[:500])
 
@@ -343,14 +347,23 @@ async def _execute_tool_with_memory_gate(
         )
 
     result = await execute_copilot_tool(
-        db, name, arguments, default_appliance_name=appliance_name, role=role
+        db, name, arguments, default_appliance_name=appliance_name, role=role, vendor=vendor
     )
     logger.info("tool_call name=%s executed result=%s", name, (result or "")[:600])
     if name == MEMORY_SEARCH_TOOL:
         nextgen_memory_reviewed = True
-    if name == CLI_MEMORY_SEARCH_TOOL:
+    if name == CLI_MEMORY_SEARCH_TOOL or name == CISCO_CLI_MEMORY_SEARCH_TOOL:
         cli_memory_reviewed = True
     return result, nextgen_memory_reviewed, cli_memory_reviewed
+
+
+async def resolve_appliance_vendor(db: AsyncIOMotorDatabase, appliance_name: str) -> str:
+    if not appliance_name:
+        return "netscaler"
+    appliance = await db.appliances.find_one({"name": appliance_name})
+    if appliance is None:
+        return "netscaler"
+    return str(appliance.get("vendor") or "netscaler")
 
 
 async def get_default_provider(db: AsyncIOMotorDatabase) -> dict | None:
@@ -408,10 +421,40 @@ async def run_copilot_chat(
     endpoint = provider.get("endpoint", "")
 
     chat_role = normalize_role(role)
+    appliance_vendor = await resolve_appliance_vendor(db, appliance_name)
+    chat_vendor = resolve_chat_vendor(
+        appliance_vendor=appliance_vendor,
+        role=chat_role.value,
+        appliance_name=appliance_name,
+    )
     tool_traces: list[ToolCallTrace] = []
-    enabled_tools = await get_enabled_copilot_tools(db, role=chat_role.value)
+    enabled_tools = await get_enabled_copilot_tools(
+        db,
+        role=chat_role.value,
+        vendor=chat_vendor,
+    )
+    enabled_tools = route_copilot_tools(
+        enabled_tools,
+        role=chat_role.value,
+        user_message=user_message,
+        attachment_names=[a.name for a in attachment_list],
+        vendor=chat_vendor,
+    )
     enabled_tool_names = {tool["name"] for tool in enabled_tools}
-    system_prompt = build_system_prompt(chat_role, appliance_name)
+    logger.info(
+        "copilot_tools role=%s vendor=%s appliance_vendor=%s routed=%d names=%s",
+        chat_role.value,
+        chat_vendor,
+        appliance_vendor,
+        len(enabled_tools),
+        sorted(enabled_tool_names),
+    )
+    if appliance_name and not copilot_vendor_is_supported(appliance_vendor) and chat_role != JPilotRole.ARCHITECT:
+        raise ValueError(
+            f"JPilot chat for Operator/Analyst is not yet available for vendor '{appliance_vendor}'. "
+            "Connect a supported appliance (NetScaler or Cisco switch) or use Architect role for planning."
+        )
+    system_prompt = build_system_prompt(chat_role, appliance_name, vendor=chat_vendor)
     attachment_names = [a.name for a in attachment_list]
     if (
         chat_role == JPilotRole.OPERATOR
@@ -420,7 +463,7 @@ async def run_copilot_chat(
     ):
         from app.services.copilot_roles import operator_design_implementation_suffix
 
-        system_prompt += "\n" + operator_design_implementation_suffix(appliance_name)
+        system_prompt += "\n" + operator_design_implementation_suffix(appliance_name, vendor=chat_vendor)
     history = trim_chat_history(history)
 
     from app.services.copilot_port_check import try_auto_tcp_port_check
@@ -469,6 +512,7 @@ async def run_copilot_chat(
             provider_name,
             usage_accumulator,
             jpilot_role=chat_role.value,
+            chat_vendor=chat_vendor,
         )
     elif provider_type == "Gemini":
         content = await _run_gemini_loop(
@@ -486,6 +530,7 @@ async def run_copilot_chat(
             provider_name,
             usage_accumulator,
             jpilot_role=chat_role.value,
+            chat_vendor=chat_vendor,
         )
     elif provider_type in {"OpenAI", "Grok", "DeepSeek", "LM Studio", "OpenAI-Compatible"}:
         if provider_type == "LM Studio":
@@ -512,6 +557,7 @@ async def run_copilot_chat(
             provider_name,
             usage_accumulator,
             jpilot_role=chat_role.value,
+            chat_vendor=chat_vendor,
         )
     else:
         raise ValueError(f"Unsupported provider type: {provider_type}")
@@ -565,6 +611,7 @@ async def _run_openai_loop(
     provider_name: str = "",
     usage_accumulator: UsageAccumulator | None = None,
     jpilot_role: str | None = None,
+    chat_vendor: str | None = None,
 ) -> str:
     messages: list[dict[str, Any]] = [{"role": "system", "content": system_prompt}]
     for item in history:
@@ -631,6 +678,7 @@ async def _run_openai_loop(
                     nextgen_memory_reviewed,
                     cli_memory_reviewed,
                     role=jpilot_role,
+                    vendor=chat_vendor,
                 )
             except Exception as exc:
                 logger.exception("tool_call name=%s failed", name)
@@ -672,6 +720,7 @@ async def _run_gemini_loop(
     provider_name: str = "",
     usage_accumulator: UsageAccumulator | None = None,
     jpilot_role: str | None = None,
+    chat_vendor: str | None = None,
 ) -> str:
     contents: list[dict[str, Any]] = []
     for item in history:
@@ -733,6 +782,7 @@ async def _run_gemini_loop(
                 nextgen_memory_reviewed,
                 cli_memory_reviewed,
                 role=jpilot_role,
+                vendor=chat_vendor,
             )
             tool_traces.append(ToolCallTrace(name=name, arguments=arguments, result=result))
             response_parts.append(
@@ -769,6 +819,7 @@ async def _run_anthropic_loop(
     provider_name: str = "",
     usage_accumulator: UsageAccumulator | None = None,
     jpilot_role: str | None = None,
+    chat_vendor: str | None = None,
 ) -> str:
     messages: list[dict[str, Any]] = []
     for item in history:
@@ -827,6 +878,7 @@ async def _run_anthropic_loop(
                 nextgen_memory_reviewed,
                 cli_memory_reviewed,
                 role=jpilot_role,
+                vendor=chat_vendor,
             )
             tool_traces.append(ToolCallTrace(name=name, arguments=arguments, result=result))
             tool_results.append(

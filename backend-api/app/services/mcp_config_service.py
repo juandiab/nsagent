@@ -27,6 +27,10 @@ ALL_TOOL_NAMES = [
     "netscaler_collect_nsconmsg",
     "netscaler_nextgen_request",
     "netscaler_generate_csr",
+    "cisco_test_connection",
+    "cisco_ssh_run_command",
+    "cisco_run_cli_command",
+    "cisco_run_cli_commands",
 ]
 
 LEGACY_TOOL_ALIASES = {

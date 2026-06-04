@@ -9,11 +9,17 @@ export const VENDOR_SUPPORT = [
     status: 'supported'
   },
   {
+    id: 'cisco-switches',
+    label: 'Cisco IOS/XE Switches',
+    description: 'JPilot Operator/Analyst over SSH (show/configure).',
+    status: 'supported'
+  },
+  {
     id: 'netscaler-sdx',
     label: 'NetScaler SDX',
     description: 'Multi-tenant platform support is planned for a future release.',
     status: 'coming_soon'
-  }
+  },
 ]
 
 export const OTHER_APPLIANCE_VENDORS = [
@@ -85,4 +91,10 @@ export function vendorLabel(value) {
 
 export function isNetScalerVendor(vendor) {
   return !vendor || vendor === NETSCALER_VENDOR
+}
+
+export const COPILOT_SUPPORTED_VENDORS = ['netscaler', 'cisco']
+
+export function isCopilotEligibleVendor(vendor) {
+  return COPILOT_SUPPORTED_VENDORS.includes(vendor || NETSCALER_VENDOR)
 }
