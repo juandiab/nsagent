@@ -66,7 +66,11 @@
         :rows-per-page-options="[10, 25, 50]"
         empty-message="No appliances registered yet. Use Add appliance to get started."
       >
-        <Column field="name" header="Name" sortable />
+        <Column field="name" header="Name" sortable>
+          <template #body="{ data }">
+            <ApplianceNameLabel :appliance="data" />
+          </template>
+        </Column>
         <Column header="Platform" sortable sort-field="vendor">
           <template #body="{ data }">
             <Tag :value="platformLabel(data)" :severity="data.copilotEligible ? 'success' : 'info'" />
@@ -496,6 +500,7 @@ import Tag from 'primevue/tag'
 import Textarea from 'primevue/textarea'
 import ToggleSwitch from 'primevue/toggleswitch'
 import SslCsrPanel from '../components/SslCsrPanel.vue'
+import ApplianceNameLabel from '../components/ApplianceNameLabel.vue'
 import {
   getProductById,
   isCopilotEligibleVendor,

@@ -3,12 +3,23 @@ from typing import Any
 
 from bson import ObjectId
 
+from app.schemas.ai_provider import ALL_LLM_ROLES
+
 
 def utc_now() -> datetime:
     return datetime.now(timezone.utc)
 
 
-from app.models.ai_provider import utc_now
+def provider_roles(doc: dict[str, Any]) -> list[str]:
+    roles = doc.get("roles")
+    if not roles:
+        return list(ALL_LLM_ROLES)
+    return list(roles)
+
+
+def provider_supports_role(doc: dict[str, Any], role: str) -> bool:
+    normalized = role.strip().lower()
+    return normalized in provider_roles(doc)
 
 
 def serialize_ai_provider(doc: dict[str, Any]) -> dict[str, Any]:
@@ -26,6 +37,7 @@ def serialize_ai_provider(doc: dict[str, Any]) -> dict[str, Any]:
         "model": doc["model"],
         "enabled": doc["enabled"],
         "isDefault": doc.get("isDefault", False),
+        "roles": provider_roles(doc),
         "createdAt": doc["createdAt"],
         "updatedAt": doc["updatedAt"],
     }
@@ -41,6 +53,7 @@ def build_ai_provider_document(payload: dict[str, Any], encrypted_api_key: str) 
         "model": payload["model"],
         "enabled": payload.get("enabled", True),
         "isDefault": payload.get("isDefault", False),
+        "roles": payload.get("roles") or list(ALL_LLM_ROLES),
         "createdAt": now,
         "updatedAt": now,
     }

@@ -199,6 +199,8 @@ async def update_ai_provider(
         update_data["enabled"] = payload.enabled
     if payload.isDefault is not None:
         update_data["isDefault"] = payload.isDefault
+    if payload.roles is not None:
+        update_data["roles"] = payload.roles
 
     if _should_update_api_key(payload.apiKey):
         update_data["encryptedApiKey"] = encrypt_value(payload.apiKey)

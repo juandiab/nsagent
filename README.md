@@ -8,16 +8,16 @@ Repository: [github.com/juandiab/nsagent](https://github.com/juandiab/nsagent)
 
 > **Disclaimer:** JPilot is an independent project and is not affiliated with, endorsed by, or sponsored by Citrix Systems, Inc. NetScaler is a trademark of Citrix Systems, Inc.
 
-**Current release:** `v0.27` — F5 BIG-IP beta, beta features settings, and vendor-isolated documentation search.
+**Current release:** `v0.28` — JPilot chat UX: LLM roles per provider, context ring, stop generation, and role-aware appliances.
 
 Bump the root [`VERSION`](VERSION) file when tagging a release so in-app update checks match GitHub.
 
 ## Features
 
 - **Appliance inventory** — vendor → device → credentials wizard; **tags** for filtering; MPX, VPX, SDX, Cisco, and F5 product lines; **Beta Available** badges on SDX, Cisco, and F5; encrypted credentials (Fernet).
-- **AI provider management** — OpenAI, Anthropic, Gemini, Grok, DeepSeek, LM Studio, and OpenAI-compatible endpoints.
+- **AI provider management** — OpenAI, Anthropic, Gemini, Grok, DeepSeek, LM Studio, and OpenAI-compatible endpoints; assign each model to **Architect**, **Operator**, and/or **Analyst** roles.
 - **JPilot chat** — tool-calling agent bound to the selected appliance; credentials never sent to the LLM.
-- **JPilot roles** — **Architect** (structured discovery and formal design documents), **Operator** (configure the ADC, including from attached `.md` designs), **Analyst** (read-first troubleshooting); dual-pane defaults to Architect + Operator.
+- **JPilot roles** — **Architect** (structured discovery and formal design documents), **Operator** (configure the ADC, including from attached `.md` designs), **Analyst** (read-first troubleshooting); dual-pane defaults to Architect + Operator; per-pane **context usage** ring and **Stop** while generating.
 - **Architect design workflow** — choice/boolean `jpilot-form` discovery; deliverable outline with AWS/Azure, Gateway integrations, and AAA topics; downloadable design `.md`; official doc reference index (Citrix Gateway, authentication, Tech Zone).
 - **JPilot command menu** — searchable recommended actions by role with section grouping (~200 prompts).
 - **MCP server** — Model Context Protocol tools for Next-Gen API, classic CLI over SSH, NITRO helpers, diagnostics, and SSL key/CSR generation.
@@ -39,6 +39,17 @@ Bump the root [`VERSION`](VERSION) file when tagging a release so in-app update 
 - **Cisco IOS/XE (SSH)** — Operator and Analyst over SSH with `search_cisco_cli_reference` memory gate (beta).
 - **NetScaler SDX (SSH)** — Operator and Analyst for SVM platform and VPX lifecycle with `search_sdx_cli_reference` memory gate (beta).
 - **F5 BIG-IP (SSH / TMSH)** — Operator, Analyst, and Architect (official F5 docs only); `f5_*` MCP tools and `search_f5_tmsh_reference` / `search_f5_documentation` (beta).
+
+## What's new in v0.28
+
+| Area | Highlights |
+|------|------------|
+| **AI provider roles** | Settings → AI Providers: assign each LLM to Architect, Operator, and/or Analyst (icon + checkbox per role). Chat shows provider **names** only and auto-picks the role-matched model. |
+| **Context usage ring** | Each chat pane shows an estimated **context %** (Cursor-style) with green / amber / red thresholds and a hover breakdown. |
+| **Stop generation** | **Stop** in the toolbar, thinking bubble, and input bar cancels in-flight chat; backend stops between tool/LLM iterations when the client disconnects. |
+| **Role-aware appliances** | **Architect** — all inventory appliances (optional reference, no connect required); **Operator** / **Analyst** — **NetScaler only**; beta vendors show a **Beta** tag. Inventory and chat lists show **name (vendor)**. |
+| **Cisco chat fixes** | Correct vendor context when switching appliances; Cisco static-route memory; operator prompt forbids NetScaler syntax on IOS/XE devices. |
+| **Stability** | Fix missing `copilot_vendor_is_supported` import that blocked Operator/Analyst chat; copilot appliance list returns full inventory. |
 
 ## What's new in v0.27
 

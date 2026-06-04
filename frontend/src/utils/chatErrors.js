@@ -98,8 +98,11 @@ function quotaExhaustedMessage(providerMessage) {
   return lines.join('\n')
 }
 
+export function isChatAbortError(error) {
+  return error?.code === 'ERR_CANCELED' || error?.name === 'CanceledError'
+}
+
 /**
- * Turn API error payloads into readable chat content.
  * Backend usually formats these already; this is a client-side fallback.
  */
 export function formatCopilotError(error) {

@@ -70,6 +70,27 @@ interface Vlan10
  no shutdown
 ```
 
+### Static routes (IOS/XE)
+
+Enable IP routing first when the device is a router or L3 switch:
+
+```
+configure terminal
+ip routing
+ip route 0.0.0.0 0.0.0.0 10.0.0.1
+ip route 10.10.20.0 255.255.255.0 192.168.1.1
+end
+copy running-config startup-config
+```
+
+| Scenario | Example |
+|----------|---------|
+| Default route | `ip route 0.0.0.0 0.0.0.0 <next-hop>` |
+| Specific subnet | `ip route <network> <mask> <next-hop>` |
+| Verify | `show ip route` or `show ip route static` |
+
+**Do not** use NetScaler `add route` syntax on Cisco devices.
+
 ## 5. Behavioral rules for JPilot
 
 1. Call `search_cisco_cli_reference` before any `cisco_run_cli_command` or `cisco_run_cli_commands`.
@@ -89,4 +110,5 @@ interface Vlan10
 | VLANs | `show vlan brief` |
 | MAC table | `show mac address-table` |
 | Routing table | `show ip route` |
+| Static route | `ip route <network> <mask> <next-hop>` |
 | Save config | `copy running-config startup-config` |

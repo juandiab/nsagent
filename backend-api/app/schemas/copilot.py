@@ -51,6 +51,9 @@ class CopilotApplianceItem(BaseModel):
     environment: str
     enabled: bool
     notes: str = ""
+    vendor: str = "netscaler"
+    productId: str | None = None
+    copilotEligible: bool = True
 
 
 class CopilotConnectRequest(BaseModel):

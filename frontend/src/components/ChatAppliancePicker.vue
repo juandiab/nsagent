@@ -1,17 +1,17 @@
 <template>
   <div class="appliance-picker">
-    <p class="picker-copy">Select a NetScaler to connect via the Next-Gen API login.</p>
+    <p class="picker-copy">{{ pickerCopy }}</p>
     <div v-if="loading" class="picker-loading">
       <ProgressSpinner style="width: 1.5rem; height: 1.5rem" stroke-width="4" />
       <span>Loading appliances...</span>
     </div>
-    <div v-else-if="!appliances.length" class="picker-empty">
-      No NetScalers in inventory.
+    <div v-else-if="!visibleAppliances.length" class="picker-empty">
+      {{ emptyMessage }}
       <RouterLink to="/appliances">Add one →</RouterLink>
     </div>
     <div v-else class="appliance-grid">
       <button
-        v-for="item in appliances"
+        v-for="item in visibleAppliances"
         :key="item.id"
         type="button"
         class="appliance-card"
@@ -19,7 +19,7 @@
         :disabled="connecting || !item.enabled"
         @click="$emit('select', item)"
       >
-        <div class="appliance-name">{{ item.name }}</div>
+        <ApplianceNameLabel :appliance="item" class="appliance-card-title" />
         <div class="appliance-meta">
           <Tag :value="item.environment" severity="secondary" />
           <Tag
@@ -38,13 +38,21 @@
 </template>
 
 <script setup>
+import { computed } from 'vue'
 import ProgressSpinner from 'primevue/progressspinner'
 import Tag from 'primevue/tag'
+import ApplianceNameLabel from './ApplianceNameLabel.vue'
+import { appliancesForJpilotRole } from '../config/jpilotApplianceAccess'
+import { roleRequiresAppliance } from '../config/jpilotRoles'
 
-defineProps({
+const props = defineProps({
   appliances: {
     type: Array,
     default: () => []
+  },
+  role: {
+    type: String,
+    default: 'operator'
   },
   loading: {
     type: Boolean,
@@ -57,6 +65,20 @@ defineProps({
 })
 
 defineEmits(['select'])
+
+const visibleAppliances = computed(() => appliancesForJpilotRole(props.appliances, props.role))
+
+const pickerCopy = computed(() =>
+  roleRequiresAppliance(props.role)
+    ? 'Select a NetScaler to connect via the Next-Gen API.'
+    : 'Pick any appliance as planning reference, or skip to plan without one.'
+)
+
+const emptyMessage = computed(() =>
+  roleRequiresAppliance(props.role)
+    ? 'No NetScaler appliances in inventory.'
+    : 'No appliances in inventory.'
+)
 </script>
 
 <style scoped>
@@ -111,9 +133,9 @@ defineEmits(['select'])
   cursor: not-allowed;
 }
 
-.appliance-name {
-  font-weight: 600;
-  font-size: 0.9375rem;
+.appliance-card-title {
+  display: block;
+  margin-bottom: 0.15rem;
 }
 
 .appliance-meta {

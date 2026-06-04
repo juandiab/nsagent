@@ -1,5 +1,5 @@
 import httpx
-from fastapi import APIRouter, Depends, HTTPException, status
+from fastapi import APIRouter, Depends, HTTPException, Request, status
 from motor.motor_asyncio import AsyncIOMotorDatabase
 
 from app.dependencies import get_db
@@ -12,7 +12,12 @@ from app.services.copilot_platform_service import (
     get_platform_settings,
     update_platform_settings,
 )
-from app.services.copilot_orchestrator import get_default_provider, resolve_chat_provider, run_copilot_chat
+from app.services.copilot_orchestrator import (
+    ChatCancelledError,
+    get_default_provider,
+    resolve_chat_provider,
+    run_copilot_chat,
+)
 from app.services.ai_provider_errors import (
     AiProviderError,
     build_gateway_timeout_detail,
@@ -154,6 +159,7 @@ async def copilot_connect(
 @router.post("/chat", response_model=ChatResponse)
 async def copilot_chat(
     payload: ChatRequest,
+    request: Request,
     db: AsyncIOMotorDatabase = Depends(get_db),
 ) -> ChatResponse:
     settings = payload.settings or DEFAULT_SETTINGS
@@ -169,10 +175,24 @@ async def copilot_chat(
     if role_requires_appliance(chat_role) and not appliance_name:
         raise HTTPException(
             status_code=status.HTTP_400_BAD_REQUEST,
-            detail="Select and connect to a NetScaler appliance for Operator and Analyst roles",
+            detail="Select and connect to an appliance for Operator and Analyst roles",
         )
+    if role_requires_appliance(chat_role) and appliance_name:
+        from app.models.appliance import is_netscaler_appliance
 
-    provider = await resolve_chat_provider(db, payload.providerId)
+        appliance = await db.appliances.find_one({"name": appliance_name})
+        if appliance is None:
+            raise HTTPException(
+                status_code=status.HTTP_400_BAD_REQUEST,
+                detail=f"Appliance '{appliance_name}' not found in inventory",
+            )
+        if not is_netscaler_appliance(appliance):
+            raise HTTPException(
+                status_code=status.HTTP_400_BAD_REQUEST,
+                detail="Operator and Analyst roles require a NetScaler appliance for now",
+            )
+
+    provider = await resolve_chat_provider(db, payload.providerId, role=chat_role.value)
 
     try:
         history = [item.model_dump() for item in payload.history]
@@ -186,7 +206,13 @@ async def copilot_chat(
             provider_id=payload.providerId,
             web_search=payload.webSearch,
             role=chat_role.value,
+            request=request,
         )
+    except ChatCancelledError as exc:
+        raise HTTPException(
+            status_code=499,
+            detail="Chat request cancelled",
+        ) from exc
     except AiProviderError as exc:
         if provider and not exc.provider_name:
             exc.provider_name = provider.get("providerName", "")

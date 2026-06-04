@@ -9,10 +9,8 @@ NEXTGEN_LOGIN_PATH = "/mgmt/api/nextgen/v1/login"
 
 
 async def list_copilot_appliances(db: AsyncIOMotorDatabase) -> list[dict]:
-    appliances = await db.appliances.find({"enabled": True}).sort("name", 1).to_list(length=None)
-    if not appliances:
-        appliances = await db.appliances.find({}).sort("name", 1).to_list(length=None)
-    return [serialize_appliance(doc) for doc in appliances if is_copilot_eligible_appliance(doc)]
+    appliances = await db.appliances.find({}).sort("name", 1).to_list(length=None)
+    return [serialize_appliance(doc) for doc in appliances]
 
 
 async def connect_appliance(db: AsyncIOMotorDatabase, appliance_name: str) -> dict:

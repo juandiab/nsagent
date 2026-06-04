@@ -26,40 +26,91 @@
         <template #option="slotProps">
           <i
             :class="slotProps.option.icon"
-            v-tooltip.bottom="slotProps.option.label"
+            v-tooltip.bottom="roleOptionTooltip(slotProps.option)"
             :aria-label="slotProps.option.label"
           />
         </template>
       </SelectButton>
       <Select
         v-model="session.applianceChoice"
-        :options="appliances"
-        option-label="name"
+        :options="roleApplianceOptions"
         option-value="name"
-        placeholder="Appliance"
-        class="pane-select"
-        :disabled="loading || connecting || !roleNeedsAppliance"
+        :placeholder="roleNeedsAppliance ? 'Appliance' : 'Appliance (optional)'"
+        class="pane-select pane-select-appliance"
+        :disabled="loading || connecting || !roleApplianceOptions.length"
+        :option-disabled="(appliance) => isApplianceDisabledForRole(appliance, session.role)"
         @change="onApplianceChange"
-      />
-      <Select
-        v-model="session.providerId"
-        :options="providerOptions"
-        option-label="label"
-        option-value="value"
-        placeholder="Model"
-        class="pane-select pane-select-model"
-        :disabled="loading || !providerOptions.length"
+      >
+        <template #option="{ option }">
+          <ApplianceNameLabel :appliance="option" />
+        </template>
+        <template #value="{ value, placeholder }">
+          <ApplianceNameLabel v-if="selectedAppliance" :appliance="selectedAppliance" />
+          <span v-else>{{ placeholder }}</span>
+        </template>
+      </Select>
+      <div v-if="roleProviders.length" class="pane-llm">
+        <Select
+          v-if="roleProviders.length > 1"
+          v-model="session.providerId"
+          :options="providerOptions"
+          option-label="label"
+          option-value="value"
+          placeholder="LLM"
+          class="pane-select pane-select-llm"
+          :disabled="loading"
+        />
+        <span
+          v-else
+          v-tooltip.bottom="activeProviderTooltip"
+          class="pane-llm-name"
+        >
+          <i class="pi pi-sparkles" aria-hidden="true" />
+          {{ activeProviderName }}
+        </span>
+      </div>
+      <ContextUsageRing
+        v-if="activeProvider"
+        :percent-used="contextUsage.percentUsed"
+        :prompt-tokens="contextUsage.promptTokens"
+        :context-token-limit="contextUsage.contextTokenLimit"
+        :trimmed-count="contextUsage.trimmedCount"
+        :model="activeProvider.model"
       />
       <span class="pane-spacer" />
       <span
-        v-if="session.connectedAppliance"
-        v-tooltip.bottom="'Connected via Next-Gen API'"
+        v-if="session.connectedAppliance && isApplianceConnected()"
+        v-tooltip.bottom="connectedApplianceTooltip"
         class="pane-connected"
       >
         <i class="pi pi-check-circle" /> {{ session.connectedAppliance }}
       </span>
+      <span
+        v-else-if="session.applianceChoice && !roleNeedsAppliance"
+        v-tooltip.bottom="'Planning reference — no live connection required'"
+        class="pane-appliance-ref"
+      >
+        <i class="pi pi-compass" /> {{ session.applianceChoice }}
+      </span>
+      <span
+        v-else-if="session.applianceChoice && roleNeedsAppliance"
+        v-tooltip.bottom="'Selected appliance is not connected yet'"
+        class="pane-disconnected"
+      >
+        <i class="pi pi-exclamation-circle" /> {{ session.applianceChoice }}
+      </span>
       <Button
-        v-if="webSearchAvailable"
+        v-if="loading"
+        v-tooltip.bottom="'Stop generating'"
+        label="Stop"
+        icon="pi pi-stop"
+        size="small"
+        severity="danger"
+        outlined
+        @click="stopChat"
+      />
+      <Button
+        v-if="webSearchAvailable && !loading"
         v-tooltip.bottom="session.webSearch ? 'Web search: on (official domains, only when docs fall short). Click to disable.' : 'Web search: off for this chat. Click to enable.'"
         :icon="session.webSearch ? 'pi pi-globe' : 'pi pi-ban'"
         text
@@ -135,7 +186,13 @@
           @pick="onCommandPick"
         />
 
-        <p v-if="!ready" class="glass-hint">No enabled language model — configure one in Settings → AI Providers.</p>
+        <p v-if="!ready" class="glass-hint">
+          No LLM assigned to {{ activeRole.label }} — configure one in Settings → AI Providers.
+        </p>
+        <p v-else-if="activeProviderName" class="glass-hint glass-llm-hint">
+          <i class="pi pi-sparkles" aria-hidden="true" />
+          Using <strong>{{ activeProviderName }}</strong> for {{ activeRole.label }}
+        </p>
       </div>
     </div>
 
@@ -193,6 +250,7 @@
             <ChatAppliancePicker
               v-if="msg.appliancePicker"
               :appliances="msg.appliances || []"
+              :role="session.role"
               :loading="msg.pickerLoading"
               :connecting="connecting"
               @select="connectAppliance"
@@ -211,6 +269,14 @@
           <div class="chat-bubble chat-bubble-loading">
             <ProgressSpinner style="width: 1.25rem; height: 1.25rem" stroke-width="4" />
             <span>Thinking...</span>
+            <Button
+              label="Stop"
+              icon="pi pi-stop"
+              size="small"
+              severity="danger"
+              text
+              @click="stopChat"
+            />
           </div>
         </div>
       </div>
@@ -243,8 +309,15 @@
           @keydown.enter.exact.prevent="sendMessage()"
         />
         <Button
+          v-if="loading"
+          v-tooltip.top="'Stop generating'"
+          icon="pi pi-stop"
+          severity="danger"
+          @click="stopChat"
+        />
+        <Button
+          v-else
           icon="pi pi-send"
-          :loading="loading"
           :disabled="(!session.input.trim() && !pendingAttachments.length) || !ready"
           @click="sendMessage()"
         />
@@ -254,7 +327,7 @@
 </template>
 
 <script setup>
-import { computed, nextTick, onMounted, ref, watch } from 'vue'
+import { computed, nextTick, onMounted, onUnmounted, ref, watch } from 'vue'
 import { useRouter } from 'vue-router'
 import { useToast } from 'primevue/usetoast'
 import Button from 'primevue/button'
@@ -264,12 +337,14 @@ import Select from 'primevue/select'
 import SelectButton from 'primevue/selectbutton'
 import Textarea from 'primevue/textarea'
 import ChatAppliancePicker from './ChatAppliancePicker.vue'
+import ApplianceNameLabel from './ApplianceNameLabel.vue'
+import ContextUsageRing from './ContextUsageRing.vue'
 import ChatConfigForm from './ChatConfigForm.vue'
 import AskJpilotCommandMenu from './AskJpilotCommandMenu.vue'
 import ChatMarkdown from './ChatMarkdown.vue'
 import ChatToolTrace from './ChatToolTrace.vue'
 import api from '../services/api'
-import { formatCopilotError, isProviderQuotaError } from '../utils/chatErrors'
+import { formatCopilotError, isChatAbortError, isProviderQuotaError } from '../utils/chatErrors'
 import {
   CONFIG_ACCEPT,
   attachmentPreviewUrl,
@@ -279,6 +354,7 @@ import {
   listCopilotAppliances
 } from '../services/copilot'
 import { parseInputFormFromContent, resolveAssistantMessage } from '../utils/copilotForm'
+import { estimateSessionContextUsage } from '../utils/contextUsage'
 import { downloadDesignDocument, isDesignDocumentMessage } from '../utils/designDocument'
 import { clearSession, getSession } from '../stores/copilotSessions'
 import {
@@ -287,6 +363,11 @@ import {
   getRoleById,
   roleRequiresAppliance
 } from '../config/jpilotRoles'
+import {
+  appliancesForJpilotRole,
+  isApplianceDisabledForRole
+} from '../config/jpilotApplianceAccess'
+import { isNetScalerVendor } from '../config/applianceVendors'
 
 const props = defineProps({
   sessionId: { type: String, required: true },
@@ -308,6 +389,7 @@ const session = getSession(props.sessionId, props.initialRole)
 
 // Transient UI state — fine to reset on remount.
 const loading = ref(false)
+const chatAbortController = ref(null)
 const connecting = ref(false)
 const submittingFormIndex = ref(null)
 const messagesEl = ref(null)
@@ -320,7 +402,7 @@ const commandMenuRef = ref(null)
 
 const configAccept = CONFIG_ACCEPT
 
-const ready = computed(() => props.providers.length > 0)
+const ready = computed(() => roleProviders.value.length > 0)
 const roleOptions = JPILOT_ROLES
 const activeRole = computed(() => getRoleById(session.role))
 const roleNeedsAppliance = computed(() => roleRequiresAppliance(session.role))
@@ -334,16 +416,149 @@ const rolePlaceholder = computed(() => {
   return 'Ask about your NetScalers, attach configs or images…'
 })
 const providerOptions = computed(() =>
-  props.providers.map((p) => ({ label: `${p.providerName} · ${p.model}`, value: p.id }))
+  roleProviders.value.map((provider) => ({
+    label: provider.providerName,
+    value: provider.id
+  }))
 )
 
-// Default the model once providers load, if this pane hasn't chosen one.
+const roleApplianceOptions = computed(() =>
+  appliancesForJpilotRole(props.appliances, session.role)
+)
+
+const roleProviders = computed(() =>
+  props.providers.filter((provider) => providerSupportsRole(provider, session.role))
+)
+
+const activeProvider = computed(() =>
+  props.providers.find((provider) => provider.id === session.providerId) || roleProviders.value[0] || null
+)
+
+const contextUsage = computed(() =>
+  estimateSessionContextUsage({
+    messages: session.messages,
+    draftInput: session.input,
+    pendingAttachments: pendingAttachments.value,
+    model: activeProvider.value?.model,
+    providerType: activeProvider.value?.providerType
+  })
+)
+
+const activeProviderName = computed(() => activeProvider.value?.providerName || '')
+
+const activeProviderTooltip = computed(() =>
+  activeProviderName.value
+    ? `LLM for ${activeRole.value.label}: ${activeProviderName.value}`
+    : ''
+)
+
+const selectedAppliance = computed(() =>
+  roleApplianceOptions.value.find((appliance) => appliance.name === session.applianceChoice) ||
+    props.appliances.find((appliance) => appliance.name === session.applianceChoice) ||
+    null
+)
+
+const connectedApplianceTooltip = computed(() => {
+  if (!selectedAppliance.value) return 'Connected'
+  const vendor = selectedAppliance.value.vendor
+  if (vendor === 'cisco' || vendor === 'f5' || vendor === 'sdx') return 'Connected via SSH'
+  return 'Connected via Next-Gen API'
+})
+
+function chatApplianceName() {
+  return session.applianceChoice || session.connectedAppliance || ''
+}
+
+function isApplianceConnected() {
+  return Boolean(
+    session.connectedAppliance &&
+      session.applianceChoice &&
+      session.connectedAppliance === session.applianceChoice
+  )
+}
+
+function roleOptionTooltip(role) {
+  const names = props.providers
+    .filter((provider) => providerSupportsRole(provider, role.id))
+    .map((provider) => provider.providerName)
+  const llmLine = names.length
+    ? `LLM: ${names.join(', ')}`
+    : 'No LLM assigned for this role'
+  return `${role.label} — ${llmLine}`
+}
+
+function providerSupportsRole(provider, roleId) {
+  if (!provider) return false
+  const roles = provider.roles
+  if (!Array.isArray(roles) || !roles.length) return true
+  return roles.includes(roleId)
+}
+
+function pickProviderForRole(force = false) {
+  const options = providerOptions.value
+  if (!options.length) {
+    session.providerId = ''
+    return
+  }
+
+  const currentValid = options.some((option) => option.value === session.providerId)
+  if (!force && currentValid) return
+
+  const roleDefault = options.find((option) => {
+    const provider = props.providers.find((entry) => entry.id === option.value)
+    return provider?.isDefault
+  })
+  session.providerId = roleDefault?.value || options[0]?.value || ''
+}
+
+function pickApplianceForRole(force = false) {
+  const options = roleApplianceOptions.value
+  if (!options.length) {
+    session.applianceChoice = null
+    session.connectedAppliance = ''
+    return
+  }
+
+  const currentValid = options.some(
+    (appliance) =>
+      appliance.name === session.applianceChoice && !isApplianceDisabledForRole(appliance, session.role)
+  )
+  if (!force && currentValid) return
+
+  const preferred =
+    options.find((appliance) => isNetScalerVendor(appliance.vendor)) || options[0]
+  session.applianceChoice = preferred.name
+  if (roleNeedsAppliance.value) {
+    session.connectedAppliance = ''
+  }
+}
+
+function onRoleChange() {
+  pickProviderForRole(true)
+  pickApplianceForRole(true)
+}
+
 watch(
-  () => props.defaultProviderId,
-  (id) => {
-    if (id && !session.providerId) session.providerId = id
+  () => session.role,
+  () => {
+    onRoleChange()
+  }
+)
+
+watch(
+  () => props.providers,
+  () => {
+    pickProviderForRole(false)
   },
-  { immediate: true }
+  { immediate: true, deep: true }
+)
+
+watch(
+  () => props.appliances,
+  () => {
+    pickApplianceForRole(false)
+  },
+  { immediate: true, deep: true }
 )
 
 const attachMenuItems = computed(() => {
@@ -480,7 +695,9 @@ async function scrollToBottom() {
 }
 
 function onApplianceChange() {
-  if (session.applianceChoice) connectAppliance({ name: session.applianceChoice })
+  session.connectedAppliance = ''
+  if (!session.applianceChoice || !roleNeedsAppliance.value) return
+  connectAppliance({ name: session.applianceChoice })
 }
 
 async function showAppliancePicker() {
@@ -488,13 +705,17 @@ async function showAppliancePicker() {
   session.messages.push({ role: 'assistant', content: '', appliancePicker: true, appliances: [], pickerLoading: true })
   await scrollToBottom()
   try {
-    const appliances = await listCopilotAppliances()
+    const appliances = appliancesForJpilotRole(await listCopilotAppliances(), session.role)
     if (session.messages[pickerIndex]) {
       session.messages[pickerIndex].appliances = appliances
       session.messages[pickerIndex].pickerLoading = false
       session.messages[pickerIndex].content = appliances.length
-        ? 'Choose a NetScaler from your inventory:'
-        : 'No NetScalers found. Add one in the inventory first.'
+        ? roleNeedsAppliance.value
+          ? 'Choose a NetScaler from your inventory:'
+          : 'Choose an appliance from your inventory (optional reference):'
+        : roleNeedsAppliance.value
+          ? 'No NetScaler appliances found. Add one in the inventory first.'
+          : 'No appliances found. Add one in the inventory first.'
     }
   } catch (error) {
     if (session.messages[pickerIndex]) {
@@ -511,9 +732,13 @@ async function connectAppliance(appliance) {
     const result = await connectCopilotAppliance(appliance.name)
     session.connectedAppliance = result.applianceName
     session.applianceChoice = result.applianceName
+    const authLine =
+      result.api === 'SSH'
+        ? `Authenticated as **${result.authenticatedUser}** via SSH.`
+        : `Authenticated as **${result.authenticatedUser}** via \`${result.loginEndpoint}\`.`
     session.messages.push({
       role: 'assistant',
-      content: `${result.message}\n\nAuthenticated as **${result.authenticatedUser}** via \`${result.loginEndpoint}\`.`
+      content: `${result.message}\n\n${authLine}`
     })
     const queued = session.pendingMessage
     const queuedAttachments = session.pendingAttachmentsSnapshot
@@ -521,9 +746,10 @@ async function connectAppliance(appliance) {
     session.pendingAttachmentsSnapshot = []
     if (queued || queuedAttachments.length) await runChat(queued, queuedAttachments)
   } catch (error) {
+    session.connectedAppliance = ''
     session.messages.push({
       role: 'assistant',
-      content: `Next-Gen API login failed for **${appliance.name}**: ${error.response?.data?.detail || error.message}`
+      content: `Connection failed for **${appliance.name}**: ${error.response?.data?.detail || error.message}`
     })
   } finally {
     connecting.value = false
@@ -532,6 +758,9 @@ async function connectAppliance(appliance) {
 }
 
 async function runChat(content, attachments) {
+  chatAbortController.value?.abort()
+  const controller = new AbortController()
+  chatAbortController.value = controller
   loading.value = true
   await scrollToBottom()
   try {
@@ -542,16 +771,20 @@ async function runChat(content, attachments) {
     if (history.length && history[history.length - 1].role === 'user' && history[history.length - 1].content === content) {
       history = history.slice(0, -1)
     }
-    const { data } = await api.post('/copilot/chat', {
-      message: content,
-      history,
-      attachments,
-      settings: getCopilotSettings(),
-      role: session.role || DEFAULT_JPILOT_ROLE,
-      applianceName: session.connectedAppliance || undefined,
-      providerId: session.providerId || undefined,
-      webSearch: session.webSearch !== false
-    })
+    const { data } = await api.post(
+      '/copilot/chat',
+      {
+        message: content,
+        history,
+        attachments,
+        settings: getCopilotSettings(),
+        role: session.role || DEFAULT_JPILOT_ROLE,
+        applianceName: chatApplianceName() || undefined,
+        providerId: session.providerId || undefined,
+        webSearch: session.webSearch !== false
+      },
+      { signal: controller.signal }
+    )
     const parsed = parseInputFormFromContent(data.content || '')
     session.messages.push({
       role: 'assistant',
@@ -561,6 +794,13 @@ async function runChat(content, attachments) {
       inputForm: data.inputForm || parsed.inputForm
     })
   } catch (error) {
+    if (isChatAbortError(error)) {
+      session.messages.push({
+        role: 'assistant',
+        content: 'Stopped — generation was cancelled. No further tokens will be used for this reply.'
+      })
+      return
+    }
     const content = formatCopilotError(error)
     session.messages.push({
       role: 'assistant',
@@ -569,9 +809,18 @@ async function runChat(content, attachments) {
       providerQuotaError: isProviderQuotaError(error)
     })
   } finally {
+    if (chatAbortController.value === controller) {
+      chatAbortController.value = null
+    }
     loading.value = false
+    submittingFormIndex.value = null
     await scrollToBottom()
   }
+}
+
+function stopChat() {
+  if (!chatAbortController.value) return
+  chatAbortController.value.abort()
 }
 
 async function submitConfigForm(values, messageIndex) {
@@ -619,7 +868,7 @@ async function sendMessage(text) {
   pendingAttachments.value = []
   await scrollToBottom()
 
-  if (roleNeedsAppliance.value && !session.connectedAppliance) {
+  if (roleNeedsAppliance.value && !isApplianceConnected()) {
     session.pendingMessage = content
     session.pendingAttachmentsSnapshot = attachments
     await showAppliancePicker()
@@ -628,7 +877,25 @@ async function sendMessage(text) {
   await runChat(content, attachments)
 }
 
+watch(
+  () => [session.applianceChoice, session.connectedAppliance],
+  () => {
+    if (
+      session.applianceChoice &&
+      session.connectedAppliance &&
+      session.applianceChoice !== session.connectedAppliance
+    ) {
+      session.connectedAppliance = ''
+    }
+  },
+  { immediate: true }
+)
+
 onMounted(scrollToBottom)
+
+onUnmounted(() => {
+  chatAbortController.value?.abort()
+})
 </script>
 
 <style scoped>
@@ -677,8 +944,50 @@ onMounted(scrollToBottom)
   min-width: 9rem;
 }
 
-.pane-select-model {
+.pane-select-appliance {
   min-width: 11rem;
+}
+
+.pane-select-appliance :deep(.appliance-name-label) {
+  overflow: hidden;
+}
+
+.pane-select-appliance :deep(.appliance-name) {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.pane-select-llm {
+  min-width: 9rem;
+}
+
+.pane-llm {
+  display: flex;
+  align-items: center;
+  min-width: 0;
+}
+
+.pane-llm-name {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.35rem;
+  max-width: 12rem;
+  padding: 0.35rem 0.55rem;
+  border-radius: 0.5rem;
+  background: color-mix(in srgb, var(--p-primary-color) 10%, transparent);
+  color: var(--p-text-color);
+  font-size: 0.8125rem;
+  font-weight: 500;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.pane-llm-name i {
+  flex-shrink: 0;
+  color: var(--p-primary-color);
+  font-size: 0.75rem;
 }
 
 .pane-spacer {
@@ -696,6 +1005,32 @@ onMounted(scrollToBottom)
 
 .pane-connected i {
   color: var(--p-green-500);
+}
+
+.pane-disconnected {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.35rem;
+  font-size: 0.8125rem;
+  color: var(--p-orange-500);
+  white-space: nowrap;
+}
+
+.pane-disconnected i {
+  color: var(--p-orange-500);
+}
+
+.pane-appliance-ref {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.35rem;
+  font-size: 0.8125rem;
+  color: var(--p-text-muted-color);
+  white-space: nowrap;
+}
+
+.pane-appliance-ref i {
+  color: var(--p-primary-color);
 }
 
 /* ---------- Empty state: glass command menu ---------- */
@@ -868,6 +1203,16 @@ onMounted(scrollToBottom)
   color: var(--glass-muted);
 }
 
+.glass-llm-hint {
+  display: flex;
+  align-items: center;
+  gap: 0.35rem;
+}
+
+.glass-llm-hint i {
+  color: var(--p-primary-color);
+}
+
 /* ---------- Active conversation ---------- */
 .chat-messages {
   overflow-y: auto;
@@ -914,7 +1259,7 @@ onMounted(scrollToBottom)
 .chat-bubble-loading {
   display: flex;
   align-items: center;
-  gap: 0.75rem;
+  gap: 0.65rem;
   color: var(--glass-muted);
 }
 

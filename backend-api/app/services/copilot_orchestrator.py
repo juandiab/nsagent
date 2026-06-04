@@ -5,6 +5,7 @@ import sys
 from typing import Any
 
 from motor.motor_asyncio import AsyncIOMotorDatabase
+from starlette.requests import Request
 
 logger = logging.getLogger("copilot.tools")
 # Uvicorn does not configure app loggers, so attach our own stdout handler once
@@ -59,12 +60,22 @@ from app.services.copilot_roles import (
     role_requires_appliance,
 )
 from app.services.copilot_tool_router import route_copilot_tools
+from app.services.copilot_vendors import copilot_vendor_is_supported
 from app.services.vendor_registry import resolve_chat_vendor
 from app.services.encryption_service import decrypt_value
 
 MAX_TOOL_ITERATIONS = 20
 MAX_HISTORY_MESSAGES = 18
 MAX_TOOL_RESULT_CHARS = 10000
+
+
+class ChatCancelledError(Exception):
+    """Raised when the client closes the connection before chat completes."""
+
+
+async def raise_if_chat_cancelled(request: Request | None) -> None:
+    if request is not None and await request.is_disconnected():
+        raise ChatCancelledError()
 
 # Tools that change appliance state. Used to detect fabricated execution claims.
 WRITE_EXEC_TOOL_NAMES = frozenset(
@@ -373,15 +384,26 @@ async def resolve_appliance_vendor(db: AsyncIOMotorDatabase, appliance_name: str
     return str(appliance.get("vendor") or "netscaler")
 
 
-async def get_default_provider(db: AsyncIOMotorDatabase) -> dict | None:
-    provider = await db.aiProviders.find_one({"isDefault": True, "enabled": True})
-    if provider is None:
-        provider = await db.aiProviders.find_one({"enabled": True})
-    return provider
+async def get_default_provider(db: AsyncIOMotorDatabase, role: str | None = None) -> dict | None:
+    from app.models.ai_provider import provider_supports_role
+
+    providers = await db.aiProviders.find({"enabled": True}).sort("providerName", 1).to_list(length=None)
+    if role:
+        providers = [provider for provider in providers if provider_supports_role(provider, role)]
+    if not providers:
+        return None
+    for provider in providers:
+        if provider.get("isDefault"):
+            return provider
+    return providers[0]
 
 
-async def resolve_chat_provider(db: AsyncIOMotorDatabase, provider_id: str | None) -> dict | None:
-    """Pick the provider for this chat: the explicitly requested one, else the default."""
+async def resolve_chat_provider(
+    db: AsyncIOMotorDatabase,
+    provider_id: str | None,
+    role: str | None = None,
+) -> dict | None:
+    """Pick the provider for this chat: explicit choice, else role-matched default."""
     if provider_id:
         from bson import ObjectId
         from bson.errors import InvalidId
@@ -394,7 +416,7 @@ async def resolve_chat_provider(db: AsyncIOMotorDatabase, provider_id: str | Non
             chosen = None
         if chosen is not None:
             return chosen
-    return await get_default_provider(db)
+    return await get_default_provider(db, role=role)
 
 
 async def run_copilot_chat(
@@ -407,11 +429,13 @@ async def run_copilot_chat(
     provider_id: str | None = None,
     web_search: bool = True,
     role: str | None = None,
+    request: Request | None = None,
 ) -> ChatResponse:
     from app.services.copilot_service import set_web_search_allowed
 
     set_web_search_allowed(web_search)
-    provider = await resolve_chat_provider(db, provider_id)
+    await raise_if_chat_cancelled(request)
+    provider = await resolve_chat_provider(db, provider_id, role=role)
     if provider is None:
         raise ValueError("No enabled AI provider configured. Add one and set it as default.")
 
@@ -459,7 +483,7 @@ async def run_copilot_chat(
     if appliance_name and not copilot_vendor_is_supported(appliance_vendor) and chat_role != JPilotRole.ARCHITECT:
         raise ValueError(
             f"JPilot chat for Operator/Analyst is not yet available for vendor '{appliance_vendor}'. "
-            "Connect a supported appliance (NetScaler or Cisco switch) or use Architect role for planning."
+            "Connect a supported appliance or use Architect role for planning."
         )
     system_prompt = build_system_prompt(chat_role, appliance_name, vendor=chat_vendor)
     attachment_names = [a.name for a in attachment_list]
@@ -520,6 +544,7 @@ async def run_copilot_chat(
             usage_accumulator,
             jpilot_role=chat_role.value,
             chat_vendor=chat_vendor,
+            request=request,
         )
     elif provider_type == "Gemini":
         content = await _run_gemini_loop(
@@ -538,6 +563,7 @@ async def run_copilot_chat(
             usage_accumulator,
             jpilot_role=chat_role.value,
             chat_vendor=chat_vendor,
+            request=request,
         )
     elif provider_type in {"OpenAI", "Grok", "DeepSeek", "LM Studio", "OpenAI-Compatible"}:
         if provider_type == "LM Studio":
@@ -565,6 +591,7 @@ async def run_copilot_chat(
             usage_accumulator,
             jpilot_role=chat_role.value,
             chat_vendor=chat_vendor,
+            request=request,
         )
     else:
         raise ValueError(f"Unsupported provider type: {provider_type}")
@@ -619,6 +646,7 @@ async def _run_openai_loop(
     usage_accumulator: UsageAccumulator | None = None,
     jpilot_role: str | None = None,
     chat_vendor: str | None = None,
+    request: Request | None = None,
 ) -> str:
     messages: list[dict[str, Any]] = [{"role": "system", "content": system_prompt}]
     for item in history:
@@ -637,6 +665,7 @@ async def _run_openai_loop(
     cli_memory_reviewed = False
 
     for _ in range(MAX_TOOL_ITERATIONS):
+        await raise_if_chat_cancelled(request)
         data, active_base_url = await chat_openai_compatible(
             base_url=active_base_url,
             api_key=api_key,
@@ -728,6 +757,7 @@ async def _run_gemini_loop(
     usage_accumulator: UsageAccumulator | None = None,
     jpilot_role: str | None = None,
     chat_vendor: str | None = None,
+    request: Request | None = None,
 ) -> str:
     contents: list[dict[str, Any]] = []
     for item in history:
@@ -745,6 +775,7 @@ async def _run_gemini_loop(
     cli_memory_reviewed = False
 
     for _ in range(MAX_TOOL_ITERATIONS):
+        await raise_if_chat_cancelled(request)
         data = await chat_gemini(
             api_key=api_key,
             model=model,
@@ -827,6 +858,7 @@ async def _run_anthropic_loop(
     usage_accumulator: UsageAccumulator | None = None,
     jpilot_role: str | None = None,
     chat_vendor: str | None = None,
+    request: Request | None = None,
 ) -> str:
     messages: list[dict[str, Any]] = []
     for item in history:
@@ -843,6 +875,7 @@ async def _run_anthropic_loop(
     cli_memory_reviewed = False
 
     for _ in range(MAX_TOOL_ITERATIONS):
+        await raise_if_chat_cancelled(request)
         data = await chat_anthropic(
             api_key=api_key,
             model=model,

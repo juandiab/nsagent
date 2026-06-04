@@ -9,7 +9,8 @@
         <h2 class="section-title mt-2">AI providers</h2>
         <p class="section-copy">
           Connect OpenAI, Anthropic, Gemini, Grok, DeepSeek, LM Studio, or compatible endpoints.
-          These models power JPilot chat, reasoning, and tool use.
+          Assign each model to Architect, Operator, and/or Analyst roles — use a smart model for planning
+          and a faster one for operations.
         </p>
       </div>
       <div class="panel-toolbar flex align-items-center gap-2 flex-wrap">
@@ -35,7 +36,36 @@
       :rows-per-page-options="[10, 25, 50]"
       empty-message="No AI providers configured. Add one to enable JPilot."
     >
-      <Column field="providerName" header="Provider Name" sortable />
+      <Column field="providerName" header="Provider Name" sortable style="min-width: 14rem">
+        <template #body="{ data }">
+          <div class="provider-name-cell">
+            <span class="provider-name">{{ data.providerName }}</span>
+            <div class="role-checkboxes">
+              <label
+                v-for="role in llmRoles"
+                :key="role.id"
+                class="role-toggle"
+                v-tooltip="roleTooltip(role)"
+              >
+                <span
+                  class="role-icon"
+                  :class="{ 'role-icon-active': hasRole(data, role.id) }"
+                  aria-hidden="true"
+                >
+                  <i :class="role.icon" />
+                </span>
+                <Checkbox
+                  :model-value="hasRole(data, role.id)"
+                  :binary="true"
+                  :disabled="savingRolesId === data.id"
+                  :input-id="`role-${data.id}-${role.id}`"
+                  @update:model-value="(checked) => toggleRole(data, role.id, checked)"
+                />
+              </label>
+            </div>
+          </div>
+        </template>
+      </Column>
       <Column field="providerType" header="Type" sortable>
         <template #body="{ data }">
           <Tag :value="data.providerType" severity="info" />
@@ -189,6 +219,27 @@
           <ToggleSwitch v-model="form.enabled" input-id="provider-enabled" />
           <label for="provider-enabled" class="field-label mb-0">Enabled</label>
         </div>
+        <div class="flex flex-column gap-2">
+          <span class="field-label">JPilot roles</span>
+          <div class="role-checkboxes role-checkboxes-dialog">
+            <label
+              v-for="role in llmRoles"
+              :key="role.id"
+              class="role-toggle"
+              v-tooltip="roleTooltip(role)"
+            >
+              <span
+                class="role-icon"
+                :class="{ 'role-icon-active': form.roles.includes(role.id) }"
+                aria-hidden="true"
+              >
+                <i :class="role.icon" />
+              </span>
+              <Checkbox v-model="form.roles" :input-id="`form-role-${role.id}`" :value="role.id" />
+            </label>
+          </div>
+          <small class="field-hint">Check all three to use this model for every JPilot role.</small>
+        </div>
       </div>
       <template #footer>
         <Button label="Cancel" text severity="secondary" @click="dialogVisible = false" />
@@ -211,6 +262,7 @@ import { computed, onMounted, reactive, ref } from 'vue'
 import { useConfirm } from 'primevue/useconfirm'
 import { useToast } from 'primevue/usetoast'
 import Button from 'primevue/button'
+import Checkbox from 'primevue/checkbox'
 import Column from 'primevue/column'
 import DataTable from 'primevue/datatable'
 import Dialog from 'primevue/dialog'
@@ -223,6 +275,7 @@ import Select from 'primevue/select'
 import Tag from 'primevue/tag'
 import ToggleSwitch from 'primevue/toggleswitch'
 import { getProviderHint } from '../config/aiProviders'
+import { JPILOT_ROLES } from '../config/jpilotRoles'
 import api from '../services/api'
 
 const confirm = useConfirm()
@@ -232,6 +285,7 @@ const providers = ref([])
 const loading = ref(false)
 const loadError = ref('')
 const saving = ref(false)
+const savingRolesId = ref(null)
 const testingId = ref(null)
 const testingDialog = ref(false)
 const loadingModels = ref(false)
@@ -243,8 +297,29 @@ const searchQuery = ref('')
 
 const providerTypes = ['OpenAI', 'Anthropic', 'Gemini', 'Grok', 'DeepSeek', 'LM Studio', 'OpenAI-Compatible']
 
+const llmRoles = JPILOT_ROLES
+
+const ALL_ROLE_IDS = JPILOT_ROLES.map((role) => role.id)
+
 function tooltip(value) {
   return { value, appendTo: 'body', position: 'bottom' }
+}
+
+function roleTooltip(role) {
+  return {
+    value: role.label,
+    appendTo: 'body',
+    position: 'bottom'
+  }
+}
+
+function normalizeRoles(roles) {
+  if (!Array.isArray(roles) || !roles.length) return [...ALL_ROLE_IDS]
+  return roles
+}
+
+function hasRole(provider, roleId) {
+  return normalizeRoles(provider.roles).includes(roleId)
 }
 
 const emptyForm = () => ({
@@ -253,7 +328,8 @@ const emptyForm = () => ({
   apiKey: '',
   endpoint: '',
   model: '',
-  enabled: true
+  enabled: true,
+  roles: [...ALL_ROLE_IDS]
 })
 
 const form = reactive(emptyForm())
@@ -269,7 +345,11 @@ const filteredProviders = computed(() => {
     (item) =>
       item.providerName.toLowerCase().includes(query) ||
       item.providerType.toLowerCase().includes(query) ||
-      item.model.toLowerCase().includes(query)
+      item.model.toLowerCase().includes(query) ||
+      normalizeRoles(item.roles).some((roleId) => {
+        const role = llmRoles.find((entry) => entry.id === roleId)
+        return role?.label.toLowerCase().includes(query)
+      })
   )
 })
 
@@ -386,7 +466,8 @@ function openEditDialog(provider) {
     apiKey: '',
     endpoint: provider.endpoint,
     model: provider.model,
-    enabled: provider.enabled
+    enabled: provider.enabled,
+    roles: [...normalizeRoles(provider.roles)]
   })
   availableModels.value = provider.model ? [provider.model] : []
   dialogVisible.value = true
@@ -399,7 +480,8 @@ function buildPayload() {
     providerType: form.providerType,
     endpoint: form.endpoint,
     model: form.model,
-    enabled: form.enabled
+    enabled: form.enabled,
+    roles: [...form.roles]
   }
 
   if (!isEditing.value) {
@@ -414,6 +496,15 @@ function buildPayload() {
 async function saveProvider() {
   saving.value = true
   try {
+    if (!form.roles.length) {
+      toast.add({
+        severity: 'warn',
+        summary: 'Role required',
+        detail: 'Select at least one JPilot role for this provider',
+        life: 3500
+      })
+      return
+    }
     const payload = buildPayload()
     if (isEditing.value) {
       await api.put(`/ai-providers/${editingId.value}`, payload)
@@ -482,6 +573,40 @@ async function testProviderFromDialog() {
     toast.add({ severity: 'error', summary: 'Error', detail, life: 4000 })
   } finally {
     testingDialog.value = false
+  }
+}
+
+async function toggleRole(provider, roleId, checked) {
+  const currentRoles = normalizeRoles(provider.roles)
+  const nextRoles = checked
+    ? [...new Set([...currentRoles, roleId])]
+    : currentRoles.filter((role) => role !== roleId)
+
+  if (!nextRoles.length) {
+    toast.add({
+      severity: 'warn',
+      summary: 'Role required',
+      detail: 'Each provider must be assigned to at least one role',
+      life: 3500
+    })
+    return
+  }
+
+  savingRolesId.value = provider.id
+  try {
+    await api.put(`/ai-providers/${provider.id}`, { roles: nextRoles })
+    provider.roles = nextRoles
+    toast.add({
+      severity: 'success',
+      summary: 'Roles updated',
+      detail: `${provider.providerName} role assignment saved`,
+      life: 2500
+    })
+  } catch (error) {
+    const detail = error.response?.data?.detail || 'Failed to update provider roles'
+    toast.add({ severity: 'error', summary: 'Error', detail, life: 4000 })
+  } finally {
+    savingRolesId.value = null
   }
 }
 
@@ -586,5 +711,74 @@ onMounted(loadProviders)
 .actions-cell {
   min-height: 2rem;
   align-items: center;
+}
+
+.provider-name-cell {
+  display: flex;
+  flex-direction: column;
+  gap: 0.45rem;
+}
+
+.provider-name {
+  font-weight: 500;
+}
+
+.role-checkboxes {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.5rem 0.75rem;
+}
+
+.role-checkboxes-dialog {
+  gap: 0.75rem 1.25rem;
+}
+
+.role-toggle {
+  display: inline-flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 0.2rem;
+  cursor: pointer;
+  user-select: none;
+}
+
+.role-icon {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 1.65rem;
+  height: 1.65rem;
+  border-radius: 0.375rem;
+  color: var(--p-text-muted-color);
+  opacity: 0.45;
+  transition: color 0.15s ease, opacity 0.15s ease, background-color 0.15s ease;
+}
+
+.role-icon i {
+  font-size: 0.95rem;
+}
+
+.role-icon-active {
+  color: var(--p-primary-color);
+  opacity: 1;
+  background: color-mix(in srgb, var(--p-primary-color) 12%, transparent);
+}
+
+.role-toggle:hover .role-icon {
+  opacity: 0.85;
+}
+
+.role-toggle:hover .role-icon-active {
+  opacity: 1;
+}
+
+.role-toggle :deep(.p-checkbox) {
+  width: 1rem;
+  height: 1rem;
+}
+
+.role-toggle :deep(.p-checkbox-box) {
+  width: 1rem;
+  height: 1rem;
 }
 </style>
