@@ -413,6 +413,11 @@
           <section v-if="activeSection === 'about'">
             <UpdatesPanel @update-status="onUpdateStatus" />
           </section>
+
+          <!-- License -->
+          <section v-if="activeSection === 'license'" class="settings-section-full">
+            <LicensePanel />
+          </section>
   
           <!-- Legal -->
           <section v-if="activeSection === 'legal'" class="settings-section-full">
@@ -474,6 +479,7 @@ import AIProvidersPanel from '../components/AIProvidersPanel.vue'
 import BraveSearchPanel from '../components/BraveSearchPanel.vue'
 import UsersPanel from '../components/UsersPanel.vue'
 import UpdatesPanel from '../components/UpdatesPanel.vue'
+import LicensePanel from '../components/LicensePanel.vue'
 import { getCopilotSettings, saveCopilotSettings } from '../services/copilot'
 import { getMcpConfig, getMcpStatus, saveMcpConfig } from '../services/mcp'
 import { getSmtpConfig, saveSmtpConfig, testSmtpConfig } from '../services/smtp'
@@ -503,6 +509,7 @@ const allSections = [
   { key: 'users', label: 'Users', icon: 'pi pi-users', adminOnly: true, group: 'people' },
   { key: 'security', label: 'Security', icon: 'pi pi-shield', group: 'personal' },
   { key: 'about', label: 'About', icon: 'pi pi-info-circle', group: 'app' },
+  { key: 'license', label: 'License', icon: 'pi pi-id-card', group: 'app' },
   { key: 'legal', label: 'Legal', icon: 'pi pi-book', group: 'app' }
 ]
 

@@ -11,4 +11,5 @@ COPY THIRD_PARTY_NOTICES.txt /usr/share/jpilot/THIRD_PARTY_NOTICES.txt
 EXPOSE 5173
 
 FROM base AS dev
-CMD ["npm", "run", "dev"]
+# package.json is bind-mounted in dev; install so new deps (e.g. qrcode) land in node_modules
+CMD ["sh", "-c", "npm install && npm run dev"]

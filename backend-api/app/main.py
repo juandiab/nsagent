@@ -1,3 +1,4 @@
+import asyncio
 from contextlib import asynccontextmanager
 
 from fastapi import Depends, FastAPI
@@ -11,6 +12,8 @@ from app.services.mcp_client import push_config_to_mcp_server
 from app.services.mcp_config_service import ensure_default_settings, get_mcp_settings
 from app.services.ai_provider_service import migrate_lm_studio_endpoints
 from app.services.password_reset_service import ensure_password_reset_indexes
+from app.services.license_scheduler import periodic_license_sync, run_startup_license_sync
+from app.services.license_service import ensure_license_collection
 from app.services.user_service import ensure_default_admin
 from app.services.webauthn_service import ensure_webauthn_indexes
 
@@ -20,16 +23,22 @@ async def lifespan(app: FastAPI):
     await connect_to_mongo()
     db = get_database()
     await ensure_default_admin(db)
+    await ensure_license_collection(db)
     await ensure_webauthn_indexes(db)
     await ensure_password_reset_indexes(db)
     await ensure_default_settings(db)
     await migrate_lm_studio_endpoints(db)
     try:
-        settings = await get_mcp_settings(db)
-        await push_config_to_mcp_server(settings)
+        mcp_settings = await get_mcp_settings(db)
+        await push_config_to_mcp_server(mcp_settings)
     except Exception:
         pass
+    await run_startup_license_sync()
+    license_sync_stop = asyncio.Event()
+    license_sync_task = asyncio.create_task(periodic_license_sync(license_sync_stop))
     yield
+    license_sync_stop.set()
+    await license_sync_task
     await close_mongo_connection()
 
 

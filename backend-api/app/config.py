@@ -5,6 +5,7 @@ class Settings(BaseSettings):
     model_config = SettingsConfigDict(env_file=".env", extra="ignore")
 
     nsagent_encryption_key: str
+    nginx_hostname: str = ""
     mongo_uri: str = "mongodb://mongodb:27017"
     mongo_db: str = "netscaler_copilot"
     mcp_server_url: str = "http://mcp-server:8001"
@@ -25,6 +26,9 @@ class Settings(BaseSettings):
     smtp_use_tls: bool = True
     smtp_use_ssl: bool = False
     password_reset_log_codes: bool = False
+    nexxus_licensing_base_url: str = "https://nexxus-tech.com"
+    jpilot_app_name: str = "JPilot"
+    license_sync_interval_seconds: int = 86400
 
     @property
     def cors_origin_list(self) -> list[str]:

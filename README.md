@@ -8,7 +8,7 @@ Repository: [github.com/juandiab/nsagent](https://github.com/juandiab/nsagent)
 
 > **Disclaimer:** JPilot is an independent project and is not affiliated with, endorsed by, or sponsored by Citrix Systems, Inc. NetScaler is a trademark of Citrix Systems, Inc.
 
-**Current release:** `v0.30` — Vendor-scoped recommended actions, background chat notifications, and multi-vendor Architect discovery.
+**Current release:** `v0.31` — Nexxus license activation, online sync, and offline `.lic` import in Settings.
 
 Bump the root [`VERSION`](VERSION) file when tagging a release so in-app update checks match GitHub.
 
@@ -39,6 +39,18 @@ Bump the root [`VERSION`](VERSION) file when tagging a release so in-app update 
 - **Cisco IOS/XE (SSH)** — Architect, Operator, and Analyst over SSH with `search_cisco_cli_reference` memory gate (beta).
 - **NetScaler SDX (SSH)** — Operator and Analyst for SVM platform and VPX lifecycle with `search_sdx_cli_reference` memory gate (beta).
 - **F5 BIG-IP (SSH / TMSH)** — Operator, Analyst, and Architect (official F5 docs only); `f5_*` MCP tools and `search_f5_tmsh_reference` / `search_f5_documentation` (beta).
+- **Nexxus licensing** — Settings → **License**: enter a license code, import an offline `.lic` file, or sync with the Nexxus licensing API; installation fingerprint binding; encrypted payload validation; daily background sync and expiry enforcement.
+
+## What's new in v0.31
+
+| Area | Highlights |
+|------|------------|
+| **License (Settings)** | New **License** panel: save a `XXXX-XXXX-XXXX-XXXX` code, **Import offline license** (`.lic`), view status, type, expiry, and holder details. |
+| **Online sync** | On startup and daily, JPilot POSTs to Nexxus `/licensing/sync` with `appFingerprint`, `appName`, and license code; persists `expirationDate`, `registrationDate`, `validityDays`, `licenseType`, `renewalCount`, and `encryptedLicense` in MongoDB. |
+| **Encrypted payload** | Decrypts `encryptedLicense` with HKDF-SHA256 + AES-256-GCM; prefers signed bundle fields when they differ from top-level sync JSON. |
+| **Sync outcomes** | Handles active/renewed (200), expired/deactivated (403), missing license (404), and code mismatch; local expiry check after each successful sync. |
+| **Configuration** | Optional `NEXXUS_LICENSING_BASE_URL` and `LICENSE_SYNC_INTERVAL_SECONDS` in `.env` (see `.env.example`). |
+| **Bootstrap admin** | Docs clarify installer-written `ADMIN_USERNAME` / `ADMIN_PASSWORD` (seed once; leave blank afterward). |
 
 ## What's new in v0.30
 
@@ -382,10 +394,12 @@ Prefer to configure things by hand instead of the wizard? You can:
    |--------------------------|--------------------------------------|
    | `NSAGENT_ENCRYPTION_KEY` | Fernet key for appliance credentials |
    | `JWT_SECRET_KEY`         | Secret for session JWTs              |
-   | `ADMIN_USERNAME`         | Initial admin user (seeded once)     |
-   | `ADMIN_PASSWORD`         | Initial admin password               |
+   | `ADMIN_USERNAME`         | Bootstrap admin (installer sets; leave blank after) |
+   | `ADMIN_PASSWORD`         | Bootstrap password (installer sets; leave blank after) |
    | `NSAGENT_DEPLOY_MODE`    | `prod` (compiled, default) or `dev` (hot reload) |
    | `NGINX_HOSTNAME`         | Public hostname for nginx TLS        |
+   | `NEXXUS_LICENSING_BASE_URL` | Nexxus licensing API base (optional; default in config) |
+   | `LICENSE_SYNC_INTERVAL_SECONDS` | Background license sync interval (default `86400`) |
    | `WEBAUTHN_RP_ID`         | WebAuthn RP ID (usually your hostname or `localhost`) |
    | `WEBAUTHN_ORIGIN`        | Exact UI origin (e.g. `https://your-domain`) |
    | `CORS_ORIGINS`           | Comma-separated allowed browser origins |
@@ -405,7 +419,7 @@ Prefer to configure things by hand instead of the wizard? You can:
 | **Passkey login** | Required once a passkey exists; `POST /auth/webauthn/login/begin\|finish`. |
 | **Passkey registration** | Authenticated users register in **Settings → Security** (email required on the account). |
 | **Account recovery** | `POST /auth/account-recovery/request` (self-service) or admin from **Users**; user completes at `/account-recovery` via `POST /auth/password-reset/confirm` (removes passkeys; optional new password; optional short-lived token to register a new passkey). |
-| **Bootstrap admin** | Seeded from `ADMIN_USERNAME` / `ADMIN_PASSWORD` on first startup. |
+| **Bootstrap admin** | Installer writes `ADMIN_USERNAME` / `ADMIN_PASSWORD` to `.env` once; API seeds MongoDB on first startup. Leave blank in `.env` afterward — login uses the DB. |
 
 WebAuthn and CORS origins must match how users open the UI (see `.env.example`).
 

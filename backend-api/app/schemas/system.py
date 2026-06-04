@@ -13,6 +13,13 @@ class UpdateInstructions(BaseModel):
     commands_windows: list[str] = Field(default_factory=list)
 
 
+class LicenseFingerprintResponse(BaseModel):
+    nsagent_encryption_key: str
+    nginx_hostname: str
+    date: str
+    fingerprint: str
+
+
 class UpdateCheckResponse(BaseModel):
     current_version: str
     display_version: str

@@ -44,9 +44,10 @@ services:
       - ./VERSION:/usr/share/jpilot/VERSION:ro
     environment:
       - NSAGENT_ENCRYPTION_KEY=${NSAGENT_ENCRYPTION_KEY}
+      - NGINX_HOSTNAME=${NGINX_HOSTNAME:-jpilot.nexxus-tech.com}
       - JWT_SECRET_KEY=${JWT_SECRET_KEY:-change-me-in-production}
-      - ADMIN_USERNAME=${ADMIN_USERNAME:-admin}
-      - ADMIN_PASSWORD=${ADMIN_PASSWORD:-admin}
+      - ADMIN_USERNAME=${ADMIN_USERNAME:-}
+      - ADMIN_PASSWORD=${ADMIN_PASSWORD:-}
       - MONGO_URI=mongodb://mongodb:27017
       - MONGO_DB=nsagent
       - MCP_SERVER_URL=http://mcp-server:8001
@@ -110,6 +111,9 @@ services:
   mongodb:
     image: mongo:8.2
     restart: unless-stopped
+    # TEMPORARY: expose for local DB inspection — remove ports when done
+    ports:
+      - "27017:27017"
     healthcheck:
       test: ["CMD", "mongosh", "--eval", "db.adminCommand('ping')"]
       interval: 10s
