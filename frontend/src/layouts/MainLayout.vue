@@ -60,6 +60,15 @@
         </RouterLink>
 
         <button
+          v-tooltip.right="fullscreenTooltip"
+          class="nav-btn"
+          type="button"
+          @click="onToggleFullscreen"
+        >
+          <i :class="fullscreenIcon" />
+        </button>
+
+        <button
           v-tooltip.right="theme === 'dark' ? 'Switch to light' : 'Switch to dark'"
           class="nav-btn"
           type="button"
@@ -151,6 +160,11 @@
             <i :class="theme === 'dark' ? 'pi pi-sun' : 'pi pi-moon'" />
             <span>{{ theme === 'dark' ? 'Switch to light' : 'Switch to dark' }}</span>
           </button>
+
+          <button type="button" class="mobile-nav-link mobile-nav-action" @click="onToggleFullscreen">
+            <i :class="fullscreenIcon" />
+            <span>{{ fullscreenLabel }}</span>
+          </button>
         </nav>
       </div>
     </Drawer>
@@ -220,6 +234,17 @@ const theme = ref(getTheme())
 const currentYear = new Date().getFullYear()
 const updateInfo = ref(null)
 const updateBannerDismissed = ref(false)
+const isFullscreen = ref(false)
+
+const fullscreenIcon = computed(() =>
+  isFullscreen.value ? 'pi pi-window-minimize' : 'pi pi-window-maximize'
+)
+
+const fullscreenLabel = computed(() =>
+  isFullscreen.value ? 'Exit full screen' : 'Full screen'
+)
+
+const fullscreenTooltip = computed(() => fullscreenLabel.value)
 
 const updateBannerVisible = computed(() =>
   Boolean(updateInfo.value?.update_available) && !updateBannerDismissed.value
@@ -263,6 +288,25 @@ function onUpdateAvailableEvent(event) {
 
 function onToggleTheme() {
   theme.value = toggleTheme()
+}
+
+function syncFullscreenState() {
+  isFullscreen.value = Boolean(document.fullscreenElement)
+}
+
+async function onToggleFullscreen() {
+  closeMobileNav()
+  try {
+    if (document.fullscreenElement) {
+      await document.exitFullscreen()
+    } else {
+      await document.documentElement.requestFullscreen()
+    }
+  } catch {
+    // Unsupported or denied (common on iOS Safari).
+  } finally {
+    syncFullscreenState()
+  }
 }
 
 const mainNavItems = [
@@ -320,12 +364,15 @@ onMounted(async () => {
   }
   window.addEventListener('jpilot-update-available', onUpdateAvailableEvent)
   window.addEventListener('resize', onViewportChange)
+  document.addEventListener('fullscreenchange', syncFullscreenState)
+  syncFullscreenState()
   await loadUpdateStatus(false)
 })
 
 onUnmounted(() => {
   window.removeEventListener('jpilot-update-available', onUpdateAvailableEvent)
   window.removeEventListener('resize', onViewportChange)
+  document.removeEventListener('fullscreenchange', syncFullscreenState)
 })
 
 function onViewportChange() {
