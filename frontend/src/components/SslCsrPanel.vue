@@ -4,7 +4,7 @@
       <div class="content-panel content-panel-padded">
         <form class="flex flex-column gap-4" @submit.prevent="submit">
           <div class="flex flex-column gap-2">
-            <label for="appliance" class="field-label">NetScaler</label>
+            <label for="appliance" class="field-label">Appliance</label>
             <Select
               id="appliance"
               v-model="form.applianceId"
@@ -142,7 +142,7 @@
                 id="state"
                 v-model="form.state"
                 class="w-full"
-                :placeholder="form.generationMode === 'self_signed' ? 'Required for NetScaler (e.g. CA or NA)' : ''"
+                :placeholder="form.generationMode === 'self_signed' ? 'Required for the ADC (e.g. CA or NA)' : ''"
               />
             </div>
           </div>
@@ -161,7 +161,7 @@
                 id="organization"
                 v-model="form.organization"
                 class="w-full"
-                :placeholder="form.generationMode === 'self_signed' ? 'Required for NetScaler' : ''"
+                :placeholder="form.generationMode === 'self_signed' ? 'Required for the ADC' : ''"
               />
             </div>
           </div>
@@ -302,7 +302,7 @@ const cnPlaceholder = computed(() => {
 
 const generationModeHint = computed(() =>
   form.generationMode === 'self_signed'
-    ? 'Uses NetScaler CLI: create ssl rsakey, certReq, and cert ROOT_CERT in /nsconfig/ssl.'
+    ? 'Uses ADC CLI: create ssl rsakey, certReq, and cert ROOT_CERT in /nsconfig/ssl.'
     : 'Uses OpenSSL on the appliance shell to create a CSR you can submit to your CA.'
 )
 
@@ -388,7 +388,7 @@ async function loadAppliances() {
       form.applianceId = enabled?.id || data[0].id
     }
   } catch (error) {
-    errorMessage.value = error.response?.data?.detail || 'Failed to load NetScalers'
+    errorMessage.value = error.response?.data?.detail || 'Failed to load appliances'
   } finally {
     loadingAppliances.value = false
   }
@@ -429,8 +429,8 @@ async function submit() {
     successMessage.value =
       data.message ||
       (data.generation_mode === 'self_signed'
-        ? 'Self-signed certificate created on the NetScaler.'
-        : 'CSR generated on the NetScaler. Copy the PEM below and submit it to your CA.')
+        ? 'Self-signed certificate created on the appliance.'
+        : 'CSR generated on the appliance. Copy the PEM below and submit it to your CA.')
   } catch (error) {
     result.pem = ''
     result.keyPath = ''

@@ -1,7 +1,33 @@
 <template>
-  <div class="app-shell flex min-h-screen">
-    <aside class="sidebar-panel flex flex-column">
-      <NetScalerLogo />
+  <div class="app-shell">
+    <header class="mobile-topbar">
+      <button
+        type="button"
+        class="mobile-topbar-btn"
+        aria-label="Open menu"
+        @click="mobileNavOpen = true"
+      >
+        <i class="pi pi-bars" />
+      </button>
+
+      <RouterLink to="/" class="mobile-topbar-logo" @click="closeMobileNav">
+        <JPilot :size="36" />
+      </RouterLink>
+
+      <div class="mobile-topbar-spacer" />
+
+      <button
+        type="button"
+        class="mobile-topbar-btn mobile-topbar-avatar"
+        :aria-label="currentUser?.username || 'Account'"
+        @click="toggleUserMenu"
+      >
+        <Avatar :label="userInitials" shape="circle" class="user-avatar" />
+      </button>
+    </header>
+
+    <aside class="sidebar-panel desktop-sidebar flex flex-column">
+      <JPilot />
 
       <nav class="sidebar-nav flex-1 flex flex-column align-items-center py-5">
         <RouterLink
@@ -54,9 +80,71 @@
             class="user-avatar"
           />
         </button>
-        <Menu ref="userMenu" :model="userMenuItems" popup />
       </div>
     </aside>
+
+    <Menu ref="userMenu" :model="userMenuItems" popup />
+
+    <Drawer
+      v-model:visible="mobileNavOpen"
+      position="left"
+      :modal="true"
+      :dismissable="true"
+      :show-close-icon="false"
+      class="mobile-nav-drawer"
+    >
+      <div class="mobile-nav">
+        <div class="mobile-nav-header">
+          <JPilot :size="40" />
+          <button
+            type="button"
+            class="mobile-nav-close"
+            aria-label="Close menu"
+            @click="closeMobileNav"
+          >
+            <i class="pi pi-times" />
+          </button>
+        </div>
+
+        <nav class="mobile-nav-section">
+          <RouterLink
+            v-for="item in mainNavItems"
+            :key="item.path"
+            :to="item.path"
+            class="mobile-nav-link"
+            :class="{
+              'mobile-nav-link-active': isActive(item.path),
+              'mobile-nav-link-busy': item.path === '/copilot' && hasActiveChatRuns
+            }"
+            @click="closeMobileNav"
+          >
+            <i :class="item.icon" />
+            <span>{{ item.label }}</span>
+          </RouterLink>
+        </nav>
+
+        <div class="mobile-nav-divider" />
+
+        <nav class="mobile-nav-section">
+          <RouterLink
+            v-for="item in bottomNavItems"
+            :key="item.path"
+            :to="item.path"
+            class="mobile-nav-link"
+            :class="{ 'mobile-nav-link-active': isActive(item.path) }"
+            @click="closeMobileNav"
+          >
+            <i :class="item.icon" />
+            <span>{{ item.label }}</span>
+          </RouterLink>
+
+          <button type="button" class="mobile-nav-link mobile-nav-action" @click="onToggleTheme">
+            <i :class="theme === 'dark' ? 'pi pi-sun' : 'pi pi-moon'" />
+            <span>{{ theme === 'dark' ? 'Switch to light' : 'Switch to dark' }}</span>
+          </button>
+        </nav>
+      </div>
+    </Drawer>
 
     <main class="main-content flex-1 flex flex-column">
       <div v-if="updateBannerVisible" class="update-banner">
@@ -96,14 +184,15 @@
 </template>
 
 <script setup>
-import { computed, onMounted, onUnmounted, ref } from 'vue'
+import { computed, onMounted, onUnmounted, ref, watch } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
 import Avatar from 'primevue/avatar'
 import ConfirmDialog from 'primevue/confirmdialog'
+import Drawer from 'primevue/drawer'
 import Menu from 'primevue/menu'
 import Message from 'primevue/message'
 import Toast from 'primevue/toast'
-import NetScalerLogo from '../components/NetScalerLogo.vue'
+import JPilot from '../components/JPilot.vue'
 import api from '../services/api'
 import { clearAuth, getStoredUser } from '../services/auth'
 import { checkForUpdates } from '../services/system'
@@ -111,10 +200,12 @@ import { getTheme, toggleTheme } from '../services/theme'
 import { hasActiveChatRuns } from '../stores/copilotChatRuns'
 
 const DISMISS_KEY = 'jpilot_update_dismissed'
+const MOBILE_NAV_BREAKPOINT = 992
 
 const route = useRoute()
 const router = useRouter()
 const userMenu = ref()
+const mobileNavOpen = ref(false)
 const currentUser = ref(getStoredUser())
 const theme = ref(getTheme())
 const currentYear = new Date().getFullYear()
@@ -124,6 +215,10 @@ const updateBannerDismissed = ref(false)
 const updateBannerVisible = computed(() =>
   Boolean(updateInfo.value?.update_available) && !updateBannerDismissed.value
 )
+
+function closeMobileNav() {
+  mobileNavOpen.value = false
+}
 
 function isUpdateDismissed(version) {
   try {
@@ -215,12 +310,27 @@ onMounted(async () => {
     return
   }
   window.addEventListener('jpilot-update-available', onUpdateAvailableEvent)
+  window.addEventListener('resize', onViewportChange)
   await loadUpdateStatus(false)
 })
 
 onUnmounted(() => {
   window.removeEventListener('jpilot-update-available', onUpdateAvailableEvent)
+  window.removeEventListener('resize', onViewportChange)
 })
+
+function onViewportChange() {
+  if (window.innerWidth >= MOBILE_NAV_BREAKPOINT) {
+    closeMobileNav()
+  }
+}
+
+watch(
+  () => route.path,
+  () => {
+    closeMobileNav()
+  }
+)
 
 function isActive(path) {
   if (path === '/') {
@@ -232,6 +342,7 @@ function isActive(path) {
 
 <style scoped>
 .app-shell {
+  display: flex;
   gap: var(--app-shell-gap);
   padding: 1.5rem;
   min-height: 100vh;
@@ -241,6 +352,10 @@ function isActive(path) {
 
 :global(.app-dark) .app-shell {
   background: var(--p-surface-950);
+}
+
+.mobile-topbar {
+  display: none;
 }
 
 .sidebar-panel {
@@ -438,4 +553,182 @@ function isActive(path) {
   color: var(--p-primary-color);
 }
 
+.mobile-nav {
+  display: flex;
+  flex-direction: column;
+  gap: 0.5rem;
+  min-height: 100%;
+}
+
+.mobile-nav-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 1rem;
+  margin-bottom: 0.5rem;
+}
+
+.mobile-nav-close {
+  width: 2.25rem;
+  height: 2.25rem;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  border: 1px solid var(--p-content-border-color);
+  border-radius: 999px;
+  background: transparent;
+  color: var(--p-text-muted-color);
+  cursor: pointer;
+}
+
+.mobile-nav-close:hover {
+  background: var(--p-surface-100);
+  color: var(--p-text-color);
+}
+
+.mobile-nav-section {
+  display: flex;
+  flex-direction: column;
+  gap: 0.35rem;
+}
+
+.mobile-nav-divider {
+  height: 1px;
+  background: var(--p-content-border-color);
+  margin: 0.35rem 0;
+}
+
+.mobile-nav-link {
+  display: flex;
+  align-items: center;
+  gap: 0.75rem;
+  padding: 0.75rem 0.875rem;
+  border-radius: 0.75rem;
+  border: 1px solid transparent;
+  background: transparent;
+  color: var(--p-text-color);
+  text-decoration: none;
+  font-size: 0.9375rem;
+  font-weight: 500;
+  cursor: pointer;
+  width: 100%;
+  text-align: left;
+}
+
+.mobile-nav-link i {
+  font-size: 1.125rem;
+  color: var(--p-text-muted-color);
+}
+
+.mobile-nav-link:hover {
+  background: var(--p-surface-100);
+  border-color: var(--p-content-border-color);
+}
+
+.mobile-nav-link-active {
+  background: var(--p-surface-100);
+  border-color: var(--p-content-border-color);
+  box-shadow: 0 1px 4px rgba(0, 0, 0, 0.06);
+}
+
+.mobile-nav-link-busy {
+  position: relative;
+}
+
+.mobile-nav-link-busy::after {
+  content: '';
+  position: absolute;
+  top: 0.65rem;
+  right: 0.75rem;
+  width: 0.45rem;
+  height: 0.45rem;
+  border-radius: 50%;
+  background: var(--p-primary-color);
+}
+
+.mobile-nav-action {
+  font-family: inherit;
+}
+
+:global(.mobile-nav-drawer .p-drawer) {
+  width: min(18rem, 88vw);
+}
+
+:global(.mobile-nav-drawer .p-drawer-content) {
+  padding: 1rem;
+}
+
+@media (max-width: 991px) {
+  .app-shell {
+    flex-direction: column;
+    gap: 0;
+    padding: 0;
+    min-height: 100vh;
+  }
+
+  .mobile-topbar {
+    display: flex;
+    align-items: center;
+    gap: 0.75rem;
+    flex-shrink: 0;
+    height: var(--mobile-topbar-height, 3.75rem);
+    padding: 0 0.875rem;
+    background: var(--p-surface-50);
+    border-bottom: 1px solid var(--p-content-border-color);
+    position: sticky;
+    top: 0;
+    z-index: 20;
+  }
+
+  :global(.app-dark) .mobile-topbar {
+    background: var(--p-surface-900);
+  }
+
+  .mobile-topbar-btn {
+    width: 2.5rem;
+    height: 2.5rem;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    border: none;
+    border-radius: 0.625rem;
+    background: transparent;
+    color: var(--p-text-color);
+    cursor: pointer;
+  }
+
+  .mobile-topbar-btn:hover {
+    background: var(--p-surface-100);
+  }
+
+  .mobile-topbar-logo {
+    display: inline-flex;
+    align-items: center;
+    text-decoration: none;
+  }
+
+  .mobile-topbar-spacer {
+    flex: 1;
+  }
+
+  .mobile-topbar-avatar {
+    padding: 0;
+  }
+
+  .desktop-sidebar {
+    display: none !important;
+  }
+
+  .main-content {
+    width: 100%;
+    height: calc(100vh - var(--mobile-topbar-height, 3.75rem));
+    min-height: calc(100vh - var(--mobile-topbar-height, 3.75rem));
+    max-height: calc(100vh - var(--mobile-topbar-height, 3.75rem));
+    padding: 0.75rem;
+  }
+
+  .app-legal {
+    padding-inline: 0.25rem;
+  }
+}
 </style>

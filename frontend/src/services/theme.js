@@ -14,6 +14,7 @@ export function applyTheme(theme) {
 export function setTheme(theme) {
   localStorage.setItem(KEY, theme)
   applyTheme(theme)
+  window.dispatchEvent(new CustomEvent('jpilot-theme-change', { detail: theme }))
 }
 
 export function applyStoredTheme() {

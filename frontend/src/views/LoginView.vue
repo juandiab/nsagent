@@ -15,7 +15,7 @@
         class="login-brand flex flex-column align-items-center mb-5"
         v-animateonscroll="{ enterClass: 'anim-rise anim-delay-1' }"
       >
-        <NetScalerLogo />
+        <JPilot :size="73" />
         <h1 class="login-title m-0 mt-3">JPilot</h1>
         <p class="login-subtitle m-0 mt-2">
           {{ status?.passkeyRequired ? 'Sign in with your passkey' : 'Sign in to manage your platform' }}
@@ -198,7 +198,7 @@ import Checkbox from 'primevue/checkbox'
 import InputText from 'primevue/inputtext'
 import Message from 'primevue/message'
 import Password from 'primevue/password'
-import NetScalerLogo from '../components/NetScalerLogo.vue'
+import JPilot from '../components/JPilot.vue'
 import api from '../services/api'
 import { setAuth } from '../services/auth'
 import {

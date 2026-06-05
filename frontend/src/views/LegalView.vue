@@ -2,7 +2,7 @@
   <div class="legal-page">
     <header class="legal-header">
       <RouterLink to="/" class="legal-brand">
-        <NetScalerLogo />
+        <JPilot />
         <span class="legal-brand-name">JPilot</span>
       </RouterLink>
       <RouterLink to="/login" class="legal-back">
@@ -38,7 +38,7 @@
 import { computed, watch } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
 import ChatMarkdown from '../components/ChatMarkdown.vue'
-import NetScalerLogo from '../components/NetScalerLogo.vue'
+import JPilot from '../components/JPilot.vue'
 import privacyPolicy from '../legal/privacy-policy.md?raw'
 import termsOfService from '../legal/terms-of-service.md?raw'
 import eula from '../legal/eula.md?raw'

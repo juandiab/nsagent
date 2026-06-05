@@ -2,7 +2,7 @@
   <div class="login-page flex align-items-center justify-content-center min-h-screen">
     <div class="login-panel">
       <div class="login-brand flex flex-column align-items-center mb-5">
-        <NetScalerLogo />
+        <JPilot :size="73" />
         <h1 class="login-title m-0 mt-3">Account recovery</h1>
         <p class="login-subtitle m-0 mt-2 text-center">
           Recover access with a code sent to your email. Existing passkeys are removed for security.
@@ -131,7 +131,7 @@ import Button from 'primevue/button'
 import InputText from 'primevue/inputtext'
 import Message from 'primevue/message'
 import Password from 'primevue/password'
-import NetScalerLogo from '../components/NetScalerLogo.vue'
+import JPilot from '../components/JPilot.vue'
 import { confirmAccountRecovery, requestAccountRecovery } from '../services/passwordReset'
 import { passkeyErrorMessage, registerPasskey } from '../services/webauthn'
 
