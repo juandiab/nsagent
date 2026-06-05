@@ -17,15 +17,33 @@ from app.services.webauthn_service import count_user_passkeys, delete_all_user_p
 from app.utils.time import ensure_utc_aware, utc_now
 
 RESET_CODE_TTL = timedelta(minutes=15)
-RESET_CODE_LENGTH = 6
+RESET_CODE_LENGTH = 8
+RECOVERY_MAX_ATTEMPTS = 5
+_RECOVERY_CODE_ALPHABET = "ABCDEFGHJKLMNPQRSTUVWXYZ23456789"
 
 GENERIC_RECOVERY_MESSAGE = (
     "If an account exists with a configured email address, a recovery code was sent."
 )
+RECOVERY_ATTEMPTS_EXCEEDED_MESSAGE = (
+    "Too many incorrect attempts. Request a new recovery code."
+)
 
 
 def _generate_code() -> str:
-    return "".join(str(secrets.randbelow(10)) for _ in range(RESET_CODE_LENGTH))
+    return "".join(secrets.choice(_RECOVERY_CODE_ALPHABET) for _ in range(RESET_CODE_LENGTH))
+
+
+async def _record_recovery_failure(db: AsyncIOMotorDatabase, doc: dict) -> None:
+    failed_attempts = int(doc.get("failedAttempts") or 0) + 1
+    if failed_attempts >= RECOVERY_MAX_ATTEMPTS:
+        await db.passwordResetCodes.delete_one({"_id": doc["_id"]})
+        raise ValueError(RECOVERY_ATTEMPTS_EXCEEDED_MESSAGE)
+
+    await db.passwordResetCodes.update_one(
+        {"_id": doc["_id"]},
+        {"$set": {"failedAttempts": failed_attempts}},
+    )
+    raise ValueError("Invalid or expired recovery code")
 
 
 def _mask_email(email: str) -> str:
@@ -62,6 +80,7 @@ async def send_reset_code(
             "username": user["username"],
             "email": email,
             "codeHash": hash_password(code),
+            "failedAttempts": 0,
             "initiatedBy": initiated_by,
             "expiresAt": utc_now() + RESET_CODE_TTL,
             "createdAt": utc_now(),
@@ -111,7 +130,7 @@ async def confirm_reset(
     new_password: str | None,
 ) -> tuple[str, str | None]:
     cleaned_username = username.strip().lower()
-    cleaned_code = code.strip()
+    cleaned_code = code.strip().upper()
     cleaned_password = (new_password or "").strip()
 
     if not cleaned_code:
@@ -124,7 +143,7 @@ async def confirm_reset(
         await db.passwordResetCodes.delete_one({"_id": doc["_id"]})
         raise ValueError("Invalid or expired recovery code")
     if not verify_password(cleaned_code, doc["codeHash"]):
-        raise ValueError("Invalid or expired recovery code")
+        await _record_recovery_failure(db, doc)
 
     user_id: ObjectId = doc["userId"]
     user = await db.users.find_one({"_id": user_id})

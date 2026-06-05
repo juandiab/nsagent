@@ -9,6 +9,11 @@ from app.schemas.password_reset import (
     AccountRecoveryRequest,
     PasswordResetConfirmRequest,
 )
+from app.services.auth_lockout_service import (
+    clear_login_lockout,
+    get_login_lockout_message,
+    record_login_failure,
+)
 from app.services.auth_service import create_access_token, verify_password
 from app.services.user_service import get_user_by_username
 from app.services.password_reset_service import (
@@ -22,13 +27,22 @@ router = APIRouter(prefix="/auth", tags=["auth"])
 
 @router.post("/login", response_model=LoginResponse)
 async def login(payload: LoginRequest, db: AsyncIOMotorDatabase = Depends(get_db)) -> LoginResponse:
+    lockout_message = await get_login_lockout_message(db, username=payload.username)
+    if lockout_message:
+        raise HTTPException(status_code=status.HTTP_429_TOO_MANY_REQUESTS, detail=lockout_message)
+
     user = await get_user_by_username(db, payload.username)
     hashed = user.get("hashedPassword") if user else None
     if user is None or not hashed or not verify_password(payload.password, hashed):
+        lockout_message = await record_login_failure(db, username=payload.username)
+        if lockout_message:
+            raise HTTPException(status_code=status.HTTP_429_TOO_MANY_REQUESTS, detail=lockout_message)
         raise HTTPException(
             status_code=status.HTTP_401_UNAUTHORIZED,
             detail="Invalid username or password",
         )
+
+    await clear_login_lockout(db, username=payload.username)
 
     if await count_user_passkeys(db, user["_id"]) > 0:
         raise HTTPException(

@@ -8,7 +8,7 @@ Repository: [github.com/juandiab/nsagent](https://github.com/juandiab/nsagent)
 
 > **Disclaimer:** JPilot is an independent project and is not affiliated with, endorsed by, or sponsored by Citrix Systems, Inc. NetScaler is a trademark of Citrix Systems, Inc.
 
-**Current release:** `v0.32` — License activation gate, Settings license UX, and plan-aware licensing UI.
+**Current release:** `v0.33` — Login lockout and stronger account recovery codes.
 
 Bump the root [`VERSION`](VERSION) file when tagging a release so in-app update checks match GitHub.
 
@@ -27,7 +27,7 @@ Bump the root [`VERSION`](VERSION) file when tagging a release so in-app update 
 - **Classic + Next-Gen** — list virtual servers from Next-Gen applications and classic `lbvserver`; create apps via Next-Gen or multi-step LB setup via CLI.
 - **Guided load balancer forms** — JPilot can embed interactive `jpilot-form` blocks in chat (VIP, service type, backends, monitors); submissions drive CLI execution after reference lookup.
 - **Smart form routing** — responder, rewrite, transform, and other policy-on-vserver requests do not trigger the LB creation form.
-- **Authentication** — password login until a passkey is registered; then passkey-only sign-in (password login blocked server-side).
+- **Authentication** — password login until a passkey is registered; then passkey-only sign-in (password login blocked server-side); failed password sign-in lockout and recovery-code attempt limits.
 - **Account recovery** — email OTP via SMTP; self-service at `/account-recovery` or admin-initiated from Users; revokes passkeys and resets password and/or registers a new passkey.
 - **User management** — admin CRUD for users (roles `admin` / `user`), email for resets, initial password on create, passkey count and removal.
 - **SSL certificate tools** — generate CSRs or self-signed certificates on the appliance (UI + API + MCP).
@@ -40,6 +40,15 @@ Bump the root [`VERSION`](VERSION) file when tagging a release so in-app update 
 - **NetScaler SDX (SSH)** — Operator and Analyst for SVM platform and VPX lifecycle with `search_sdx_cli_reference` memory gate (beta).
 - **F5 BIG-IP (SSH / TMSH)** — Operator, Analyst, and Architect (official F5 docs only); `f5_*` MCP tools and `search_f5_tmsh_reference` / `search_f5_documentation` (beta).
 - **Nexxus licensing** — Settings → **License**: enter a license code, import an offline `.lic` file, or sync with the Nexxus licensing API; installation fingerprint binding; encrypted payload validation; daily background sync and expiry enforcement; **activation gate** redirects unlicensed or expired installs to Settings → License before using the app.
+
+## What's new in v0.33
+
+| Area | Highlights |
+|------|------------|
+| **Login lockout** | After 5 failed password attempts per username, sign-in is blocked for 15 minutes (`429`); counter clears on successful login. |
+| **Recovery codes** | Emailed codes are now 8 alphanumeric characters (larger search space than 6-digit numeric). |
+| **Recovery attempts** | Five wrong guesses invalidate the active code; user must request a new one. |
+| **nginx** | Stricter per-IP rate limit on `POST /api/auth/password-reset/confirm` (3 requests/minute). |
 
 ## What's new in v0.32
 
@@ -424,10 +433,10 @@ Prefer to configure things by hand instead of the wizard? You can:
 
 | Flow | Description |
 |------|-------------|
-| **Password login** | `POST /auth/login` — allowed only while the user has **no** registered passkeys. |
+| **Password login** | `POST /auth/login` — allowed only while the user has **no** registered passkeys; **5 failed attempts** per username triggers a **15-minute** lockout (`429`). |
 | **Passkey login** | Required once a passkey exists; `POST /auth/webauthn/login/begin\|finish`. |
 | **Passkey registration** | Authenticated users register in **Settings → Security** (email required on the account). |
-| **Account recovery** | `POST /auth/account-recovery/request` (self-service) or admin from **Users**; user completes at `/account-recovery` via `POST /auth/password-reset/confirm` (removes passkeys; optional new password; optional short-lived token to register a new passkey). |
+| **Account recovery** | `POST /auth/account-recovery/request` (self-service) or admin from **Users**; user completes at `/account-recovery` via `POST /auth/password-reset/confirm` (8-character emailed code, **5** wrong guesses invalidate the code; removes passkeys; optional new password; optional short-lived token to register a new passkey). |
 | **Bootstrap admin** | Installer writes `ADMIN_USERNAME` / `ADMIN_PASSWORD` to `.env` once; API seeds MongoDB on first startup. Leave blank in `.env` afterward — login uses the DB. |
 
 WebAuthn and CORS origins must match how users open the UI (see `.env.example`).

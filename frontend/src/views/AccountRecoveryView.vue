@@ -40,10 +40,14 @@
             v-model="code"
             autocomplete="one-time-code"
             class="w-full"
-            inputmode="numeric"
-            maxlength="6"
+            autocapitalize="characters"
+            spellcheck="false"
+            maxlength="8"
             :disabled="loading"
           />
+          <small class="field-hint">
+            8-character code from your email (letters and numbers).
+          </small>
         </div>
 
         <div class="flex flex-column gap-2">
