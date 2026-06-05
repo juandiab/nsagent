@@ -1,6 +1,11 @@
 import { createRouter, createWebHistory } from 'vue-router'
 import MainLayout from '../layouts/MainLayout.vue'
 import { getToken, getStoredUser } from '../services/auth'
+import {
+  getLicenseForGate,
+  isLicenseActivationRoute,
+  licenseActivationRequired
+} from '../services/licenseGate'
 import CopilotView from '../views/CopilotView.vue'
 import DashboardView from '../views/DashboardView.vue'
 import LoginView from '../views/LoginView.vue'
@@ -55,7 +60,7 @@ const router = createRouter({
   ]
 })
 
-router.beforeEach((to) => {
+router.beforeEach(async (to) => {
   const authenticated = Boolean(getToken())
   const requiresAuth = to.matched.some((record) => record.meta.requiresAuth)
   const requiresAdmin = to.matched.some((record) => record.meta.requiresAdmin)
@@ -72,6 +77,20 @@ router.beforeEach((to) => {
     const user = getStoredUser()
     if (user?.role !== 'admin') {
       return { path: '/' }
+    }
+  }
+
+  if (requiresAuth && authenticated && !isLicenseActivationRoute(to)) {
+    try {
+      const license = await getLicenseForGate()
+      if (licenseActivationRequired(license)) {
+        return {
+          path: '/settings',
+          query: { section: 'license', redirect: to.fullPath }
+        }
+      }
+    } catch {
+      // If license status cannot be loaded, do not block navigation.
     }
   }
 

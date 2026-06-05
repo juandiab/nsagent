@@ -8,7 +8,7 @@ Repository: [github.com/juandiab/nsagent](https://github.com/juandiab/nsagent)
 
 > **Disclaimer:** JPilot is an independent project and is not affiliated with, endorsed by, or sponsored by Citrix Systems, Inc. NetScaler is a trademark of Citrix Systems, Inc.
 
-**Current release:** `v0.31` — Nexxus license activation, online sync, and offline `.lic` import in Settings.
+**Current release:** `v0.32` — License activation gate, Settings license UX, and plan-aware licensing UI.
 
 Bump the root [`VERSION`](VERSION) file when tagging a release so in-app update checks match GitHub.
 
@@ -39,7 +39,16 @@ Bump the root [`VERSION`](VERSION) file when tagging a release so in-app update 
 - **Cisco IOS/XE (SSH)** — Architect, Operator, and Analyst over SSH with `search_cisco_cli_reference` memory gate (beta).
 - **NetScaler SDX (SSH)** — Operator and Analyst for SVM platform and VPX lifecycle with `search_sdx_cli_reference` memory gate (beta).
 - **F5 BIG-IP (SSH / TMSH)** — Operator, Analyst, and Architect (official F5 docs only); `f5_*` MCP tools and `search_f5_tmsh_reference` / `search_f5_documentation` (beta).
-- **Nexxus licensing** — Settings → **License**: enter a license code, import an offline `.lic` file, or sync with the Nexxus licensing API; installation fingerprint binding; encrypted payload validation; daily background sync and expiry enforcement.
+- **Nexxus licensing** — Settings → **License**: enter a license code, import an offline `.lic` file, or sync with the Nexxus licensing API; installation fingerprint binding; encrypted payload validation; daily background sync and expiry enforcement; **activation gate** redirects unlicensed or expired installs to Settings → License before using the app.
+
+## What's new in v0.32
+
+| Area | Highlights |
+|------|------------|
+| **License gate** | Router guard sends unactivated, expired, deactivated, or missing licenses to **Settings → License**; after successful activation, users return to their original destination. |
+| **License (Settings)** | Two-column layout: activation on the left, **License information** on the right; **Licensed for** block (name, email, company or Personal Use); masked license code with reveal and **copy** actions. |
+| **Plan-themed UI** | License info panel and **Plans** page use plan colors (Free green, Trial orange, Enterprise blue, Enterprise Pro purple); Plans highlights the current plan from the saved license. |
+| **Activation flow** | Registration form and offline import hide once a license is saved; **Remove license** restores the full activation flow. |
 
 ## What's new in v0.31
 

@@ -7,7 +7,7 @@ export const PRICING_PLANS = [
     tagline: 'Everything you need to start',
     priceLabel: 'Free',
     priceDetail: 'Forever · unlimited',
-    highlighted: true,
+    highlighted: false,
     ctaLabel: 'You are here',
     ctaHref: null,
     ctaDisabled: true,

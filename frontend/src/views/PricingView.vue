@@ -18,10 +18,11 @@
       >
         <div
           class="plan-card h-full flex flex-column"
-          :class="[
+            :class="[
             `plan-card-${plan.id}`,
             {
-              'plan-card-featured': plan.highlighted,
+              'plan-card-featured': isCurrentPlan(plan),
+              'plan-card-trial': licensePlanTheme === 'trial' && isCurrentPlan(plan),
               'plan-card-interactive': plan.ctaHref
             }
           ]"
@@ -33,9 +34,9 @@
                 <p class="plan-tagline m-0 mt-1">{{ plan.tagline }}</p>
               </div>
               <Tag
-                v-if="plan.highlighted"
-                value="Current"
-                severity="success"
+                v-if="isCurrentPlan(plan)"
+                :value="currentPlanTagLabel(plan)"
+                :severity="currentPlanTagSeverity(plan)"
               />
             </div>
 
@@ -123,10 +124,53 @@
 </template>
 
 <script setup>
+import { computed, onMounted, ref } from 'vue'
 import Button from 'primevue/button'
 import Tag from 'primevue/tag'
+import { licenseTypeToPlanId, resolveLicensePlanTheme } from '../config/licensePlanThemes'
 import { NEXXUS_TECH } from '../config/nexxusTech'
 import { PLATFORM_HIGHLIGHTS, PRICING_PLANS } from '../config/pricingPlans'
+import { getLicense } from '../services/system'
+
+const license = ref(null)
+
+const activePlanId = computed(() => {
+  if (!license.value?.hasLicenseCode) return 'free'
+  const type = license.value.details?.licenseType ?? license.value.licenseType
+  const theme = resolveLicensePlanTheme(type)
+  if (theme === 'trial') return 'free'
+  return licenseTypeToPlanId(type)
+})
+
+const licensePlanTheme = computed(() => {
+  if (!license.value?.hasLicenseCode) return 'free'
+  const type = license.value.details?.licenseType ?? license.value.licenseType
+  return resolveLicensePlanTheme(type)
+})
+
+function isCurrentPlan(plan) {
+  return activePlanId.value === plan.id
+}
+
+function currentPlanTagLabel(plan) {
+  if (!isCurrentPlan(plan)) return 'Current'
+  if (licensePlanTheme.value === 'trial') return 'Trial'
+  return 'Current'
+}
+
+function currentPlanTagSeverity(plan) {
+  if (!isCurrentPlan(plan)) return 'success'
+  if (licensePlanTheme.value === 'trial') return 'warn'
+  return 'success'
+}
+
+onMounted(async () => {
+  try {
+    license.value = await getLicense()
+  } catch {
+    // Plans page works without license data.
+  }
+})
 </script>
 
 <style scoped>
@@ -245,6 +289,11 @@ import { PLATFORM_HIGHLIGHTS, PRICING_PLANS } from '../config/pricingPlans'
   border-color: #bbf7d0;
 }
 
+.plan-card-trial.plan-card-free {
+  background: linear-gradient(160deg, #fffbeb 0%, #fff7ed 55%, #ffedd5 100%);
+  border-color: #fed7aa;
+}
+
 html.app-dark .plan-card-free {
   background: linear-gradient(
     160deg,
@@ -253,6 +302,11 @@ html.app-dark .plan-card-free {
     #052e16 100%
   );
   border-color: #166534;
+}
+
+html.app-dark .plan-card-trial.plan-card-free {
+  background: linear-gradient(160deg, #1c1917 0%, #431407 45%, #292524 100%);
+  border-color: #9a3412;
 }
 
 .plan-card-enterprise {
@@ -307,6 +361,10 @@ html.app-dark .plan-card-enterprise-pro {
   color: #16a34a;
 }
 
+.plan-card-trial.plan-card-free .plan-features li i {
+  color: #ea580c;
+}
+
 html.app-dark .plan-card-enterprise .plan-features li i {
   color: #93c5fd;
 }
@@ -317,6 +375,10 @@ html.app-dark .plan-card-enterprise-pro .plan-features li i {
 
 html.app-dark .plan-card-free .plan-features li i {
   color: #86efac;
+}
+
+html.app-dark .plan-card-trial.plan-card-free .plan-features li i {
+  color: #fb923c;
 }
 
 .plan-card-interactive {
