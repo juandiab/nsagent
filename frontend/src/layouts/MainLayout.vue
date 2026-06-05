@@ -1,29 +1,31 @@
 <template>
   <div class="app-shell">
     <header class="mobile-topbar">
-      <button
-        type="button"
-        class="mobile-topbar-btn"
-        aria-label="Open menu"
-        @click="mobileNavOpen = true"
-      >
-        <i class="pi pi-bars" />
-      </button>
+      <div class="mobile-topbar-side mobile-topbar-start">
+        <button
+          type="button"
+          class="mobile-topbar-btn mobile-topbar-menu"
+          aria-label="Open menu"
+          @click="mobileNavOpen = true"
+        >
+          <i class="pi pi-bars" />
+        </button>
+      </div>
 
       <RouterLink to="/" class="mobile-topbar-logo" @click="closeMobileNav">
         <JPilot :size="36" />
       </RouterLink>
 
-      <div class="mobile-topbar-spacer" />
-
-      <button
-        type="button"
-        class="mobile-topbar-btn mobile-topbar-avatar"
-        :aria-label="currentUser?.username || 'Account'"
-        @click="toggleUserMenu"
-      >
-        <Avatar :label="userInitials" shape="circle" class="user-avatar" />
-      </button>
+      <div class="mobile-topbar-side mobile-topbar-end">
+        <button
+          type="button"
+          class="mobile-topbar-btn mobile-topbar-avatar"
+          :aria-label="currentUser?.username || 'Account'"
+          @click="toggleUserMenu"
+        >
+          <Avatar :label="userInitials" shape="circle" class="user-avatar" />
+        </button>
+      </div>
     </header>
 
     <aside class="sidebar-panel desktop-sidebar flex flex-column">
@@ -631,6 +633,17 @@ function isActive(path) {
   box-shadow: 0 1px 4px rgba(0, 0, 0, 0.06);
 }
 
+:global(html.app-dark) .mobile-nav-link-active {
+  background: #f1f5f9;
+  color: #1e293b;
+  border-color: var(--p-content-border-color);
+}
+
+:global(html.app-dark) .mobile-nav-link-active i,
+:global(html.app-dark) .mobile-nav-link-active span {
+  color: #1e293b;
+}
+
 .mobile-nav-link-busy {
   position: relative;
 }
@@ -650,12 +663,13 @@ function isActive(path) {
   font-family: inherit;
 }
 
-:global(.mobile-nav-drawer .p-drawer) {
-  width: min(18rem, 88vw);
+:global(.p-drawer.mobile-nav-drawer) {
+  width: min(18rem, 100vw);
 }
 
-:global(.mobile-nav-drawer .p-drawer-content) {
+:global(.p-drawer.mobile-nav-drawer .p-drawer-content) {
   padding: 1rem;
+  padding-bottom: calc(1rem + env(safe-area-inset-bottom, 0px));
 }
 
 @media (max-width: 991px) {
@@ -663,21 +677,46 @@ function isActive(path) {
     flex-direction: column;
     gap: 0;
     padding: 0;
-    min-height: 100vh;
+    width: 100%;
+    max-width: 100vw;
+    min-height: 100dvh;
+    height: 100dvh;
+    max-height: 100dvh;
+    overflow: hidden;
   }
 
   .mobile-topbar {
-    display: flex;
+    display: grid;
+    grid-template-columns: 1fr auto 1fr;
     align-items: center;
     gap: 0.75rem;
     flex-shrink: 0;
-    height: var(--mobile-topbar-height, 3.75rem);
-    padding: 0 0.875rem;
+    width: 100%;
+    box-sizing: border-box;
+    min-height: calc(var(--mobile-topbar-height, 3.75rem) + env(safe-area-inset-top, 0px));
+    padding:
+      calc(env(safe-area-inset-top, 0px) + 0.5rem)
+      max(0.875rem, env(safe-area-inset-right, 0px))
+      0.5rem
+      max(0.875rem, env(safe-area-inset-left, 0px));
     background: var(--p-surface-50);
     border-bottom: 1px solid var(--p-content-border-color);
-    position: sticky;
-    top: 0;
-    z-index: 20;
+    z-index: 30;
+  }
+
+  .mobile-topbar-side {
+    display: flex;
+    align-items: center;
+    min-width: 2.5rem;
+  }
+
+  .mobile-topbar-start {
+    justify-self: start;
+  }
+
+  .mobile-topbar-end {
+    justify-self: end;
+    justify-content: flex-end;
   }
 
   :global(.app-dark) .mobile-topbar {
@@ -695,20 +734,45 @@ function isActive(path) {
     background: transparent;
     color: var(--p-text-color);
     cursor: pointer;
+    flex-shrink: 0;
+  }
+
+  .mobile-topbar-btn i {
+    color: inherit;
+    font-size: 1.125rem;
+    line-height: 1;
+  }
+
+  .mobile-topbar-menu {
+    border: 1px solid var(--p-content-border-color);
+    background: var(--p-content-background);
+  }
+
+  :global(html.app-dark) .mobile-topbar-menu {
+    color: var(--p-surface-0);
+    border-color: var(--p-surface-700);
+    background: var(--p-surface-800);
+  }
+
+  :global(html.app-dark) .mobile-topbar-menu i {
+    color: var(--p-surface-0);
   }
 
   .mobile-topbar-btn:hover {
     background: var(--p-surface-100);
   }
 
+  :global(html.app-dark) .mobile-topbar-menu:hover {
+    background: var(--p-surface-700);
+    color: var(--p-surface-0);
+  }
+
   .mobile-topbar-logo {
     display: inline-flex;
     align-items: center;
+    justify-content: center;
     text-decoration: none;
-  }
-
-  .mobile-topbar-spacer {
-    flex: 1;
+    justify-self: center;
   }
 
   .mobile-topbar-avatar {
@@ -720,15 +784,27 @@ function isActive(path) {
   }
 
   .main-content {
+    flex: 1;
     width: 100%;
-    height: calc(100vh - var(--mobile-topbar-height, 3.75rem));
-    min-height: calc(100vh - var(--mobile-topbar-height, 3.75rem));
-    max-height: calc(100vh - var(--mobile-topbar-height, 3.75rem));
+    min-width: 0;
+    min-height: 0;
+    height: auto;
+    max-height: none;
     padding: 0.75rem;
+    padding-bottom: calc(0.75rem + env(safe-area-inset-bottom, 0px));
+    box-sizing: border-box;
   }
 
   .app-legal {
     padding-inline: 0.25rem;
+  }
+
+  :global(.p-drawer.mobile-nav-drawer) {
+    width: 100vw !important;
+    max-width: 100vw;
+    height: 100%;
+    border-radius: 0;
+    padding-top: env(safe-area-inset-top, 0px);
   }
 }
 </style>
