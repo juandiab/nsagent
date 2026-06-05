@@ -41,6 +41,15 @@ Bump the root [`VERSION`](VERSION) file when tagging a release so in-app update 
 - **F5 BIG-IP (SSH / TMSH)** — Operator, Analyst, and Architect (official F5 docs only); `f5_*` MCP tools and `search_f5_tmsh_reference` / `search_f5_documentation` (beta).
 - **Nexxus licensing** — Settings → **License**: enter a license code, import an offline `.lic` file, or sync with the Nexxus licensing API; installation fingerprint binding; encrypted payload validation; daily background sync and expiry enforcement; **activation gate** redirects unlicensed or expired installs to Settings → License before using the app.
 
+## What's new in v0.36
+
+| Area | Highlights |
+|------|------------|
+| **Dark mode nav** | Sidebar and mobile drawer use light pills with dark text on hover and when selected (readable on dark backgrounds). |
+| **Mobile top bar** | Black bar in dark theme via global CSS overrides (fixes `--p-surface-50` staying light). |
+| **Mobile drawer** | **JPilot** label in menu header; router active-state fix so Dashboard is not always highlighted. |
+| **JPilot recommendations** | On phones, inline results hidden — open via **Browse recommended actions…**; dialog layout fixed so role tabs and category chips no longer overlap results. |
+
 ## What's new in v0.35
 
 | Area | Highlights |

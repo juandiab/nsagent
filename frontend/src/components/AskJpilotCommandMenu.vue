@@ -102,68 +102,70 @@
             </button>
           </div>
 
-          <div class="cmd-results-meta cmd-results-meta-dialog">
-            <span class="cmd-results-label">Results by section</span>
-            <span class="cmd-results-count">{{ flatResults.length }} actions</span>
-          </div>
-
-          <div class="cmd-results cmd-results-dialog" ref="resultsEl">
-            <template v-for="group in groupedResults" :key="group.id">
-              <div class="cmd-section-head cmd-section-head-dialog">
-                {{ group.title }}
-                <span class="cmd-section-count">{{ group.commands.length }}</span>
+          <div class="cmd-dialog-body">
+            <aside class="cmd-dialog-sidebar">
+              <div v-for="(section, si) in commandSidebar" :key="si" class="cmd-sidebar-section">
+                <h5 class="cmd-sidebar-title">{{ section.title }}</h5>
+                <button
+                  v-for="item in section.items"
+                  :key="item.id"
+                  type="button"
+                  class="cmd-sidebar-link"
+                  :class="{ 'cmd-sidebar-link-active': filterTag === item.id }"
+                  @click="toggleFilter(item.id)"
+                >
+                  {{ item.label }}
+                </button>
               </div>
-              <button
-                v-for="cmd in group.commands"
-                :key="cmd.id"
-                type="button"
-                class="cmd-result"
-                :class="{ 'cmd-result-active': flatIndex(cmd.id) === selectedIndex }"
-                :disabled="disabled && cmd.type === 'prompt'"
-                @click="pickCommand(cmd)"
-                @mouseenter="selectedIndex = flatIndex(cmd.id)"
-              >
-                <span class="cmd-result-icon"><i :class="cmd.icon" /></span>
-                <span class="cmd-result-body">
-                  <span class="cmd-result-title">{{ cmd.label }}</span>
-                  <span v-if="cmd.subtitle" class="cmd-result-sub">{{ cmd.subtitle }}</span>
-                </span>
-                <i v-if="cmd.type === 'link'" class="pi pi-arrow-right cmd-result-arrow" />
-              </button>
-            </template>
-            <p v-if="!flatResults.length" class="cmd-empty">{{ emptyResultsHint }}</p>
+            </aside>
+
+            <div class="cmd-dialog-results-column">
+              <div class="cmd-results-meta cmd-results-meta-dialog">
+                <span class="cmd-results-label">Results by section</span>
+                <span class="cmd-results-count">{{ flatResults.length }} actions</span>
+              </div>
+
+              <div class="cmd-results cmd-results-dialog" ref="resultsEl">
+                <template v-for="group in groupedResults" :key="group.id">
+                  <div class="cmd-section-head cmd-section-head-dialog">
+                    {{ group.title }}
+                    <span class="cmd-section-count">{{ group.commands.length }}</span>
+                  </div>
+                  <button
+                    v-for="cmd in group.commands"
+                    :key="cmd.id"
+                    type="button"
+                    class="cmd-result"
+                    :class="{ 'cmd-result-active': flatIndex(cmd.id) === selectedIndex }"
+                    :disabled="disabled && cmd.type === 'prompt'"
+                    @click="pickCommand(cmd)"
+                    @mouseenter="selectedIndex = flatIndex(cmd.id)"
+                  >
+                    <span class="cmd-result-icon"><i :class="cmd.icon" /></span>
+                    <span class="cmd-result-body">
+                      <span class="cmd-result-title">{{ cmd.label }}</span>
+                      <span v-if="cmd.subtitle" class="cmd-result-sub">{{ cmd.subtitle }}</span>
+                    </span>
+                    <i v-if="cmd.type === 'link'" class="pi pi-arrow-right cmd-result-arrow" />
+                  </button>
+                </template>
+                <p v-if="!flatResults.length" class="cmd-empty">{{ emptyResultsHint }}</p>
+              </div>
+            </div>
           </div>
         </div>
 
-        <div class="cmd-dialog-divider" />
-
-        <aside class="cmd-dialog-sidebar">
-          <div v-for="(section, si) in commandSidebar" :key="si" class="cmd-sidebar-section">
-            <h5 class="cmd-sidebar-title">{{ section.title }}</h5>
-            <button
-              v-for="item in section.items"
-              :key="item.id"
-              type="button"
-              class="cmd-sidebar-link"
-              :class="{ 'cmd-sidebar-link-active': filterTag === item.id }"
-              @click="toggleFilter(item.id)"
-            >
-              {{ item.label }}
-            </button>
-          </div>
-        </aside>
-      </div>
-
-      <div class="cmd-dialog-footer">
-        <span class="cmd-footer-keys">
-          <i class="pi pi-chevron-up" />
-          <i class="pi pi-chevron-down" />
-        </span>
-        <p class="cmd-footer-hint">
-          <span class="cmd-footer-accent">↑↓</span> navigate ·
-          <span class="cmd-footer-accent">Enter</span> run ·
-          <span class="cmd-footer-accent">Esc</span> close · sidebar filters one section
-        </p>
+        <div class="cmd-dialog-footer">
+          <span class="cmd-footer-keys">
+            <i class="pi pi-chevron-up" />
+            <i class="pi pi-chevron-down" />
+          </span>
+          <p class="cmd-footer-hint">
+            <span class="cmd-footer-accent">↑↓</span> navigate ·
+            <span class="cmd-footer-accent">Enter</span> run ·
+            <span class="cmd-footer-accent">Esc</span> close · sidebar filters one section
+          </p>
+        </div>
       </div>
     </Dialog>
   </div>
@@ -351,18 +353,27 @@ defineExpose({ openMenu })
 
 .cmd-tabs {
   display: flex;
+  flex-shrink: 0;
   border-bottom: 1px solid var(--glass-border);
+  overflow-x: auto;
+  -webkit-overflow-scrolling: touch;
+  scrollbar-width: none;
+}
+
+.cmd-tabs::-webkit-scrollbar {
+  display: none;
 }
 
 .cmd-tab {
-  flex: 1;
-  padding: 0.65rem 0.5rem;
+  flex: 0 0 auto;
+  padding: 0.65rem 0.75rem;
   border: 0;
   border-bottom: 2px solid transparent;
   background: transparent;
   color: var(--glass-muted);
   font-size: 0.8125rem;
   font-weight: 600;
+  white-space: nowrap;
   cursor: pointer;
   transition: color 0.15s, border-color 0.15s;
 }
@@ -423,7 +434,8 @@ defineExpose({ openMenu })
 }
 
 .cmd-results-dialog {
-  max-height: min(36rem, 58vh);
+  flex: 1;
+  min-height: 0;
   overflow-y: auto;
   padding-bottom: 0.5rem;
 }
@@ -523,26 +535,57 @@ defineExpose({ openMenu })
 :global(.cmd-dialog-content) {
   padding: 0 !important;
   background: transparent !important;
+  display: flex !important;
+  flex-direction: column !important;
+  max-height: min(90dvh, 42rem) !important;
+  overflow: hidden !important;
 }
 
 .cmd-dialog-layout {
   display: flex;
   flex-direction: column;
-  max-height: min(42rem, 90vh);
-}
-
-@media (min-width: 768px) {
-  .cmd-dialog-layout {
-    flex-direction: row;
-  }
+  flex: 1;
+  min-height: 0;
+  overflow: hidden;
 }
 
 .cmd-dialog-main {
   flex: 1;
   min-width: 0;
+  min-height: 0;
   display: flex;
   flex-direction: column;
+  overflow: hidden;
+}
+
+.cmd-dialog-body {
+  flex: 1;
   min-height: 0;
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+}
+
+.cmd-dialog-results-column {
+  flex: 1;
+  min-height: 0;
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+}
+
+@media (min-width: 768px) {
+  .cmd-dialog-body {
+    flex-direction: row;
+  }
+
+  .cmd-dialog-results-column {
+    order: 1;
+  }
+
+  .cmd-dialog-sidebar {
+    order: 2;
+  }
 }
 
 .cmd-dialog-search {
@@ -625,57 +668,102 @@ defineExpose({ openMenu })
   background: color-mix(in srgb, var(--p-surface-0) 10%, transparent);
 }
 
-.cmd-dialog-divider {
-  display: none;
-  width: 1px;
-  background: color-mix(in srgb, var(--p-surface-0) 15%, transparent);
-}
-
-@media (min-width: 768px) {
-  .cmd-dialog-divider {
-    display: block;
-  }
-}
-
 .cmd-dialog-sidebar {
-  width: 100%;
-  padding: 0.75rem 0;
-  overflow-y: auto;
   flex-shrink: 0;
+  width: 100%;
+  padding: 0.5rem 0 0;
+  overflow-x: auto;
+  overflow-y: hidden;
+  -webkit-overflow-scrolling: touch;
+  scrollbar-width: none;
+  display: flex;
+  flex-direction: row;
+  align-items: flex-start;
+  gap: 0.75rem;
+  border-bottom: 1px solid color-mix(in srgb, var(--p-surface-0) 15%, transparent);
+}
+
+.cmd-dialog-sidebar::-webkit-scrollbar {
+  display: none;
 }
 
 @media (min-width: 768px) {
   .cmd-dialog-sidebar {
     width: 12rem;
-    max-height: min(36rem, 58vh);
+    flex-direction: column;
+    align-items: stretch;
+    gap: 0;
+    padding: 0.75rem 0;
+    overflow-x: hidden;
+    overflow-y: auto;
+    border-bottom: 0;
+    border-left: 1px solid color-mix(in srgb, var(--p-surface-0) 15%, transparent);
   }
 }
 
-.cmd-sidebar-section + .cmd-sidebar-section {
-  margin-top: 0.5rem;
+.cmd-sidebar-section {
+  display: flex;
+  flex-direction: row;
+  flex-wrap: wrap;
+  align-content: flex-start;
+  gap: 0.35rem;
+  flex-shrink: 0;
+  min-width: max-content;
+  padding: 0 0.75rem 0.5rem;
 }
 
 .cmd-sidebar-title {
+  flex: 0 0 100%;
   margin: 0;
-  padding: 0.5rem 1rem 0.35rem;
+  padding: 0.35rem 0 0.25rem;
   font-size: 0.6875rem;
   font-weight: 700;
   letter-spacing: 0.05em;
   text-transform: uppercase;
   color: color-mix(in srgb, var(--p-surface-0) 40%, transparent);
+  white-space: nowrap;
+}
+
+@media (min-width: 768px) {
+  .cmd-sidebar-section {
+    flex-direction: column;
+    flex-wrap: nowrap;
+    gap: 0;
+    min-width: 0;
+    padding: 0;
+  }
+
+  .cmd-sidebar-section + .cmd-sidebar-section {
+    margin-top: 0.5rem;
+  }
+
+  .cmd-sidebar-title {
+    padding: 0.5rem 1rem 0.35rem;
+  }
 }
 
 .cmd-sidebar-link {
   display: block;
-  width: 100%;
-  padding: 0.4rem 1rem;
-  border: 0;
+  width: auto;
+  padding: 0.4rem 0.75rem;
+  border: 1px solid color-mix(in srgb, var(--p-surface-0) 14%, transparent);
+  border-radius: 999px;
   background: transparent;
   text-align: left;
   font-size: 0.8125rem;
+  white-space: nowrap;
   color: color-mix(in srgb, var(--p-surface-0) 70%, transparent);
   cursor: pointer;
-  transition: color 0.12s, background 0.12s;
+  transition: color 0.12s, background 0.12s, border-color 0.12s;
+}
+
+@media (min-width: 768px) {
+  .cmd-sidebar-link {
+    width: 100%;
+    padding: 0.4rem 1rem;
+    border: 0;
+    border-radius: 0;
+  }
 }
 
 .cmd-sidebar-link:hover,
@@ -691,6 +779,16 @@ defineExpose({ openMenu })
   padding: 0.75rem 1rem;
   border-top: 1px solid color-mix(in srgb, var(--p-surface-0) 15%, transparent);
   flex-shrink: 0;
+}
+
+@media (max-width: 767px) {
+  .cmd-dialog-footer {
+    display: none;
+  }
+
+  .cmd-dialog-search .cmd-kbd {
+    display: none;
+  }
 }
 
 .cmd-footer-keys {
@@ -710,5 +808,15 @@ defineExpose({ openMenu })
 .cmd-footer-accent {
   color: var(--p-surface-0);
   font-weight: 600;
+}
+
+@media (max-width: 991px) {
+  .cmd-inline {
+    display: none;
+  }
+
+  .cmd-menu-trigger .cmd-kbd {
+    display: none;
+  }
 }
 </style>

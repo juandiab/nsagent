@@ -97,7 +97,10 @@
     >
       <div class="mobile-nav">
         <div class="mobile-nav-header">
-          <JPilot :size="40" />
+          <div class="mobile-nav-brand">
+            <JPilot :size="40" />
+            <span class="mobile-nav-title">JPilot</span>
+          </div>
           <button
             type="button"
             class="mobile-nav-close"
@@ -114,6 +117,8 @@
             :key="item.path"
             :to="item.path"
             class="mobile-nav-link"
+            active-class=""
+            exact-active-class=""
             :class="{
               'mobile-nav-link-active': isActive(item.path),
               'mobile-nav-link-busy': item.path === '/copilot' && hasActiveChatRuns
@@ -133,6 +138,8 @@
             :key="item.path"
             :to="item.path"
             class="mobile-nav-link"
+            active-class=""
+            exact-active-class=""
             :class="{ 'mobile-nav-link-active': isActive(item.path) }"
             @click="closeMobileNav"
           >
@@ -453,23 +460,6 @@ function isActive(path) {
   }
 }
 
-:global(html.app-dark) .nav-btn:hover:not(.nav-btn-active) {
-  background: var(--p-surface-700);
-  color: var(--p-text-color);
-  border-color: var(--p-content-border-color);
-}
-
-:global(html.app-dark) .nav-btn-active {
-  background: #f1f5f9;
-  color: #1e293b;
-  border-color: var(--p-content-border-color);
-  box-shadow: 0 1px 4px rgba(0, 0, 0, 0.25);
-}
-
-:global(html.app-dark) .nav-btn-active i {
-  color: #1e293b;
-}
-
 .user-avatar-btn {
   border: none;
   background: transparent;
@@ -570,6 +560,20 @@ function isActive(path) {
   margin-bottom: 0.5rem;
 }
 
+.mobile-nav-brand {
+  display: flex;
+  align-items: center;
+  gap: 0.75rem;
+  min-width: 0;
+}
+
+.mobile-nav-title {
+  font-size: 1.125rem;
+  font-weight: 700;
+  letter-spacing: -0.01em;
+  color: var(--p-text-color);
+}
+
 .mobile-nav-close {
   width: 2.25rem;
   height: 2.25rem;
@@ -627,21 +631,11 @@ function isActive(path) {
   border-color: var(--p-content-border-color);
 }
 
-.mobile-nav-link-active {
+.mobile-nav-link-active,
+.mobile-nav-link.router-link-active {
   background: var(--p-surface-100);
   border-color: var(--p-content-border-color);
   box-shadow: 0 1px 4px rgba(0, 0, 0, 0.06);
-}
-
-:global(html.app-dark) .mobile-nav-link-active {
-  background: #f1f5f9;
-  color: #1e293b;
-  border-color: var(--p-content-border-color);
-}
-
-:global(html.app-dark) .mobile-nav-link-active i,
-:global(html.app-dark) .mobile-nav-link-active span {
-  color: #1e293b;
 }
 
 .mobile-nav-link-busy {
@@ -699,7 +693,7 @@ function isActive(path) {
       max(0.875rem, env(safe-area-inset-right, 0px))
       0.5rem
       max(0.875rem, env(safe-area-inset-left, 0px));
-    background: var(--p-surface-50);
+    background: var(--p-surface-0);
     border-bottom: 1px solid var(--p-content-border-color);
     z-index: 30;
   }
@@ -717,10 +711,6 @@ function isActive(path) {
   .mobile-topbar-end {
     justify-self: end;
     justify-content: flex-end;
-  }
-
-  :global(.app-dark) .mobile-topbar {
-    background: var(--p-surface-900);
   }
 
   .mobile-topbar-btn {
@@ -748,23 +738,8 @@ function isActive(path) {
     background: var(--p-content-background);
   }
 
-  :global(html.app-dark) .mobile-topbar-menu {
-    color: var(--p-surface-0);
-    border-color: var(--p-surface-700);
-    background: var(--p-surface-800);
-  }
-
-  :global(html.app-dark) .mobile-topbar-menu i {
-    color: var(--p-surface-0);
-  }
-
   .mobile-topbar-btn:hover {
     background: var(--p-surface-100);
-  }
-
-  :global(html.app-dark) .mobile-topbar-menu:hover {
-    background: var(--p-surface-700);
-    color: var(--p-surface-0);
   }
 
   .mobile-topbar-logo {

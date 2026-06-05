@@ -168,6 +168,35 @@ html.app-dark .sidebar-panel {
   background: var(--p-surface-900);
 }
 
+html.app-dark .mobile-topbar {
+  background: var(--p-surface-950);
+  border-bottom-color: var(--p-surface-800);
+}
+
+html.app-dark .mobile-topbar-menu {
+  color: var(--p-surface-0);
+  border-color: var(--p-surface-700);
+  background: var(--p-surface-900);
+}
+
+html.app-dark .mobile-topbar-menu i {
+  color: var(--p-surface-0);
+}
+
+html.app-dark .mobile-topbar-menu:hover {
+  background: var(--p-surface-800);
+  color: var(--p-surface-0);
+}
+
+html.app-dark .mobile-topbar-btn:hover {
+  background: var(--p-surface-900);
+}
+
+html.app-dark .p-drawer.mobile-nav-drawer {
+  background: var(--p-surface-950);
+  border-color: var(--p-surface-800);
+}
+
 html.app-dark .nav-btn-active {
   background: #f1f5f9;
   color: #1e293b;
@@ -179,8 +208,42 @@ html.app-dark .nav-btn-active i {
 }
 
 html.app-dark .nav-btn:hover:not(.nav-btn-active) {
-  background: var(--p-surface-700);
-  color: var(--p-text-color);
+  background: #f1f5f9;
+  color: #1e293b;
+  border-color: var(--p-content-border-color);
+}
+
+html.app-dark .nav-btn:hover:not(.nav-btn-active) i {
+  color: #1e293b;
+}
+
+html.app-dark .mobile-nav-link:hover,
+html.app-dark .mobile-nav-link:active,
+html.app-dark .mobile-nav-link.mobile-nav-link-active {
+  background: #f1f5f9;
+  color: #1e293b;
+  border-color: #cbd5e1;
+}
+
+html.app-dark .mobile-nav-link:hover i,
+html.app-dark .mobile-nav-link:hover span,
+html.app-dark .mobile-nav-link:active i,
+html.app-dark .mobile-nav-link:active span,
+html.app-dark .mobile-nav-link.mobile-nav-link-active i,
+html.app-dark .mobile-nav-link.mobile-nav-link-active span {
+  color: #1e293b;
+}
+
+html.app-dark .mobile-nav-action:hover,
+html.app-dark .mobile-nav-action:active {
+  background: #f1f5f9;
+  color: #1e293b;
+  border-color: #cbd5e1;
+}
+
+html.app-dark .mobile-nav-action:hover i,
+html.app-dark .mobile-nav-action:hover span {
+  color: #1e293b;
 }
 
 html.app-dark .stage {
