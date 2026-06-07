@@ -20,14 +20,11 @@ $InstallerCompose  = 'docker-compose.installer.yml'
 
 function Fail($msg) { Write-Host "  $msg" -ForegroundColor Red; exit 1 }
 
-# Build an OSC 8 terminal hyperlink (clickable) when output is a real console;
-# fall back to the plain URL otherwise. Windows Terminal supports OSC 8.
 function Format-Link($url) {
   $esc = [char]27
   if (-not [Console]::IsOutputRedirected) { "$esc]8;;$url$esc\$url$esc]8;;$esc\" } else { $url }
 }
 
-# ---- locate docker compose -------------------------------------------------
 $dc = $null
 try { docker compose version *> $null; if ($LASTEXITCODE -eq 0) { $dc = @('docker','compose') } } catch {}
 if (-not $dc) {
@@ -39,7 +36,6 @@ function Compose { param([Parameter(ValueFromRemainingArguments=$true)]$Args)
   & $dc[0] @($dc[1..($dc.Count-1)] + $Args)
 }
 
-# ---- existing-install guard ------------------------------------------------
 if ((Test-Path '.env') -and (-not $Reconfigure)) {
   Write-Host "A .env file already exists - this looks like a configured install."
   Write-Host "Re-run with '-Reconfigure' to overwrite it via the wizard, or start the"
@@ -49,16 +45,53 @@ if ((Test-Path '.env') -and (-not $Reconfigure)) {
 
 if (Test-Path $Sentinel) { Remove-Item $Sentinel -Force }
 
-$installerUp = $false
-function Cleanup {
+$script:installerUp = $false
+$script:domain = 'localhost'
+
+function Cleanup-Installer {
   if ($script:installerUp) {
     Write-Host "`nShutting down the installer..."
     Compose '-f' $InstallerCompose 'down' *> $null
+    $script:installerUp = $false
   }
 }
 
+function Test-JPilotReady([string]$BaseUrl) {
+  [System.Net.ServicePointManager]::ServerCertificateValidationCallback = { $true }
+  try {
+    foreach ($path in @('/api/health', '/')) {
+      $resp = Invoke-WebRequest -Uri "$BaseUrl$path" -TimeoutSec 5 -UseBasicParsing
+      if ($resp.StatusCode -ge 200 -and $resp.StatusCode -lt 400) { return $true }
+    }
+  } catch { }
+  finally { [System.Net.ServicePointManager]::ServerCertificateValidationCallback = $null }
+  return $false
+}
+
+function Wait-JPilotReady([string]$BaseUrl) {
+  $max = if ($env:JPILOT_WAIT_MAX) { [int]$env:JPILOT_WAIT_MAX } else { 300 }
+  $interval = if ($env:JPILOT_WAIT_INTERVAL) { [int]$env:JPILOT_WAIT_INTERVAL } else { 2 }
+  for ($i = 0; $i -lt $max; $i++) {
+    if (Test-JPilotReady $BaseUrl) {
+      Write-Host ""
+      Write-Host "  [########################################] ready!"
+      return $true
+    }
+    $cap = [math]::Floor($max * 0.9)
+    $vis = [math]::Min($i, $cap)
+    $filled = [math]::Floor($vis * 40 / $max)
+    $bar = ('#' * $filled).PadRight(40, '.')
+    $elapsed = $i * $interval
+    $mins = [math]::Floor($elapsed / 60)
+    $secs = $elapsed % 60
+    Write-Host -NoNewline ("`r  [$bar] {0}m{1:D2}s  Starting JPilot services..." -f $mins, $secs)
+    Start-Sleep -Seconds $interval
+  }
+  Write-Host ""
+  return $false
+}
+
 try {
-  # ---- launch the wizard ---------------------------------------------------
   Write-Host "Building and starting the setup wizard..."
   Compose '-f' $InstallerCompose 'up' '-d' '--build'
   $script:installerUp = $true
@@ -76,52 +109,44 @@ try {
   Write-Host ""
   Write-Host "Waiting for you to finish the wizard (Ctrl-C to abort)..."
 
-  # ---- wait for the wizard to finish ---------------------------------------
   while (-not (Test-Path $Sentinel)) { Start-Sleep -Seconds 2 }
 
-  $domain = (Get-Content $Sentinel -TotalCount 1).Trim()
-  if ([string]::IsNullOrWhiteSpace($domain)) { $domain = 'localhost' }
+  $script:domain = (Get-Content $Sentinel -TotalCount 1).Trim()
+  if ([string]::IsNullOrWhiteSpace($script:domain)) { $script:domain = 'localhost' }
 
   Write-Host ""
-  Write-Host "Configuration received. Stopping the installer..."
-  Compose '-f' $InstallerCompose 'down' *> $null
-  $script:installerUp = $false
-}
-finally {
-  Cleanup
-}
+  Write-Host "Configuration received."
+  Write-Host "Keep the setup tab open in your browser - JPilot will open automatically when ready."
 
-# ---- launch the real stack -------------------------------------------------
-Write-Host "Launching JPilot..."
-& "$PSScriptRoot\compose.ps1" up -d --build
+  $appUrl = "https://$($script:domain)"
 
-if (Test-Path $Sentinel) { Remove-Item $Sentinel -Force }
+  Write-Host ""
+  Write-Host "  Building containers in the background (watch progress in your browser)..."
+  & "$PSScriptRoot\compose.ps1" up -d --build
 
-Write-Host ""
-Write-Host "  JPilot is starting at  $(Format-Link "https://$domain")" -ForegroundColor Green
-Write-Host ""
-Write-Host "  * The first boot may take a few seconds while services come up."
-Write-Host "  * Sign in with the admin account you just created."
-Write-Host "  * View logs with:   .\compose.ps1 logs -f"
-Write-Host "  * Stop with:        .\compose.ps1 down"
-Write-Host ""
+  Write-Host ""
+  Write-Host "  Waiting for JPilot to finish starting..."
+  $ready = Wait-JPilotReady $appUrl
 
-# ---- open the app in a browser (best effort) -------------------------------
-# Only auto-open for a local install; set $env:JPILOT_NO_OPEN=1 to disable.
-if ((-not $env:JPILOT_NO_OPEN) -and ($domain -eq 'localhost' -or $domain -like '127.*' -or $domain -eq '::1')) {
-  [System.Net.ServicePointManager]::ServerCertificateValidationCallback = { $true }
-  Write-Host -NoNewline "  Waiting for JPilot to be ready"
-  $opened = $false
-  for ($i = 0; $i -lt 60; $i++) {
-    try {
-      Invoke-WebRequest -Uri 'https://localhost/' -TimeoutSec 2 -UseBasicParsing *> $null
-      Write-Host " done.`n  Opening your browser..."
-      Start-Process "https://$domain"
-      $opened = $true
-      break
-    } catch { Write-Host -NoNewline '.'; Start-Sleep -Seconds 2 }
+  if ($ready) { Start-Sleep -Seconds 3 }
+
+  Write-Host "Closing the setup wizard..."
+  Cleanup-Installer
+  if (Test-Path $Sentinel) { Remove-Item $Sentinel -Force }
+
+  Write-Host ""
+  if ($ready) {
+    Write-Host "  JPilot is ready at  $(Format-Link $appUrl)" -ForegroundColor Green
+  } else {
+    Write-Host "  JPilot is still starting - open when ready:  $(Format-Link $appUrl)" -ForegroundColor Yellow
   }
-  if (-not $opened) { Write-Host "`n  Still starting - open the link above when ready." }
-  [System.Net.ServicePointManager]::ServerCertificateValidationCallback = $null
   Write-Host ""
+  Write-Host "  * Sign in with the admin account you created in the wizard."
+  Write-Host "  * View logs with:   .\compose.ps1 logs -f"
+  Write-Host "  * Stop with:        .\compose.ps1 down"
+  Write-Host ""
+}
+catch {
+  Cleanup-Installer
+  throw
 }

@@ -183,16 +183,83 @@ async function install() {
   }
 }
 
+const LAUNCH_POLL_MS = 2000;
+const LAUNCH_MAX_POLLS = 300;
+
+function formatElapsed(seconds) {
+  const mins = Math.floor(seconds / 60);
+  const secs = seconds % 60;
+  return `${mins}:${String(secs).padStart(2, "0")} elapsed`;
+}
+
+function sleep(ms) {
+  return new Promise((resolve) => setTimeout(resolve, ms));
+}
+
+function showLaunchReady(appUrl, username) {
+  $("doneTitle").textContent = "JPilot is ready!";
+  $("launchPanel").classList.add("hidden");
+  show($("readyPanel"));
+  $("launchFill").style.width = "100%";
+  $("doneMsg").innerHTML =
+    `Sign in as <strong>${escapeHtml(username)}</strong>. Passkeys can be enrolled later from ` +
+    `<strong>Settings</strong>. Need help? Visit ` +
+    `<a href="https://www.nexxus-tech.com" target="_blank" rel="noopener noreferrer">nexxus-tech.com</a>.`;
+  const openBtn = $("openApp");
+  openBtn.href = appUrl;
+  show(openBtn);
+  setTimeout(() => {
+    window.location.href = appUrl;
+  }, 2500);
+}
+
+async function pollLaunchProgress(appUrl, username) {
+  const fill = $("launchFill");
+  const status = $("launchStatus");
+  const elapsedEl = $("launchElapsed");
+  fill.style.width = "8%";
+  status.textContent = "Building JPilot — please keep this tab open.";
+
+  for (let n = 0; n < LAUNCH_MAX_POLLS; n++) {
+    try {
+      const res = await fetch("/api/launch-status");
+      const data = await res.json();
+      if (data.elapsed_seconds != null) {
+        elapsedEl.textContent = formatElapsed(data.elapsed_seconds);
+      }
+      if (data.message) status.textContent = data.message;
+      if (data.ready && data.app_url) {
+        showLaunchReady(data.app_url, username);
+        return;
+      }
+    } catch (e) {
+      status.textContent = "Still starting JPilot…";
+    }
+    const pct = Math.min(92, 8 + (n / LAUNCH_MAX_POLLS) * 84);
+    fill.style.width = `${pct}%`;
+    await sleep(LAUNCH_POLL_MS);
+  }
+
+  $("doneTitle").textContent = "Still starting…";
+  status.textContent =
+    "This is taking longer than usual. Use the button below to open JPilot when you're ready.";
+  $("openApp").href = appUrl;
+  show($("openApp"));
+}
+
 function showDone(data) {
   document.querySelectorAll(".step").forEach(hide);
+  hide($("readyPanel"));
+  show($("launchPanel"));
+  $("doneTitle").textContent = "Setting up JPilot";
+  $("launchFill").style.width = "4%";
+  $("launchStatus").textContent = "Saving your configuration…";
+  $("launchElapsed").textContent = "";
+  hide($("openApp"));
+
   $("sec_enc").textContent = data.secrets.NSAGENT_ENCRYPTION_KEY;
   $("sec_jwt").textContent = data.secrets.JWT_SECRET_KEY;
-  $("doneMsg").innerHTML =
-    `Your terminal is now launching JPilot at <code>${escapeHtml(data.app_url)}</code>. ` +
-    `The first boot takes about a minute — use the button below once it's up, and sign ` +
-    `in with <strong>${escapeHtml(collect().admin_username)}</strong>. Passkeys can be enrolled afterwards from ` +
-    `<strong>Settings</strong>.`;
-  $("openApp").href = data.app_url;
+  $("doneMsg").textContent = "";
   const blob = new Blob(
     [`NSAGENT_ENCRYPTION_KEY=${data.secrets.NSAGENT_ENCRYPTION_KEY}\n` +
      `JWT_SECRET_KEY=${data.secrets.JWT_SECRET_KEY}\n`],
@@ -201,6 +268,7 @@ function showDone(data) {
   state.step = STEP_NAMES.length;
   renderRail();
   show($("done"));
+  pollLaunchProgress(data.app_url, collect().admin_username);
 }
 
 // ---------------------------------------------------------------- wiring

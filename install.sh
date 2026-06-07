@@ -92,55 +92,95 @@ done
 
 DOMAIN=$(head -n1 "$SENTINEL" 2>/dev/null || echo "localhost")
 echo ""
-echo "Configuration received. Stopping the installer..."
-$DC -f "$INSTALLER_COMPOSE" down >/dev/null 2>&1 || true
+echo "Configuration received."
+echo "Keep the setup tab open in your browser — JPilot will open automatically when ready."
 trap - EXIT INT TERM
 
 # ---- launch the real stack -------------------------------------------------
-echo "Launching JPilot..."
+APP_URL="https://$DOMAIN"
+JPILOT_WAIT_MAX="${JPILOT_WAIT_MAX:-300}"   # attempts; 2s each (~10 min default)
+JPILOT_WAIT_INTERVAL="${JPILOT_WAIT_INTERVAL:-2}"
+
+jpilot_http_ready() {
+  _url="$1"
+  _code=$(curl -sk -o /dev/null -w "%{http_code}" --max-time 5 "${_url}/api/health" 2>/dev/null || echo 000)
+  case "$_code" in 200) return 0 ;; esac
+  _code=$(curl -sk -o /dev/null -w "%{http_code}" --max-time 5 "${_url}/" 2>/dev/null || echo 000)
+  case "$_code" in 200|301|302|304) return 0 ;; esac
+  return 1
+}
+
+render_startup_progress() {
+  _n="$1"
+  _max="$2"
+  _cap=$((_max * 9 / 10))
+  _vis=$_n
+  [ "$_vis" -gt "$_cap" ] && _vis=$_cap
+  _filled=$((_vis * 40 / _max))
+  _bar=""
+  _i=0
+  while [ "$_i" -lt 40 ]; do
+    if [ "$_i" -lt "$_filled" ]; then _bar="${_bar}█"; else _bar="${_bar}░"; fi
+    _i=$((_i + 1))
+  done
+  _elapsed=$((_n * JPILOT_WAIT_INTERVAL))
+  _mins=$((_elapsed / 60))
+  _secs=$((_elapsed % 60))
+  if [ -t 1 ]; then
+    printf '\r  [%s] %dm%02ds  Starting JPilot services...' "$_bar" "$_mins" "$_secs"
+  else
+    printf '\n  [%s] %dm%02ds  Starting JPilot services...\n' "$_bar" "$_mins" "$_secs"
+  fi
+}
+
+wait_for_jpilot() {
+  _url="$1"
+  _n=0
+  while [ "$_n" -lt "$JPILOT_WAIT_MAX" ]; do
+    if jpilot_http_ready "$_url"; then
+      if [ -t 1 ]; then
+        printf '\r  [████████████████████████████████████████] ready!          \n'
+      else
+        printf '\n  JPilot is responding.\n'
+      fi
+      return 0
+    fi
+    render_startup_progress "$_n" "$JPILOT_WAIT_MAX"
+    sleep "$JPILOT_WAIT_INTERVAL"
+    _n=$((_n + 1))
+  done
+  if [ -t 1 ]; then printf '\n' ; fi
+  return 1
+}
+
+printf '\n  Building containers in the background (watch progress in your browser)...\n'
 ./compose.sh up -d --build
 
+printf '\n  Waiting for JPilot to finish starting...\n'
+
+_ready=0
+if wait_for_jpilot "$APP_URL"; then
+  _ready=1
+fi
+
+# Give the browser a moment to redirect before we stop the setup wizard.
+if [ "$_ready" -eq 1 ]; then
+  sleep 3
+fi
+
+echo "Closing the setup wizard..."
+$DC -f "$INSTALLER_COMPOSE" down >/dev/null 2>&1 || true
 rm -f "$SENTINEL"
 
-APP_URL="https://$DOMAIN"
-
-printf '\n  ✅ JPilot is starting at  '
+printf '\n'
+if [ "$_ready" -eq 1 ]; then
+  printf '  ✅ JPilot is ready at  '
+else
+  printf '  ⚠ JPilot is still starting — open when ready:  '
+fi
 osc8_link "$APP_URL"
 printf '\n\n'
-printf '  • The first boot may take a few seconds while services come up.\n'
-printf '  • Sign in with the admin account you just created.\n'
+printf '  • Sign in with the admin account you created in the wizard.\n'
 printf '  • View logs with:   ./compose.sh logs -f\n'
 printf '  • Stop with:        ./compose.sh down\n'
 printf '\n'
-
-# ---- open the app in a browser (best effort) -------------------------------
-# Only auto-open when the app is reachable on this machine (localhost). For a
-# custom domain the operator usually browses from elsewhere, so we just leave
-# the clickable link above. Set JPILOT_NO_OPEN=1 to disable entirely.
-open_url() {
-  case "$(uname -s 2>/dev/null)" in
-    Darwin) command -v open     >/dev/null 2>&1 && open "$1"     >/dev/null 2>&1 ;;
-    Linux)  command -v xdg-open >/dev/null 2>&1 && xdg-open "$1" >/dev/null 2>&1 ;;
-  esac
-}
-
-if [ -z "${JPILOT_NO_OPEN:-}" ]; then
-  case "$DOMAIN" in
-    localhost|127.*|::1)
-      printf '  Waiting for JPilot to be ready'
-      _n=0; _opened=0
-      while [ "$_n" -lt 60 ]; do
-        if curl -sk -o /dev/null --max-time 2 "https://localhost/" 2>/dev/null; then
-          printf ' done.\n  Opening your browser...\n\n'
-          open_url "$APP_URL"; _opened=1
-          break
-        fi
-        printf '.'; sleep 2; _n=$((_n + 1))
-      done
-      if [ "$_opened" -eq 0 ]; then
-        printf '\n  Still starting — open the link above when ready.\n\n'
-      fi
-      ;;
-    *) : ;;                                 # custom domain: rely on the printed link
-  esac
-fi

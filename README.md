@@ -8,7 +8,7 @@ Repository: [github.com/Nexxus-Tech-SAS/jpilot](https://github.com/Nexxus-Tech-S
 
 > **Disclaimer:** JPilot is an independent project and is not affiliated with, endorsed by, or sponsored by Citrix Systems, Inc. NetScaler is a trademark of Citrix Systems, Inc.
 
-**Current release:** `v0.38` — Installer overhaul, `jpilot` Docker project name, and repository move to Nexxus Tech.
+**Current release:** `v0.39` — Interactive web installer launch progress; opens JPilot only when Docker is ready.
 
 Bump the root [`VERSION`](VERSION) file when tagging a release so in-app update checks match GitHub.
 
@@ -40,6 +40,14 @@ Bump the root [`VERSION`](VERSION) file when tagging a release so in-app update 
 - **NetScaler SDX (SSH)** — Operator and Analyst for SVM platform and VPX lifecycle with `search_sdx_cli_reference` memory gate (beta).
 - **F5 BIG-IP (SSH / TMSH)** — Operator, Analyst, and Architect (official F5 docs only); `f5_*` MCP tools and `search_f5_tmsh_reference` / `search_f5_documentation` (beta).
 - **Nexxus licensing** — Settings → **License**: enter a license code, import an offline `.lic` file, or sync with the Nexxus licensing API; installation fingerprint binding; encrypted payload validation; daily background sync and expiry enforcement; **activation gate** redirects unlicensed or expired installs to Settings → License before using the app.
+
+## What's new in v0.39
+
+| Area | Highlights |
+|------|------------|
+| **Web installer launch** | After **Install JPilot**, the setup tab shows a progress bar and plain-language status while Docker builds; **keep this tab open**. |
+| **Ready before open** | The wizard polls until JPilot responds on `/api/health`, then **redirects automatically** — no more broken “page not found” on first boot. |
+| **Bootstrap URLs** | `get.sh` / `get.ps1` use canonical `Nexxus-Tech-SAS` org casing so `raw.githubusercontent.com` serves the current installer. |
 
 ## What's new in v0.38
 
@@ -408,8 +416,9 @@ starts the setup wizard. Then:
    (production or development), and TLS (self-signed or your own cert).
 3. On **Review**, accept the legal terms, then **save the generated `NSAGENT_ENCRYPTION_KEY`** — it is
    required to restore or migrate the install and cannot be recovered.
-4. Click **Install JPilot**. The wizard writes `.env` and `nginx/ssl/`, and your
-   terminal automatically launches the full stack and opens it in your browser.
+4. Click **Install JPilot**. **Keep the setup tab open** — a progress bar runs while Docker
+   builds; your browser opens JPilot automatically once the stack is ready (first boot is
+   often 1–3 minutes).
 5. Sign in at **https://&lt;your-domain&gt;** with the admin account you created.
 
 > **Clone manually instead?** `git clone https://github.com/Nexxus-Tech-SAS/jpilot.git` then

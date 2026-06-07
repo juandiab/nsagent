@@ -186,12 +186,27 @@
           <button class="btn primary" id="installBtn" disabled>Install JPilot</button></div>
       </section>
 
-      <!-- Done -->
+      <!-- Done / launching -->
       <section class="panel hidden" id="done">
-        <h1>✅ Configuration saved</h1>
+        <h1 id="doneTitle">Setting up JPilot</h1>
+
+        <div class="launch-panel" id="launchPanel">
+          <p class="launch-lead">Please <strong>keep this tab open</strong>. We're installing JPilot for you.</p>
+          <div class="launch-progress-track" aria-hidden="true">
+            <div class="launch-progress-fill" id="launchFill"></div>
+          </div>
+          <p class="launch-status" id="launchStatus" role="status">Saving your configuration…</p>
+          <p class="launch-elapsed muted" id="launchElapsed"></p>
+          <p class="launch-hint">First install usually takes <strong>1–3 minutes</strong>. You'll be taken to JPilot automatically when it's ready.</p>
+        </div>
+
+        <div class="launch-ready hidden" id="readyPanel">
+          <p class="launch-ready-msg">✅ <strong>JPilot is ready!</strong> Taking you there now…</p>
+        </div>
+
         <div class="secrets">
-          <p class="warn">⚠ Save these secrets now. You need the encryption key to restore or
-            migrate this installation — it cannot be recovered later.</p>
+          <p class="warn">⚠ While you wait, save these secrets — you need the encryption key to restore or
+            migrate this installation later.</p>
           <div class="secret-row">
             <span class="secret-label">NSAGENT_ENCRYPTION_KEY</span>
             <code id="sec_enc"></code>
@@ -207,7 +222,7 @@
         <p class="muted" id="doneMsg"></p>
         <div class="actions">
           <span></span>
-          <a class="btn primary" id="openApp" target="_blank" rel="noopener">Open JPilot →</a>
+          <a class="btn primary hidden" id="openApp" href="#" rel="noopener">Open JPilot →</a>
         </div>
         <div class="done-support">
           <a class="nexxus-lockup done-nexxus" href="https://www.nexxus-tech.com" target="_blank" rel="noopener noreferrer">

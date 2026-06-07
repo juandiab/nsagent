@@ -13,6 +13,10 @@ import ipaddress
 import os
 import re
 import secrets
+import ssl
+import time
+import urllib.error
+import urllib.request
 from pathlib import Path
 
 from cryptography import x509
@@ -276,10 +280,78 @@ def render_env(req: InstallRequest, encryption_key: str, jwt_secret: str) -> str
     return "\n".join(lines)
 
 
+def _launch_domain() -> str | None:
+    if not SENTINEL_PATH.is_file():
+        return None
+    line = SENTINEL_PATH.read_text(encoding="utf-8").strip().splitlines()[0].strip()
+    return line or "localhost"
+
+
+def _app_base_url(domain: str) -> str:
+    cleaned = domain.strip() or "localhost"
+    if cleaned in ("localhost", "127.0.0.1", "::1") or cleaned.startswith("127."):
+        return "https://host.docker.internal"
+    return f"https://{cleaned}"
+
+
+def app_is_ready(domain: str) -> bool:
+    base = _app_base_url(domain)
+    ctx = ssl.create_default_context()
+    ctx.check_hostname = False
+    ctx.verify_mode = ssl.CERT_NONE
+    for path in ("/api/health", "/"):
+        try:
+            with urllib.request.urlopen(
+                f"{base}{path}", context=ctx, timeout=5
+            ) as resp:
+                if resp.status in (200, 301, 302, 304):
+                    return True
+        except (urllib.error.URLError, TimeoutError, OSError):
+            continue
+    return False
+
+
+def _launch_message(elapsed: int, ready: bool) -> str:
+    if ready:
+        return "JPilot is ready! Opening your app…"
+    if elapsed < 15:
+        return "Building JPilot — please keep this tab open."
+    if elapsed < 60:
+        return "Starting services — first install can take a few minutes."
+    if elapsed < 180:
+        return "Almost there — hang tight, we're still starting JPilot."
+    return "Still working… large installs can take up to 10 minutes."
+
+
 # ----------------------------------------------------------------------- routes
 @app.get("/api/status")
 def status():
     return {"already_installed": ENV_PATH.exists()}
+
+
+@app.get("/api/launch-status")
+def launch_status():
+    domain = _launch_domain()
+    if domain is None:
+        return {
+            "ready": False,
+            "phase": "waiting",
+            "message": "Waiting for your configuration…",
+            "app_url": None,
+            "elapsed_seconds": 0,
+        }
+    app_url = f"https://{domain}"
+    elapsed = 0
+    if SENTINEL_PATH.is_file():
+        elapsed = max(0, int(time.time() - SENTINEL_PATH.stat().st_mtime))
+    ready = app_is_ready(domain)
+    return {
+        "ready": ready,
+        "phase": "ready" if ready else "starting",
+        "message": _launch_message(elapsed, ready),
+        "app_url": app_url,
+        "elapsed_seconds": elapsed,
+    }
 
 
 @app.post("/api/validate-cert")
