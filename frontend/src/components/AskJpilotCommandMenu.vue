@@ -62,8 +62,16 @@
       dismissable-mask
       modal
       :show-header="false"
-      :breakpoints="{ '960px': '92vw', '640px': '95vw' }"
-      :style="{ width: '56rem', maxWidth: '95vw' }"
+      :draggable="false"
+      :breakpoints="{ '1199px': '92vw', '767px': '96vw' }"
+      :style="{ width: '60rem', maxWidth: '92vw' }"
+      :content-style="{
+        padding: 0,
+        overflow: 'hidden',
+        display: 'flex',
+        flexDirection: 'column',
+        width: '100%'
+      }"
       class="cmd-dialog"
       content-class="cmd-dialog-content"
       append-to="body"
@@ -201,7 +209,8 @@ const selectedIndex = ref(0)
 const searchInputRef = ref(null)
 const resultsEl = ref(null)
 
-const inlinePerSection = 3
+/** Inline list only renders on desktop (see CSS); show more rows there. */
+const inlinePerSection = 5
 
 const filterOpts = computed(() => ({
   tab: selectedTab.value,
@@ -433,6 +442,45 @@ defineExpose({ openMenu })
   overflow-y: auto;
 }
 
+@media (min-width: 992px) {
+  .cmd-inline {
+    padding: 0.25rem 0.15rem 0;
+  }
+
+  .cmd-results-inline {
+    max-height: min(34rem, 58vh);
+    padding-right: 0.35rem;
+  }
+
+  .cmd-result {
+    padding: 0.7rem 0.75rem;
+    gap: 0.85rem;
+  }
+
+  .cmd-result-icon {
+    width: 2.5rem;
+    height: 2.5rem;
+  }
+
+  .cmd-result-title {
+    font-size: 0.9375rem;
+  }
+
+  .cmd-result-sub {
+    font-size: 0.8125rem;
+    line-height: 1.45;
+  }
+
+  .cmd-section-head {
+    padding: 0.85rem 0.75rem 0.35rem;
+    font-size: 0.8125rem;
+  }
+
+  .cmd-tabs .cmd-tab {
+    padding: 0.75rem 1rem;
+  }
+}
+
 .cmd-results-dialog {
   flex: 1;
   min-height: 0;
@@ -529,34 +577,57 @@ defineExpose({ openMenu })
   text-decoration: underline;
 }
 
-:global(.cmd-dialog) {
+:global(.p-dialog.cmd-dialog) {
+  width: 60rem !important;
+  max-width: 92vw !important;
+  min-width: min(42rem, 92vw) !important;
   border: none !important;
   border-radius: 0.85rem !important;
   overflow: hidden !important;
-  background: color-mix(in srgb, var(--p-surface-900) 72%, transparent) !important;
+  background: color-mix(in srgb, var(--p-surface-900) 88%, transparent) !important;
   backdrop-filter: blur(20px);
   box-shadow: 0 24px 64px rgb(0 0 0 / 45%) !important;
 }
 
-:global(.cmd-dialog-content) {
+@media (max-width: 767px) {
+  :global(.p-dialog.cmd-dialog) {
+    min-width: 0 !important;
+    width: 96vw !important;
+    max-width: 96vw !important;
+  }
+}
+
+:global(.p-dialog.cmd-dialog .p-dialog-content),
+:global(.p-dialog.cmd-dialog .cmd-dialog-content) {
   padding: 0 !important;
   background: transparent !important;
   display: flex !important;
   flex-direction: column !important;
+  width: 100% !important;
   max-height: min(90dvh, 42rem) !important;
   overflow: hidden !important;
 }
 
-:global(.cmd-dialog) .cmd-dialog-layout {
+@media (min-width: 992px) {
+  :global(.p-dialog.cmd-dialog .p-dialog-content),
+  :global(.p-dialog.cmd-dialog .cmd-dialog-content) {
+    max-height: min(90dvh, 52rem) !important;
+  }
+}
+
+:global(.p-dialog.cmd-dialog) .cmd-dialog-layout {
   display: flex;
   flex-direction: column;
   flex: 1;
+  width: 100%;
+  min-width: 0;
   min-height: 0;
   overflow: hidden;
 }
 
-:global(.cmd-dialog) .cmd-dialog-main {
+:global(.p-dialog.cmd-dialog) .cmd-dialog-main {
   flex: 1;
+  width: 100%;
   min-width: 0;
   min-height: 0;
   display: flex;
@@ -564,7 +635,7 @@ defineExpose({ openMenu })
   overflow: hidden;
 }
 
-:global(.cmd-dialog) .cmd-dialog-body {
+:global(.p-dialog.cmd-dialog) .cmd-dialog-body {
   flex: 1;
   min-height: 0;
   min-width: 0;
@@ -574,23 +645,24 @@ defineExpose({ openMenu })
   overflow: hidden;
 }
 
-:global(.cmd-dialog) .cmd-dialog-results-column {
+:global(.p-dialog.cmd-dialog) .cmd-dialog-results-column {
   flex: 1 1 auto;
   min-height: 0;
   min-width: 0;
+  width: 100%;
   display: flex;
   flex-direction: column;
   overflow: hidden;
 }
 
 @media (min-width: 768px) {
-  :global(.cmd-dialog) .cmd-dialog-body {
+  :global(.p-dialog.cmd-dialog) .cmd-dialog-body {
     flex-direction: row;
     align-items: stretch;
   }
 }
 
-:global(.cmd-dialog) .cmd-dialog-sidebar {
+:global(.p-dialog.cmd-dialog) .cmd-dialog-sidebar {
   flex: 0 0 auto;
   width: 100%;
   max-height: 11rem;
@@ -604,30 +676,30 @@ defineExpose({ openMenu })
 }
 
 @media (min-width: 768px) {
-  :global(.cmd-dialog) .cmd-dialog-sidebar {
-    flex: 0 0 13.5rem;
-    width: 13.5rem;
-    max-width: 13.5rem;
+  :global(.p-dialog.cmd-dialog) .cmd-dialog-sidebar {
+    flex: 0 0 14rem;
+    width: 14rem;
+    max-width: 14rem;
     max-height: none;
-    padding: 0.75rem 0;
+    padding: 0.85rem 0;
     border-bottom: 0;
     border-left: 1px solid color-mix(in srgb, var(--p-surface-0) 15%, transparent);
   }
 }
 
-:global(.cmd-dialog) .cmd-sidebar-section {
+:global(.p-dialog.cmd-dialog) .cmd-sidebar-section {
   display: block;
   width: 100%;
   box-sizing: border-box;
 }
 
-:global(.cmd-dialog) .cmd-sidebar-section + .cmd-sidebar-section {
+:global(.p-dialog.cmd-dialog) .cmd-sidebar-section + .cmd-sidebar-section {
   margin-top: 0.55rem;
   padding-top: 0.55rem;
   border-top: 1px solid color-mix(in srgb, var(--p-surface-0) 10%, transparent);
 }
 
-:global(.cmd-dialog) .cmd-sidebar-title {
+:global(.p-dialog.cmd-dialog) .cmd-sidebar-title {
   display: block;
   margin: 0;
   padding: 0.35rem 1rem 0.3rem;
@@ -639,7 +711,7 @@ defineExpose({ openMenu })
   line-height: 1.3;
 }
 
-:global(.cmd-dialog) .cmd-sidebar-link {
+:global(.p-dialog.cmd-dialog) .cmd-sidebar-link {
   display: block;
   width: 100%;
   box-sizing: border-box;
@@ -658,8 +730,8 @@ defineExpose({ openMenu })
   transition: color 0.12s, background 0.12s;
 }
 
-:global(.cmd-dialog) .cmd-sidebar-link:hover,
-:global(.cmd-dialog) .cmd-sidebar-link-active {
+:global(.p-dialog.cmd-dialog) .cmd-sidebar-link:hover,
+:global(.p-dialog.cmd-dialog) .cmd-sidebar-link-active {
   color: var(--p-surface-0);
   background: color-mix(in srgb, var(--p-surface-0) 8%, transparent);
 }
@@ -722,9 +794,23 @@ defineExpose({ openMenu })
   color: color-mix(in srgb, var(--p-primary-300) 90%, white);
 }
 
-.cmd-dialog-main .cmd-result {
-  padding-left: 1rem;
-  padding-right: 1rem;
+:global(.p-dialog.cmd-dialog) .cmd-dialog-main .cmd-result {
+  padding: 0.7rem 1rem;
+  gap: 0.85rem;
+}
+
+:global(.p-dialog.cmd-dialog) .cmd-dialog-main .cmd-result-body {
+  min-width: 0;
+}
+
+:global(.p-dialog.cmd-dialog) .cmd-dialog-main .cmd-result-title {
+  white-space: normal;
+  overflow-wrap: anywhere;
+}
+
+:global(.p-dialog.cmd-dialog) .cmd-dialog-main .cmd-result-sub {
+  white-space: normal;
+  overflow-wrap: anywhere;
 }
 
 .cmd-dialog-main .cmd-result-title {

@@ -12,6 +12,8 @@ ssl/*
 *.pem
 *.key
 *.crt
+*.crt.bak
+*.key.bak
 *.cer
 *.p12
 *.pfx

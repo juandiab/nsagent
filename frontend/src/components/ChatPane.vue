@@ -1,7 +1,11 @@
 <template>
   <div
     class="chat-pane flex flex-column flex-1"
-    :class="{ 'pane-empty': !session.messages.length, 'pane-generating': isGenerating }"
+    :class="{
+      'pane-empty': !session.messages.length,
+      'pane-generating': isGenerating,
+      'chat-pane-beta': uiVariant === 'beta'
+    }"
     @mousedown="markPaneFocused"
     @focusin="markPaneFocused"
   >
@@ -17,6 +21,320 @@
     <input ref="configInputRef" type="file" :accept="configAccept" multiple hidden @change="onConfigSelected" />
     <Menu ref="attachMenu" :model="attachMenuItems" popup />
 
+    <!-- Beta chat UI (Diamond ChatBox-style) -->
+    <template v-if="uiVariant === 'beta'">
+      <div class="beta-shell flex flex-column h-full">
+        <div class="beta-header">
+          <div class="beta-header-identity">
+            <div class="beta-avatar-wrap">
+              <img src="/jpilot-favicon.png" alt="JPilot" class="beta-avatar" />
+              <span
+                class="beta-status-dot"
+                :class="{
+                  'beta-status-active': session.connectedAppliance && isApplianceConnected(),
+                  'beta-status-busy': isGenerating,
+                  'beta-status-away': session.applianceChoice && !isApplianceConnected()
+                }"
+              />
+            </div>
+            <div class="beta-header-copy">
+              <span class="beta-title">JPilot · {{ activeRole.label }}</span>
+              <span class="beta-subtitle">{{ betaStatusLine }}</span>
+            </div>
+          </div>
+          <div class="beta-header-actions">
+            <Button
+              v-if="isGenerating"
+              v-tooltip.bottom="'Stop generating'"
+              icon="pi pi-stop"
+              severity="danger"
+              outlined
+              rounded
+              @click="stopChat"
+            />
+            <Button
+              v-if="webSearchAvailable && !isGenerating"
+              v-tooltip.bottom="session.webSearch ? 'Web search on' : 'Web search off'"
+              :icon="session.webSearch ? 'pi pi-globe' : 'pi pi-ban'"
+              outlined
+              severity="secondary"
+              rounded
+              class="beta-header-action-spaced"
+              @click="session.webSearch = !session.webSearch"
+            />
+            <Button
+              v-tooltip.bottom="'Chat options'"
+              icon="pi pi-ellipsis-v"
+              outlined
+              severity="secondary"
+              rounded
+              @click="toggleBetaOptions"
+            />
+          </div>
+        </div>
+
+        <Popover ref="betaOptionsOp" class="beta-options-popover">
+          <div class="beta-options-panel">
+            <div class="beta-options-group">
+              <span class="beta-options-label">Role</span>
+              <SelectButton
+                v-model="session.role"
+                :options="roleOptions"
+                option-value="id"
+                data-key="id"
+                :allow-empty="false"
+                class="beta-role-toggle"
+                :disabled="isGenerating"
+                aria-label="JPilot role"
+              >
+                <template #option="slotProps">
+                  <i
+                    :class="slotProps.option.icon"
+                    v-tooltip.bottom="roleOptionTooltip(slotProps.option)"
+                    :aria-label="slotProps.option.label"
+                  />
+                </template>
+              </SelectButton>
+            </div>
+            <div class="beta-options-group">
+              <span class="beta-options-label">Appliance</span>
+              <Select
+                v-model="session.applianceChoice"
+                :options="roleApplianceOptions"
+                option-value="name"
+                :placeholder="roleNeedsAppliance ? 'Appliance' : 'Appliance (optional)'"
+                class="beta-select beta-select-appliance w-full"
+                :disabled="isGenerating || connecting || !roleApplianceOptions.length"
+                :option-disabled="(appliance) => isApplianceDisabledForRole(appliance, session.role)"
+                @change="onApplianceChange"
+              >
+                <template #option="{ option }">
+                  <ApplianceNameLabel :appliance="option" />
+                </template>
+                <template #value="{ placeholder }">
+                  <ApplianceNameLabel v-if="selectedAppliance" :appliance="selectedAppliance" />
+                  <span v-else>{{ placeholder }}</span>
+                </template>
+              </Select>
+            </div>
+            <div v-if="roleProviders.length > 1" class="beta-options-group">
+              <span class="beta-options-label">Model</span>
+              <Select
+                v-model="session.providerId"
+                :options="providerOptions"
+                option-label="label"
+                option-value="value"
+                placeholder="LLM"
+                class="beta-select w-full"
+                :disabled="isGenerating"
+              />
+            </div>
+            <div v-if="activeProvider" class="beta-options-group beta-options-context">
+              <ContextUsageRing
+                :percent-used="contextUsage.percentUsed"
+                :prompt-tokens="contextUsage.promptTokens"
+                :context-token-limit="contextUsage.contextTokenLimit"
+                :trimmed-count="contextUsage.trimmedCount"
+                :max-history-messages="contextUsage.maxHistoryMessages"
+                :model="activeProvider.model"
+              />
+            </div>
+            <div class="beta-options-actions">
+              <Button
+                v-if="session.messages.length"
+                label="Clear conversation"
+                icon="pi pi-eraser"
+                size="small"
+                severity="secondary"
+                outlined
+                :disabled="isGenerating"
+                @click="clearBetaConversation"
+              />
+              <Button
+                label="JPilot settings"
+                icon="pi pi-cog"
+                size="small"
+                severity="secondary"
+                outlined
+                @click="router.push('/settings?section=jpilot'); closeBetaOptions()"
+              />
+            </div>
+          </div>
+        </Popover>
+
+        <div ref="messagesEl" class="beta-messages user-message-container">
+          <div v-if="!session.messages.length" class="beta-empty">
+            <p class="beta-empty-title">Ask JPilot — {{ activeRole.label }}</p>
+            <p class="beta-empty-hint">{{ activeRole.description }}</p>
+            <AskJpilotCommandMenu
+              ref="commandMenuRef"
+              :active-role="session.role"
+              :appliance-vendor="commandMenuVendor"
+              :disabled="isGenerating || !ready"
+              @pick="onCommandPick"
+            />
+            <p v-if="!ready" class="beta-empty-note">
+              No LLM assigned to {{ activeRole.label }} — configure one in Settings → AI Providers.
+            </p>
+            <p v-else-if="activeProviderName" class="beta-empty-note">
+              <i class="pi pi-sparkles" aria-hidden="true" />
+              Using <strong>{{ activeProviderName }}</strong>
+            </p>
+          </div>
+
+          <template v-else>
+            <div v-for="(msg, index) in session.messages" :key="index">
+              <div v-if="msg.role !== 'user'" class="beta-msg-grid beta-msg-grid-assistant">
+                <div class="beta-msg-avatar-col">
+                  <img src="/jpilot-favicon.png" alt="JPilot" class="beta-msg-avatar" />
+                </div>
+                <div class="beta-msg-content-col">
+                  <p class="beta-message-author">JPilot</p>
+                  <div v-if="msg.attachments?.length" class="chat-attachments mb-2">
+                    <div v-for="(a, ai) in msg.attachments" :key="ai" class="attachment-chip">
+                      <img v-if="a.kind === 'image' && a.data" :src="attachmentPreviewUrl(a)" :alt="a.name" class="attachment-thumb" />
+                      <i v-else class="pi pi-file" />
+                      <span>{{ a.name }}</span>
+                    </div>
+                  </div>
+                  <div v-if="assistantView(msg).content" :class="{ 'chat-error-block': msg.isError }">
+                    <span class="beta-bubble beta-bubble-assistant">
+                      <ChatMarkdown :content="assistantView(msg).content" />
+                    </span>
+                    <div
+                      v-if="session.role === 'architect' && canDownloadDesignDoc(assistantView(msg).content)"
+                      class="design-doc-download"
+                    >
+                      <Button
+                        label="Send to Operator"
+                        icon="pi pi-arrow-right"
+                        size="small"
+                        :disabled="isGenerating"
+                        @click="sendDesignToOperator(assistantView(msg).content)"
+                      />
+                      <Button
+                        label="Download design document"
+                        icon="pi pi-download"
+                        size="small"
+                        outlined
+                        :disabled="isGenerating"
+                        @click="downloadDesignDocMessage(assistantView(msg).content)"
+                      />
+                    </div>
+                  </div>
+                  <span v-else-if="msg.content" class="beta-bubble beta-bubble-assistant">{{ msg.content }}</span>
+                  <div v-if="msg.webSources?.length" class="web-sources">
+                    <span class="web-badge"><i class="pi pi-globe" /> Web</span>
+                    <a
+                      v-for="src in msg.webSources"
+                      :key="src.url"
+                      :href="src.url"
+                      target="_blank"
+                      rel="noopener noreferrer"
+                      class="web-source-link"
+                    >
+                      {{ hostOf(src.url) }}
+                    </a>
+                  </div>
+                  <ChatAppliancePicker
+                    v-if="msg.appliancePicker"
+                    :appliances="msg.appliances || []"
+                    :role="session.role"
+                    :loading="msg.pickerLoading"
+                    :connecting="connecting"
+                    @select="connectAppliance"
+                  />
+                  <ChatConfigForm
+                    v-if="assistantView(msg).inputForm && !assistantView(msg).formSubmitted"
+                    :form="assistantView(msg).inputForm"
+                    :submitting="isGenerating && submittingFormIndex === index"
+                    @submit="(values) => submitConfigForm(values, index)"
+                  />
+                  <ChatToolTrace v-if="msg.toolCalls?.length" :tools="msg.toolCalls" />
+                  <p class="beta-message-time">
+                    {{ formatMessageTime(msg) }}
+                    <i class="pi pi-check beta-check-icon" />
+                  </p>
+                </div>
+              </div>
+
+              <div v-else class="beta-msg-grid beta-msg-grid-user">
+                <div class="beta-msg-content-col beta-msg-content-user">
+                  <div v-if="msg.attachments?.length" class="chat-attachments mb-2">
+                    <div v-for="(a, ai) in msg.attachments" :key="ai" class="attachment-chip">
+                      <img v-if="a.kind === 'image' && a.data" :src="attachmentPreviewUrl(a)" :alt="a.name" class="attachment-thumb" />
+                      <i v-else class="pi pi-file" />
+                      <span>{{ a.name }}</span>
+                    </div>
+                  </div>
+                  <span v-if="msg.content" class="beta-bubble beta-bubble-user">{{ msg.content }}</span>
+                  <p class="beta-message-time">
+                    {{ formatMessageTime(msg) }}
+                    <i class="pi pi-check beta-check-icon" />
+                  </p>
+                </div>
+              </div>
+            </div>
+
+            <div v-if="isGenerating" class="beta-msg-grid beta-msg-grid-assistant">
+              <div class="beta-msg-avatar-col">
+                <img src="/jpilot-favicon.png" alt="JPilot" class="beta-msg-avatar" />
+              </div>
+              <div class="beta-msg-content-col">
+                <div class="beta-bubble beta-bubble-assistant beta-bubble-loading">
+                  <ProgressSpinner style="width: 1.25rem; height: 1.25rem" stroke-width="4" />
+                  <div class="generation-status">
+                    <span class="generation-label">{{ generationStatus.label }}</span>
+                    <span class="generation-meta">{{ generationStatusMeta(generationStatus) }}</span>
+                  </div>
+                </div>
+              </div>
+            </div>
+          </template>
+        </div>
+
+        <div v-if="pendingAttachments.length" class="pending-attachments beta-pending">
+          <div v-for="(a, i) in pendingAttachments" :key="i" class="pending-attachment">
+            <img v-if="a.kind === 'image'" :src="attachmentPreviewUrl(a)" :alt="a.name" class="pending-thumb" />
+            <i v-else class="pi pi-file" />
+            <span class="pending-name">{{ a.name }}</span>
+            <Button icon="pi pi-times" text rounded size="small" @click="removeAttachment(i)" />
+          </div>
+        </div>
+
+        <div class="beta-footer">
+          <InputText
+            id="beta-message"
+            v-model="session.input"
+            type="text"
+            class="beta-input flex-1 w-full"
+            :placeholder="rolePlaceholder"
+            :disabled="isGenerating || !ready"
+            @keydown.enter="sendMessage()"
+          />
+          <div class="beta-footer-actions">
+            <Button
+              v-tooltip.top="'Attach file'"
+              icon="pi pi-paperclip"
+              severity="secondary"
+              outlined
+              class="beta-footer-attach"
+              :disabled="isGenerating || !ready"
+              @click="toggleAttachMenu"
+            />
+            <Button
+              label="Send"
+              icon="pi pi-send"
+              :disabled="(!session.input.trim() && !pendingAttachments.length) || !ready || isGenerating"
+              @click="sendMessage()"
+            />
+          </div>
+        </div>
+      </div>
+    </template>
+
+    <!-- Classic chat UI -->
+    <template v-else>
     <div class="pane-toolbar">
       <SelectButton
         v-model="session.role"
@@ -340,6 +658,7 @@
         />
       </div>
     </template>
+    </template>
   </div>
 </template>
 
@@ -350,6 +669,8 @@ import { useToast } from 'primevue/usetoast'
 import Button from 'primevue/button'
 import Menu from 'primevue/menu'
 import ProgressSpinner from 'primevue/progressspinner'
+import InputText from 'primevue/inputtext'
+import Popover from 'primevue/popover'
 import Select from 'primevue/select'
 import SelectButton from 'primevue/selectbutton'
 import Textarea from 'primevue/textarea'
@@ -374,6 +695,7 @@ import {
 import { parseInputFormFromContent, resolveAssistantMessage } from '../utils/copilotForm'
 import { estimateSessionContextUsage } from '../utils/contextUsage'
 import { downloadDesignDocument, createDesignDocumentAttachment, isDesignDocumentMessage } from '../utils/designDocument'
+import { resolveBetaHandoffTargetSessionId } from '../stores/betaChatConversations'
 import {
   ARCHITECT_SESSION_ID,
   DESIGN_HANDOFF_MESSAGE,
@@ -411,7 +733,8 @@ const props = defineProps({
   appliances: { type: Array, default: () => [] },
   defaultProviderId: { type: String, default: '' },
   webSearchAvailable: { type: Boolean, default: false },
-  canClose: { type: Boolean, default: false }
+  canClose: { type: Boolean, default: false },
+  uiVariant: { type: String, default: 'classic' }
 })
 
 defineEmits(['close'])
@@ -435,6 +758,7 @@ const pendingAttachments = ref([])
 const imageInputRef = ref(null)
 const configInputRef = ref(null)
 const attachMenu = ref(null)
+const betaOptionsOp = ref(null)
 const askInputRef = ref(null)
 const commandMenuRef = ref(null)
 const generationStatus = ref({
@@ -567,6 +891,31 @@ const connectedApplianceTooltip = computed(() => {
   return 'Connected via Next-Gen API'
 })
 
+const betaStatusLine = computed(() => {
+  if (isGenerating.value) return 'Generating a reply…'
+  if (session.connectedAppliance && isApplianceConnected()) {
+    return `Connected to ${session.connectedAppliance}`
+  }
+  if (session.applianceChoice && !roleNeedsAppliance.value) {
+    return `Planning reference: ${session.applianceChoice}`
+  }
+  if (session.applianceChoice && roleNeedsAppliance.value) {
+    return `${session.applianceChoice} — not connected`
+  }
+  if (activeProviderName.value) {
+    return `Using ${activeProviderName.value}`
+  }
+  return activeRole.value.description
+})
+
+function formatMessageTime(msg) {
+  const ts = msg.createdAt || msg.timestamp
+  if (ts) {
+    return new Date(ts).toTimeString().split(':').slice(0, 2).join(':')
+  }
+  return new Date().toTimeString().split(':').slice(0, 2).join(':')
+}
+
 function chatApplianceName() {
   return session.applianceChoice || session.connectedAppliance || ''
 }
@@ -686,6 +1035,19 @@ function toggleAttachMenu(event) {
   attachMenu.value.toggle(event)
 }
 
+function toggleBetaOptions(event) {
+  betaOptionsOp.value?.toggle(event)
+}
+
+function closeBetaOptions() {
+  betaOptionsOp.value?.hide()
+}
+
+function clearBetaConversation() {
+  clearConversation()
+  closeBetaOptions()
+}
+
 function canDownloadDesignDoc(content) {
   return isDesignDocumentMessage(content)
 }
@@ -700,8 +1062,15 @@ function downloadDesignDocMessage(content) {
   })
 }
 
+function isArchitectPane() {
+  if (props.uiVariant === 'beta' || props.sessionId.startsWith('beta-')) {
+    return session.role === 'architect'
+  }
+  return props.sessionId === ARCHITECT_SESSION_ID || props.sessionId.endsWith('-pane-1')
+}
+
 function sendDesignToOperator(content) {
-  if (props.sessionId !== ARCHITECT_SESSION_ID || session.role !== 'architect') {
+  if (!isArchitectPane() || session.role !== 'architect') {
     toast.add({
       severity: 'warn',
       summary: 'Architect pane only',
@@ -712,9 +1081,14 @@ function sendDesignToOperator(content) {
   }
   try {
     const attachment = createDesignDocumentAttachment(content)
+    const targetSessionId =
+      props.uiVariant === 'beta' || props.sessionId.startsWith('beta-')
+        ? resolveBetaHandoffTargetSessionId()
+        : props.sessionId.replace(/pane-1$/, 'pane-2')
     queueDesignHandoff({
       content,
-      sourceLabel: attachment.name
+      sourceLabel: attachment.name,
+      targetSessionId
     })
     toast.add({
       severity: 'info',
@@ -766,7 +1140,6 @@ async function acceptDesignHandoff(handoff) {
 }
 
 async function tryConsumeDesignHandoff() {
-  if (props.sessionId !== OPERATOR_SESSION_ID) return
   const handoff = consumeDesignHandoff(props.sessionId)
   if (!handoff) return
   await acceptDesignHandoff(handoff)
@@ -968,6 +1341,7 @@ async function runChat(content, attachments) {
     session.messages.push({
       role: 'assistant',
       content: parsed.content,
+      createdAt: Date.now(),
       toolCalls: data.toolCalls,
       webSources: extractWebSources(data.toolCalls),
       inputForm: data.inputForm || parsed.inputForm,
@@ -1051,7 +1425,12 @@ async function sendMessage(text, externalAttachments = null) {
   }))
   if ((!content && !attachments.length) || isGenerating.value || !ready.value) return
 
-  session.messages.push({ role: 'user', content, attachments: attachments.map((item) => ({ ...item })) })
+  session.messages.push({
+    role: 'user',
+    content,
+    createdAt: Date.now(),
+    attachments: attachments.map((item) => ({ ...item }))
+  })
   session.input = ''
   if (!externalAttachments) {
     pendingAttachments.value = []
@@ -1255,6 +1634,19 @@ onUnmounted(() => {
   border-radius: 1rem;
   padding: 1.25rem;
   box-shadow: 0 18px 50px rgba(2, 6, 23, 0.18);
+}
+
+@media (min-width: 992px) {
+  .glass-card {
+    width: min(48rem, 100%);
+    padding: 1.5rem 1.75rem;
+  }
+}
+
+@media (min-width: 1400px) {
+  .glass-card {
+    width: min(56rem, 100%);
+  }
 }
 
 .glass-head {
@@ -1594,5 +1986,361 @@ onUnmounted(() => {
 .chat-input {
   resize: none;
   background: var(--glass-field);
+}
+
+/* ---------- Beta variant (Diamond ChatBox-style) ---------- */
+.chat-pane-beta {
+  --glass-bg: var(--p-content-background);
+  --glass-strong: var(--p-content-background);
+  --glass-border: var(--p-content-border-color);
+  --glass-text: var(--p-text-color);
+  --glass-muted: var(--p-text-muted-color);
+  --glass-field: var(--p-surface-100);
+  background: var(--p-content-background);
+  border-color: var(--p-content-border-color);
+  backdrop-filter: none;
+  -webkit-backdrop-filter: none;
+  box-shadow: none;
+  height: 100%;
+}
+
+:global(.app-dark) .chat-pane-beta {
+  --glass-field: var(--p-surface-800);
+}
+
+.beta-shell {
+  min-height: 0;
+}
+
+.beta-header {
+  display: flex;
+  align-items: center;
+  gap: 1rem;
+  padding: 1rem;
+  border-bottom: 1px solid var(--p-content-border-color);
+  flex-wrap: wrap;
+}
+
+@media (min-width: 992px) {
+  .beta-header {
+    padding: 1rem 3rem;
+  }
+}
+
+.beta-header-identity {
+  display: flex;
+  align-items: center;
+  gap: 0.85rem;
+  min-width: 0;
+}
+
+.beta-avatar-wrap {
+  position: relative;
+  flex-shrink: 0;
+}
+
+.beta-avatar {
+  width: 4rem;
+  height: 4rem;
+  border-radius: 999px;
+  box-shadow: 0 8px 24px rgba(2, 6, 23, 0.12);
+}
+
+.beta-status-dot {
+  position: absolute;
+  right: 0;
+  bottom: 0;
+  width: 0.85rem;
+  height: 0.85rem;
+  border-radius: 999px;
+  border: 2px solid var(--p-content-background);
+  background: var(--p-surface-400);
+}
+
+.beta-status-active {
+  background: var(--p-green-400);
+}
+
+.beta-status-busy {
+  background: var(--p-yellow-400);
+}
+
+.beta-status-away {
+  background: var(--p-orange-400);
+}
+
+.beta-header-copy {
+  display: flex;
+  flex-direction: column;
+  gap: 0.15rem;
+  min-width: 0;
+}
+
+.beta-title {
+  font-weight: 600;
+  color: var(--p-text-color);
+}
+
+.beta-subtitle {
+  font-size: 0.875rem;
+  color: var(--p-text-muted-color);
+}
+
+.beta-header-actions {
+  display: flex;
+  align-items: center;
+  gap: 0.35rem;
+  margin-left: auto;
+  flex-wrap: wrap;
+}
+
+.beta-header-action-spaced {
+  margin-right: 0.25rem;
+}
+
+.beta-options-panel {
+  display: flex;
+  flex-direction: column;
+  gap: 1rem;
+  width: min(22rem, 80vw);
+  padding: 0.25rem;
+}
+
+.beta-options-group {
+  display: flex;
+  flex-direction: column;
+  gap: 0.45rem;
+}
+
+.beta-options-label {
+  font-size: 0.75rem;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+  color: var(--p-text-muted-color);
+}
+
+.beta-options-context {
+  align-items: flex-start;
+}
+
+.beta-options-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.5rem;
+  padding-top: 0.25rem;
+  border-top: 1px solid var(--p-content-border-color);
+}
+
+.beta-role-toggle :deep(.p-togglebutton) {
+  padding: 0.4rem 0.55rem;
+}
+
+.beta-select {
+  min-width: 9rem;
+}
+
+.beta-select-appliance {
+  min-width: 11rem;
+}
+
+.beta-messages,
+.user-message-container {
+  flex: 1;
+  overflow-y: auto;
+  padding: 0.75rem 1rem;
+  margin-top: 0.5rem;
+  min-height: 0;
+}
+
+@media (min-width: 768px) {
+  .beta-messages,
+  .user-message-container {
+    padding: 1rem 1.5rem;
+  }
+}
+
+@media (min-width: 992px) {
+  .beta-messages,
+  .user-message-container {
+    padding: 1.5rem 3rem;
+  }
+}
+
+.beta-empty {
+  width: 100%;
+  max-width: 100%;
+  margin: 0 auto;
+  padding: 1rem 0 2rem;
+}
+
+@media (min-width: 992px) {
+  .beta-empty {
+    max-width: min(48rem, 100%);
+    padding: 1.5rem 0 2.5rem;
+  }
+}
+
+@media (min-width: 1400px) {
+  .beta-empty {
+    max-width: min(56rem, 100%);
+  }
+}
+
+.beta-empty-title {
+  margin: 0 0 0.35rem;
+  font-size: 1.05rem;
+  font-weight: 600;
+  color: var(--p-text-color);
+}
+
+.beta-empty-hint {
+  margin: 0 0 1rem;
+  font-size: 0.875rem;
+  color: var(--p-text-muted-color);
+  line-height: 1.5;
+}
+
+.beta-empty-note {
+  margin: 1rem 0 0;
+  font-size: 0.8125rem;
+  color: var(--p-text-muted-color);
+}
+
+.beta-msg-grid {
+  display: grid;
+  grid-template-columns: auto 1fr;
+  gap: 1rem;
+  margin-bottom: 1.5rem;
+}
+
+.beta-msg-grid-user {
+  grid-template-columns: 1fr;
+}
+
+.beta-msg-avatar-col {
+  margin-top: 0.25rem;
+}
+
+.beta-msg-content-col {
+  margin-top: 1rem;
+  min-width: 0;
+}
+
+.beta-msg-content-user {
+  text-align: right;
+}
+
+.beta-msg-avatar {
+  width: 3rem;
+  height: 3rem;
+  border-radius: 999px;
+  box-shadow: 0 6px 18px rgba(2, 6, 23, 0.1);
+}
+
+.beta-message-author {
+  margin: 0 0 1rem;
+  font-weight: 600;
+  color: var(--p-text-color);
+}
+
+.beta-bubble {
+  display: inline-block;
+  max-width: 80%;
+  padding: 1rem;
+  border-radius: var(--p-content-border-radius);
+  border: 1px solid var(--p-content-border-color);
+  font-weight: 500;
+  line-height: 1.55;
+  word-break: break-word;
+  white-space: pre-wrap;
+  text-align: left;
+}
+
+.beta-bubble-assistant {
+  color: var(--p-text-color);
+  background: var(--p-content-background);
+}
+
+.beta-bubble-user {
+  color: var(--p-primary-900);
+  background: var(--p-primary-100);
+  border-color: color-mix(in srgb, var(--p-primary-color) 25%, var(--p-content-border-color));
+}
+
+:global(.app-dark) .beta-bubble-user {
+  color: var(--p-primary-100);
+  background: color-mix(in srgb, var(--p-primary-color) 22%, var(--p-surface-900));
+}
+
+.beta-bubble-loading {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.65rem;
+}
+
+.beta-message-time {
+  margin: 1rem 0 0;
+  font-size: 0.875rem;
+  color: var(--p-text-muted-color);
+}
+
+.beta-check-icon {
+  margin-left: 0.35rem;
+  color: var(--p-green-400);
+}
+
+.beta-pending {
+  border-top: 1px solid var(--p-content-border-color);
+  padding: 0.75rem 1rem 0;
+}
+
+.beta-footer {
+  display: flex;
+  flex-direction: column;
+  align-items: stretch;
+  gap: 1rem;
+  padding: 1rem;
+  margin-top: auto;
+  border-top: 1px solid var(--p-content-border-color);
+}
+
+@media (min-width: 576px) {
+  .beta-footer {
+    flex-direction: row;
+    align-items: center;
+  }
+}
+
+@media (min-width: 992px) {
+  .beta-footer {
+    padding: 1rem 3rem;
+  }
+}
+
+.beta-footer-actions {
+  display: flex;
+  width: 100%;
+  gap: 1rem;
+}
+
+@media (min-width: 576px) {
+  .beta-footer-actions {
+    width: auto;
+  }
+}
+
+.beta-footer-attach {
+  flex: 1;
+}
+
+@media (min-width: 576px) {
+  .beta-footer-attach {
+    flex: 0 0 auto;
+  }
+}
+
+.beta-input {
+  min-width: 0;
 }
 </style>

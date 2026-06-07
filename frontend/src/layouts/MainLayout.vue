@@ -32,19 +32,24 @@
       <JPilot />
 
       <nav class="sidebar-nav flex-1 flex flex-column align-items-center py-5">
-        <RouterLink
-          v-for="item in mainNavItems"
-          :key="item.path"
-          v-tooltip.right="item.label"
-          :to="item.path"
-          class="nav-btn"
-          :class="{
-            'nav-btn-active': isActive(item.path),
-            'nav-btn-busy': item.path === '/copilot' && hasActiveChatRuns
-          }"
-        >
-          <i :class="item.icon" />
-        </RouterLink>
+        <template v-for="group in mainNavGroups" :key="group.id">
+          <span v-if="group.label" class="sidebar-cluster-label">{{ group.label }}</span>
+          <RouterLink
+            v-for="item in group.items"
+            :key="item.path"
+            v-tooltip.right="navTooltip(item)"
+            :to="item.path"
+            class="nav-btn"
+            :class="{
+              'nav-btn-active': isActive(item),
+              'nav-btn-busy': isCopilotNavItem(item) && hasActiveChatRuns,
+              'nav-btn-beta': item.beta
+            }"
+          >
+            <i :class="item.icon" />
+            <span v-if="item.beta" class="nav-beta-tag">β</span>
+          </RouterLink>
+        </template>
       </nav>
 
       <div class="sidebar-footer flex flex-column align-items-center gap-3 pb-2">
@@ -120,24 +125,28 @@
           </button>
         </div>
 
-        <nav class="mobile-nav-section">
-          <RouterLink
-            v-for="item in mainNavItems"
-            :key="item.path"
-            :to="item.path"
-            class="mobile-nav-link"
-            active-class=""
-            exact-active-class=""
-            :class="{
-              'mobile-nav-link-active': isActive(item.path),
-              'mobile-nav-link-busy': item.path === '/copilot' && hasActiveChatRuns
-            }"
-            @click="closeMobileNav"
-          >
-            <i :class="item.icon" />
-            <span>{{ item.label }}</span>
-          </RouterLink>
-        </nav>
+        <template v-for="group in mainNavGroups" :key="`mobile-${group.id}`">
+          <div v-if="group.label" class="mobile-nav-cluster-label">{{ group.label }}</div>
+          <nav class="mobile-nav-section">
+            <RouterLink
+              v-for="item in group.items"
+              :key="item.path"
+              :to="item.path"
+              class="mobile-nav-link"
+              active-class=""
+              exact-active-class=""
+              :class="{
+                'mobile-nav-link-active': isActive(item),
+                'mobile-nav-link-busy': isCopilotNavItem(item) && hasActiveChatRuns
+              }"
+              @click="closeMobileNav"
+            >
+              <i :class="item.icon" />
+              <span>{{ item.label }}</span>
+              <Tag v-if="item.beta" value="Beta" severity="warn" class="mobile-nav-beta-tag" />
+            </RouterLink>
+          </nav>
+        </template>
 
         <div class="mobile-nav-divider" />
 
@@ -214,6 +223,7 @@ import ConfirmDialog from 'primevue/confirmdialog'
 import Drawer from 'primevue/drawer'
 import Menu from 'primevue/menu'
 import Message from 'primevue/message'
+import Tag from 'primevue/tag'
 import Toast from 'primevue/toast'
 import JPilot from '../components/JPilot.vue'
 import api from '../services/api'
@@ -309,10 +319,25 @@ async function onToggleFullscreen() {
   }
 }
 
-const mainNavItems = [
-  { label: 'Dashboard', path: '/', icon: 'pi pi-home' },
-  { label: 'JPilot', path: '/copilot', icon: 'pi pi-comments' },
-  { label: 'Appliances', path: '/appliances', icon: 'pi pi-server' }
+const mainNavGroups = [
+  {
+    id: 'main',
+    label: '',
+    items: [{ label: 'Dashboard', path: '/', icon: 'pi pi-home' }]
+  },
+  {
+    id: 'jpilot-chat',
+    label: 'JPilot Chat',
+    items: [
+      { label: 'Chat', path: '/jpilot', icon: 'pi pi-comments' },
+      { label: 'Chat', path: '/jpilot/beta', icon: 'pi pi-sparkles', beta: true }
+    ]
+  },
+  {
+    id: 'inventory',
+    label: '',
+    items: [{ label: 'Appliances', path: '/appliances', icon: 'pi pi-server' }]
+  }
 ]
 
 const bottomNavItems = [
@@ -388,9 +413,21 @@ watch(
   }
 )
 
-function isActive(path) {
+function isCopilotNavItem(item) {
+  return item.path === '/jpilot' || item.path === '/jpilot/beta'
+}
+
+function navTooltip(item) {
+  return item.beta ? `${item.label} (Beta)` : item.label
+}
+
+function isActive(item) {
+  const path = item.path
   if (path === '/') {
     return route.path === '/'
+  }
+  if (item.beta || path === '/jpilot') {
+    return route.path === path
   }
   return route.path.startsWith(path)
 }
@@ -432,6 +469,33 @@ function isActive(path) {
 
 .sidebar-nav {
   gap: 0.75rem;
+}
+
+.sidebar-cluster-label {
+  width: 100%;
+  margin: 0.35rem 0 0.15rem;
+  padding: 0 0.15rem;
+  font-size: 0.5625rem;
+  font-weight: 700;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  text-align: center;
+  color: var(--p-text-muted-color);
+  line-height: 1.2;
+}
+
+.nav-btn-beta {
+  position: relative;
+}
+
+.nav-beta-tag {
+  position: absolute;
+  right: 0.1rem;
+  bottom: 0.1rem;
+  font-size: 0.5rem;
+  font-weight: 800;
+  line-height: 1;
+  color: var(--p-orange-500);
 }
 
 .sidebar-footer {
@@ -639,10 +703,23 @@ function isActive(path) {
   color: var(--p-text-color);
 }
 
+.mobile-nav-cluster-label {
+  margin: 0.5rem 0.875rem 0.15rem;
+  font-size: 0.6875rem;
+  font-weight: 700;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  color: var(--p-text-muted-color);
+}
+
 .mobile-nav-section {
   display: flex;
   flex-direction: column;
   gap: 0.35rem;
+}
+
+.mobile-nav-beta-tag {
+  margin-left: auto;
 }
 
 .mobile-nav-divider {

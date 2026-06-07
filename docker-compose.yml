@@ -8,8 +8,10 @@ services:
       - "443:443"
     environment:
       - NGINX_HOSTNAME=${NGINX_HOSTNAME:-jpilot.nexxus-tech.com}
+      - JPILOT_NGINX_RELOAD_SIGNAL=/var/run/jpilot/reload-nginx
     volumes:
       - ${SSL_CERTS_PATH:-./nginx/ssl}:/etc/nginx/ssl:ro
+      - jpilot-nginx-run:/var/run/jpilot
     networks:
       - jpilot-network
     depends_on:
@@ -44,9 +46,13 @@ services:
     volumes:
       - ./backend-api:/app
       - ./VERSION:/usr/share/jpilot/VERSION:ro
+      - ${SSL_CERTS_PATH:-./nginx/ssl}:/var/jpilot/ssl:rw
+      - jpilot-nginx-run:/var/run/jpilot:rw
     environment:
       - NSAGENT_ENCRYPTION_KEY=${NSAGENT_ENCRYPTION_KEY}
       - NGINX_HOSTNAME=${NGINX_HOSTNAME:-jpilot.nexxus-tech.com}
+      - SSL_CERTS_PATH=/var/jpilot/ssl
+      - JPILOT_NGINX_RELOAD_SIGNAL=/var/run/jpilot/reload-nginx
       - JWT_SECRET_KEY=${JWT_SECRET_KEY:-change-me-in-production}
       - ADMIN_USERNAME=${ADMIN_USERNAME:-}
       - ADMIN_PASSWORD=${ADMIN_PASSWORD:-}
@@ -133,3 +139,4 @@ networks:
 
 volumes:
   mongodb_data:
+  jpilot-nginx-run:

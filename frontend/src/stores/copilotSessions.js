@@ -1,9 +1,9 @@
 import { reactive, watch } from 'vue'
 import { normalizeRoleId } from '../config/jpilotRoles'
+import { migrateStorageJson, readStorageJson, writeStorageJson } from '../utils/chatStorage'
 
-// Persistent JPilot chat sessions, keyed by pane slot id (e.g. 'pane-1', 'pane-2').
-// Lives in-memory (survives pane add/remove, orientation flips, and route navigation)
-// and is mirrored to sessionStorage (survives a page reload, clears when the tab closes).
+// JPilot chat sessions keyed by pane / conversation id (e.g. pane-1, beta-chat-abc).
+// Mirrored to localStorage on this device until the user clears a chat or deletes a thread.
 const STORAGE_KEY = 'jpilot_sessions_v1'
 
 function blankSession() {
@@ -21,13 +21,48 @@ function blankSession() {
 }
 
 function loadPersisted() {
-  try {
-    const raw = sessionStorage.getItem(STORAGE_KEY)
-    if (raw) return JSON.parse(raw) || {}
-  } catch {
-    // ignore corrupt storage
-  }
+  const migrated = migrateStorageJson(STORAGE_KEY, sessionStorage, localStorage)
+  if (migrated && typeof migrated === 'object') return migrated
+
+  const stored = readStorageJson(localStorage, STORAGE_KEY)
+  if (stored && typeof stored === 'object') return stored
+
+  const legacy = readStorageJson(sessionStorage, STORAGE_KEY)
+  if (legacy && typeof legacy === 'object') return legacy
+
   return {}
+}
+
+function trimSessionsForStorage(sessions) {
+  const trimmed = {}
+  for (const [id, session] of Object.entries(sessions)) {
+    trimmed[id] = {
+      input: session.input || '',
+      role: session.role || 'operator',
+      connectedAppliance: session.connectedAppliance || '',
+      applianceChoice: session.applianceChoice || null,
+      providerId: session.providerId || '',
+      webSearch: session.webSearch !== false,
+      pendingMessage: null,
+      pendingAttachmentsSnapshot: [],
+      messages: (session.messages || []).map((m) => ({
+        role: m.role,
+        content: m.content,
+        createdAt: m.createdAt || undefined,
+        toolCalls: m.toolCalls || undefined,
+        webSources: m.webSources || undefined,
+        appliancePicker: m.appliancePicker || undefined,
+        inputForm: m.inputForm || undefined,
+        formSubmitted: m.formSubmitted || undefined,
+        attachments: (m.attachments || []).map((a) => ({
+          name: a.name,
+          kind: a.kind,
+          mimeType: a.mimeType
+        }))
+      }))
+    }
+  }
+  return trimmed
 }
 
 const state = reactive({ sessions: loadPersisted() })
@@ -52,43 +87,17 @@ export function clearSession(id) {
   // Intentionally keep connectedAppliance, applianceChoice, and providerId.
 }
 
-// Persist a trimmed copy: drop heavy base64 attachment data so we stay well under
-// the sessionStorage quota. In-memory keeps full fidelity for the live session.
+export function deleteSession(id) {
+  if (id && state.sessions[id]) {
+    delete state.sessions[id]
+  }
+}
+
+// Persist a trimmed copy: drop heavy base64 attachment data to stay under localStorage quota.
 watch(
   () => state.sessions,
   (sessions) => {
-    try {
-      const trimmed = {}
-      for (const [id, session] of Object.entries(sessions)) {
-        trimmed[id] = {
-          input: session.input || '',
-          role: session.role || 'operator',
-          connectedAppliance: session.connectedAppliance || '',
-          applianceChoice: session.applianceChoice || null,
-          providerId: session.providerId || '',
-          webSearch: session.webSearch !== false,
-          pendingMessage: null,
-          pendingAttachmentsSnapshot: [],
-          messages: (session.messages || []).map((m) => ({
-            role: m.role,
-            content: m.content,
-            toolCalls: m.toolCalls || undefined,
-            webSources: m.webSources || undefined,
-            appliancePicker: m.appliancePicker || undefined,
-            inputForm: m.inputForm || undefined,
-            formSubmitted: m.formSubmitted || undefined,
-            attachments: (m.attachments || []).map((a) => ({
-              name: a.name,
-              kind: a.kind,
-              mimeType: a.mimeType
-            }))
-          }))
-        }
-      }
-      sessionStorage.setItem(STORAGE_KEY, JSON.stringify(trimmed))
-    } catch {
-      // Over quota or unavailable — in-memory state still works for this tab.
-    }
+    writeStorageJson(localStorage, STORAGE_KEY, trimSessionsForStorage(sessions))
   },
   { deep: true }
 )

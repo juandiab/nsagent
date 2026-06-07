@@ -7,6 +7,7 @@ import {
   licenseActivationRequired
 } from '../services/licenseGate'
 import CopilotView from '../views/CopilotView.vue'
+import CopilotBetaView from '../views/CopilotBetaView.vue'
 import DashboardView from '../views/DashboardView.vue'
 import LoginView from '../views/LoginView.vue'
 import LegalView from '../views/LegalView.vue'
@@ -45,7 +46,10 @@ const router = createRouter({
       meta: { requiresAuth: true },
       children: [
         { path: '', name: 'dashboard', component: DashboardView },
-        { path: 'copilot', name: 'copilot', component: CopilotView },
+        { path: 'jpilot', name: 'jpilot', component: CopilotView },
+        { path: 'jpilot/beta', name: 'jpilot-beta', component: CopilotBetaView },
+        { path: 'copilot', redirect: '/jpilot' },
+        { path: 'copilot/beta', redirect: '/jpilot/beta' },
         { path: 'appliances', name: 'appliances', component: OtherAppliancesView },
         { path: 'netscalers', redirect: (to) => ({ path: '/appliances', query: { ...to.query, tab: to.query.tab || 'inventory' } }) },
         { path: 'other-appliances', redirect: '/appliances' },

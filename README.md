@@ -8,7 +8,7 @@ Repository: [github.com/Nexxus-Tech-SAS/jpilot](https://github.com/Nexxus-Tech-S
 
 > **Disclaimer:** JPilot is an independent project and is not affiliated with, endorsed by, or sponsored by Citrix Systems, Inc. NetScaler is a trademark of Citrix Systems, Inc.
 
-**Current release:** `v0.40` — Architect→Operator handoff, live chat generation metrics, OpenRouter/Azure/Bedrock, model-aware context limits, and passkey policy.
+**Current release:** `v0.41` — JPilot Chat Beta, `/jpilot` routes, Settings HTTPS certificate replacement, and chat persistence in localStorage.
 
 Bump the root [`VERSION`](VERSION) file when tagging a release so in-app update checks match GitHub.
 
@@ -16,7 +16,7 @@ Bump the root [`VERSION`](VERSION) file when tagging a release so in-app update 
 
 - **Appliance inventory** — vendor → device → credentials wizard; **tags** for filtering; MPX, VPX, SDX, Cisco, and F5 product lines; **Beta Available** badges on SDX, Cisco, and F5; encrypted credentials (Fernet).
 - **AI provider management** — OpenAI, Anthropic, Gemini, Grok, DeepSeek, LM Studio, **OpenRouter**, **Azure OpenAI**, **AWS Bedrock**, and OpenAI-compatible endpoints; assign each model to **Architect**, **Operator**, and/or **Analyst** roles; role suggestions with indicative pricing when loading models.
-- **JPilot chat** — tool-calling agent bound to the selected appliance; credentials never sent to the LLM.
+- **JPilot chat** — tool-calling agent bound to the selected appliance; credentials never sent to the LLM; classic UI at `/jpilot` and **Chat Beta** at `/jpilot/beta` (sidebar conversations, Diamond-style layout).
 - **JPilot roles** — **Architect** (structured discovery and formal design documents), **Operator** (configure the ADC, including from attached `.md` designs), **Analyst** (read-first troubleshooting); dual-pane defaults to Architect + Operator; **Send to Operator** handoff from design deliverables; per-pane **context usage** ring (model-aware), live **generation speed** while thinking, and **Stop** while generating.
 - **Architect design workflow** — choice/boolean `jpilot-form` discovery; deliverable outline with AWS/Azure, Gateway integrations, and AAA topics; downloadable design `.md` and one-click **Send to Operator** (opens pane 2 and starts implementation); official doc reference index (Citrix Gateway, authentication, Tech Zone).
 - **JPilot command menu** — searchable recommended actions by role with section grouping (~200 prompts); filters to the **selected appliance vendor** (NetScaler, SDX, Cisco, F5).
@@ -28,6 +28,7 @@ Bump the root [`VERSION`](VERSION) file when tagging a release so in-app update 
 - **Guided load balancer forms** — JPilot can embed interactive `jpilot-form` blocks in chat (VIP, service type, backends, monitors); submissions drive CLI execution after reference lookup.
 - **Smart form routing** — responder, rewrite, transform, and other policy-on-vserver requests do not trigger the LB creation form.
 - **Authentication** — password login until a passkey is registered (when passkeys are enabled); optional **passkey policy** (disable / enable / enforce) under Settings → Security; failed password sign-in lockout and recovery-code attempt limits.
+- **JPilot HTTPS certificate (admin)** — Settings → Security: view active nginx TLS cert, then replace via drag/drop, browse, or paste PEM; validates key match, expiry, and hostname before writing `nginx/ssl/` and reloading nginx.
 - **Account recovery** — email OTP via SMTP; self-service at `/account-recovery` or admin-initiated from Users; revokes passkeys and resets password and/or registers a new passkey.
 - **User management** — admin CRUD for users (roles `admin` / `user`), email for resets, initial password on create, passkey count and removal.
 - **SSL certificate tools** — generate CSRs or self-signed certificates on the appliance (UI + API + MCP).
@@ -40,6 +41,17 @@ Bump the root [`VERSION`](VERSION) file when tagging a release so in-app update 
 - **NetScaler SDX (SSH)** — Operator and Analyst for SVM platform and VPX lifecycle with `search_sdx_cli_reference` memory gate (beta).
 - **F5 BIG-IP (SSH / TMSH)** — Operator, Analyst, and Architect (official F5 docs only); `f5_*` MCP tools and `search_f5_tmsh_reference` / `search_f5_documentation` (beta).
 - **Nexxus licensing** — Settings → **License**: enter a license code, import an offline `.lic` file, or sync with the Nexxus licensing API; installation fingerprint binding; encrypted payload validation; daily background sync and expiry enforcement; **activation gate** redirects unlicensed or expired installs to Settings → License before using the app.
+
+## What's new in v0.41
+
+| Area | Highlights |
+|------|------------|
+| **JPilot Chat Beta** | New **Chat Beta** under JPilot Chat (`/jpilot/beta`): Diamond-style sidebar, multiple conversations (up to 12), delete per thread, Architect→Operator handoff into beta sessions. Classic chat at `/jpilot` unchanged. |
+| **Routes** | `/copilot` and `/copilot/beta` redirect to `/jpilot` and `/jpilot/beta`. |
+| **Chat persistence** | Message history stored in **localStorage** (migrated from sessionStorage) so tabs and browser restarts keep conversations. |
+| **HTTPS certificate UI** | Admins replace the **nginx** UI certificate from Settings → Security: status view by default, optional replace flow with validate + apply; PEM drag/drop and file browse; automatic nginx reload via shared Docker volume. |
+| **TLS docs** | [nginx/ssl/README.md](nginx/ssl/README.md) rotation guide; README manual-setup section for host-side replacement. |
+| **Command menu** | Ask JPilot recommended-actions dialog uses full width on desktop (no compressed results column). |
 
 ## What's new in v0.40
 
@@ -491,6 +503,28 @@ Prefer to configure things by hand instead of the wizard? You can:
    (see [nginx/ssl/README.md](nginx/ssl/README.md)). nginx will not start without them.
 
 4. **Start the stack** — `./compose.sh up --build` (reads `NSAGENT_DEPLOY_MODE` from `.env`), then open `https://<NGINX_HOSTNAME>`.
+
+### Replace the JPilot UI SSL certificate (nginx)
+
+HTTPS for the JPilot web UI is terminated by the **nginx** container. Certs are **host files**
+mounted at `nginx/ssl/cert.crt` and `nginx/ssl/cert.key` (or `SSL_CERTS_PATH` from `.env`) — they
+survive image rebuilds and `git pull`.
+
+**Quick rotation:** back up the existing PEMs, install the new `cert.crt` (full chain) and
+`cert.key`, then reload nginx without restarting the whole stack:
+
+```bash
+./compose.sh exec nginx nginx -s reload
+```
+
+**Wizard path:** `./install.sh --reconfigure` (or `.\install.ps1 -Reconfigure`) and choose a
+custom certificate; the installer validates PEMs and rewrites `nginx/ssl/`.
+
+Full steps (verification, rollback, WebAuthn/CORS notes): [nginx/ssl/README.md](nginx/ssl/README.md#replacing-the-certificate-rotation).
+
+**Settings UI (admin):** **Settings → Security → JPilot HTTPS certificate** — paste certificate and
+private key PEMs, validate (key match, expiry, hostname), then replace. nginx reloads automatically
+when the stack mounts the shared TLS volume (Docker Compose default).
 
 ## Authentication
 

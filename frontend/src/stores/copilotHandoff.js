@@ -2,6 +2,8 @@ import { reactive } from 'vue'
 
 export const ARCHITECT_SESSION_ID = 'pane-1'
 export const OPERATOR_SESSION_ID = 'pane-2'
+export const BETA_ARCHITECT_SESSION_ID = 'beta-pane-1'
+export const BETA_OPERATOR_SESSION_ID = 'beta-pane-2'
 
 export const DESIGN_HANDOFF_MESSAGE =
   'Implement this design on the connected appliance. Start with the **Handoff for Operator** section. Use jpilot-form for any TBD values before running write tools.'

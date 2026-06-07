@@ -61,8 +61,8 @@
               :label="action.label"
               :icon="action.icon"
               size="small"
-              :severity="action.to === '/copilot' ? undefined : 'secondary'"
-              :outlined="action.to !== '/copilot'"
+              :severity="action.to === '/jpilot' ? undefined : 'secondary'"
+              :outlined="action.to !== '/jpilot'"
               @click="router.push(action.to)"
             />
           </div>

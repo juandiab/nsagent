@@ -366,6 +366,8 @@
   
           <!-- Security -->
           <section v-if="activeSection === 'security'" class="settings-section-full flex flex-column gap-4">
+              <JpilotTlsPanel v-if="isAdmin" />
+
               <div v-if="isAdmin" class="content-panel content-panel-padded">
                 <h2 class="section-title">Passkey policy</h2>
                 <p class="section-copy">
@@ -557,6 +559,7 @@ import AIProvidersPanel from '../components/AIProvidersPanel.vue'
 import BraveSearchPanel from '../components/BraveSearchPanel.vue'
 import UsersPanel from '../components/UsersPanel.vue'
 import UpdatesPanel from '../components/UpdatesPanel.vue'
+import JpilotTlsPanel from '../components/JpilotTlsPanel.vue'
 import LicensePanel from '../components/LicensePanel.vue'
 import { getCopilotSettings, saveCopilotSettings } from '../services/copilot'
 import { getMcpConfig, getMcpStatus, saveMcpConfig } from '../services/mcp'

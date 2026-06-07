@@ -4,8 +4,11 @@ import { getFocusedChatSession } from '../stores/copilotChatRuns'
 import { getRoleById } from '../config/jpilotRoles'
 
 function sessionPaneLabel(sessionId) {
-  const match = String(sessionId || '').match(/pane-(\d+)/i)
-  return match ? `Pane ${match[1]}` : 'JPilot'
+  const id = String(sessionId || '')
+  const match = id.match(/(?:beta-)?pane-(\d+)/i)
+  if (!match) return 'JPilot'
+  const beta = id.startsWith('beta-') ? 'Beta ' : ''
+  return `${beta}Pane ${match[1]}`
 }
 
 /**
@@ -16,7 +19,8 @@ export function shouldNotifyReplyReady(sessionId) {
   const settings = getCopilotSettings()
   if (settings.notifyWhenReplyComplete === false) return false
   if (typeof document !== 'undefined' && document.hidden) return true
-  if (router.currentRoute.value.path !== '/copilot') return true
+  const path = router.currentRoute.value.path
+  if (path !== '/jpilot' && path !== '/jpilot/beta') return true
   if (getFocusedChatSession() !== sessionId) return true
   return false
 }

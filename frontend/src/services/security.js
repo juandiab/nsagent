@@ -10,6 +10,21 @@ export async function saveSecuritySettings(payload) {
   return data
 }
 
+export async function getTlsCertificateStatus() {
+  const { data } = await api.get('/security/tls/status')
+  return data
+}
+
+export async function validateTlsCertificate(payload) {
+  const { data } = await api.post('/security/tls/validate', payload)
+  return data
+}
+
+export async function applyTlsCertificate(payload) {
+  const { data } = await api.post('/security/tls/apply', payload)
+  return data
+}
+
 export const PASSKEY_POLICY_OPTIONS = [
   {
     value: 'disabled',
