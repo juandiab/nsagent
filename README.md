@@ -4,7 +4,7 @@
 
 The **Free edition** is offered at no charge so teams can try the product and so practitioners can see how it works. **Nexxus-Tech SAS does not supply or pay for AI inference** — you choose the provider, you hold the API keys, and **you pay that provider** under its terms. JPilot only connects to what you configure.
 
-Repository: [github.com/nexxus-tech-sas/jpilot](https://github.com/nexxus-tech-sas/jpilot)
+Repository: [github.com/Nexxus-Tech-SAS/jpilot](https://github.com/Nexxus-Tech-SAS/jpilot)
 
 > **Disclaimer:** JPilot is an independent project and is not affiliated with, endorsed by, or sponsored by Citrix Systems, Inc. NetScaler is a trademark of Citrix Systems, Inc.
 
@@ -45,7 +45,7 @@ Bump the root [`VERSION`](VERSION) file when tagging a release so in-app update 
 
 | Area | Highlights |
 |------|------------|
-| **Repository** | Canonical home is [github.com/nexxus-tech-sas/jpilot](https://github.com/nexxus-tech-sas/jpilot); bootstrap scripts (`get.sh` / `get.ps1`) and in-app update checks point here. |
+| **Repository** | Canonical home is [github.com/Nexxus-Tech-SAS/jpilot](https://github.com/Nexxus-Tech-SAS/jpilot); bootstrap scripts (`get.sh` / `get.ps1`) and in-app update checks point here. |
 | **Docker naming** | Compose project name is `jpilot` (images/containers like `jpilot-frontend`, volume `jpilot_mongodb_data`) instead of `nsagent`. Fresh installs do not overwrite old `nsagent_*` volumes. |
 | **Installer admin** | Choose any bootstrap username; **email is required** and written to `ADMIN_EMAIL` for password recovery after install. |
 | **Installer legal** | Review step requires accepting Terms, Privacy, AUP, and EULA; legal docs open in the setup wizard. |
@@ -376,7 +376,7 @@ Install [Docker Desktop](https://docs.docker.com/desktop/install/windows-install
 [Git for Windows](https://git-scm.com/download/win)). Then, in **PowerShell**:
 
 ```powershell
-irm https://raw.githubusercontent.com/nexxus-tech-sas/jpilot/main/get.ps1 | iex
+irm https://raw.githubusercontent.com/Nexxus-Tech-SAS/jpilot/main/get.ps1 | iex
 ```
 
 ### macOS
@@ -385,7 +385,7 @@ Install [Docker Desktop](https://docs.docker.com/desktop/install/mac-install/) (
 installer set it up via Homebrew). Then, in **Terminal**:
 
 ```bash
-curl -fsSL https://raw.githubusercontent.com/nexxus-tech-sas/jpilot/main/get.sh | bash
+curl -fsSL https://raw.githubusercontent.com/Nexxus-Tech-SAS/jpilot/main/get.sh | bash
 ```
 
 ### Ubuntu / Linux
@@ -394,7 +394,7 @@ Docker Engine is required — if it's missing, the installer offers to install i
 Then run:
 
 ```bash
-curl -fsSL https://raw.githubusercontent.com/nexxus-tech-sas/jpilot/main/get.sh | bash
+curl -fsSL https://raw.githubusercontent.com/Nexxus-Tech-SAS/jpilot/main/get.sh | bash
 ```
 
 ---
@@ -412,7 +412,7 @@ starts the setup wizard. Then:
    terminal automatically launches the full stack and opens it in your browser.
 5. Sign in at **https://&lt;your-domain&gt;** with the admin account you created.
 
-> **Clone manually instead?** `git clone https://github.com/nexxus-tech-sas/jpilot.git` then
+> **Clone manually instead?** `git clone https://github.com/Nexxus-Tech-SAS/jpilot.git` then
 > `cd jpilot` and run `./install.sh` (macOS/Linux) or `.\install.ps1` (Windows). If you already
 > have a checkout, skip the one-liner and run the installer from the project root.
 
