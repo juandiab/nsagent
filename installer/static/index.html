@@ -146,21 +146,45 @@
           <label class="radio">
             <input type="radio" name="cert_mode" value="custom" />
             <span><strong>Use my own certificate</strong><br />
-              <span class="muted">Paste a PEM certificate and its unencrypted private key.</span></span>
+              <span class="muted">Drop, browse, or paste a PEM certificate and its unencrypted private key.</span></span>
           </label>
         </div>
 
         <div id="customCert" class="hidden">
-          <label>Certificate (PEM)
+          <p class="pem-intro muted">Drop files onto each field, use <strong>Browse file</strong>, or paste PEM text directly.</p>
+
+          <div class="pem-drop-zone" data-pem-field="certificate">
+            <div class="pem-drop-head">
+              <label for="certificate">Certificate (PEM)</label>
+              <button type="button" class="btn ghost small pem-browse" data-pem-field="certificate">Browse file</button>
+            </div>
+            <input type="file" class="pem-file-input" data-pem-field="certificate" accept=".pem,.crt,.cer,.txt,.key,text/plain" />
             <textarea id="certificate" rows="5" placeholder="-----BEGIN CERTIFICATE-----"></textarea>
-          </label>
-          <label>CA chain / intermediates <span class="opt">(optional)</span>
+            <p class="pem-hint muted">Drop a <code>.crt</code> / <code>.pem</code> file here or paste below.</p>
+          </div>
+
+          <div class="pem-drop-zone" data-pem-field="chain">
+            <div class="pem-drop-head">
+              <label for="chain">CA chain / intermediates <span class="opt">(optional)</span></label>
+              <button type="button" class="btn ghost small pem-browse" data-pem-field="chain">Browse file</button>
+            </div>
+            <input type="file" class="pem-file-input" data-pem-field="chain" accept=".pem,.crt,.cer,.txt,text/plain" multiple />
             <textarea id="chain" rows="3" placeholder="-----BEGIN CERTIFICATE-----"></textarea>
-          </label>
-          <label>Private key (PEM, unencrypted)
+            <p class="pem-hint muted">Drop intermediate CA bundle files here. Multiple certificates are appended automatically.</p>
+          </div>
+
+          <div class="pem-drop-zone" data-pem-field="private_key">
+            <div class="pem-drop-head">
+              <label for="private_key">Private key (PEM, unencrypted)</label>
+              <button type="button" class="btn ghost small pem-browse" data-pem-field="private_key">Browse file</button>
+            </div>
+            <input type="file" class="pem-file-input" data-pem-field="private_key" accept=".pem,.key,.txt,text/plain" />
             <textarea id="private_key" rows="5" placeholder="-----BEGIN PRIVATE KEY-----"></textarea>
-          </label>
+            <p class="pem-hint muted">Drop a <code>.key</code> / <code>.pem</code> file here or paste below.</p>
+          </div>
+
           <button class="btn ghost small" id="validateCert">Validate certificate</button>
+          <p class="field-info hidden" id="certDropMsg"></p>
           <p class="field-ok hidden" id="certOk"></p>
           <p class="field-error hidden" id="certErr"></p>
         </div>

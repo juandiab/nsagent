@@ -213,6 +213,42 @@ h1 { font-size: 24px; margin: 0 0 8px; color: var(--text); letter-spacing: -0.02
 .checklist { color: var(--text-muted); line-height: 1.9; padding-left: 18px; margin: 0 0 24px; }
 
 label { display: block; font-size: 13px; font-weight: 500; color: var(--text); margin: 14px 0 0; }
+
+.pem-intro { margin: 0 0 8px; font-size: 13px; }
+.pem-drop-zone {
+  margin-top: 14px;
+  padding: 12px;
+  border: 1.5px dashed transparent;
+  border-radius: 12px;
+  transition: border-color .15s ease, background-color .15s ease;
+}
+.pem-drop-zone.is-dragover {
+  border-color: color-mix(in srgb, var(--primary) 65%, var(--surface-800));
+  background: color-mix(in srgb, var(--primary) 10%, transparent);
+}
+.pem-drop-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+  flex-wrap: wrap;
+  margin-bottom: 6px;
+}
+.pem-drop-head label { margin: 0; }
+.pem-file-input { display: none; }
+.pem-drop-zone textarea { margin-top: 0; font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace; font-size: 12px; }
+.pem-hint { margin: 8px 0 0; font-size: 12px; line-height: 1.45; }
+.pem-hint code {
+  font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace;
+  font-size: 11px;
+  color: var(--text);
+}
+.field-info {
+  margin: 10px 0 0;
+  font-size: 13px;
+  color: var(--text-muted);
+  line-height: 1.45;
+}
 input[type=text], input[type=email], input[type=password], input[type=number], textarea {
   width: 100%; margin-top: 6px; padding: 10px 12px; font-size: 14px;
   border: 1.5px solid var(--surface-800); border-radius: 9px; font-family: inherit;

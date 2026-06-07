@@ -8,7 +8,7 @@ Repository: [github.com/Nexxus-Tech-SAS/jpilot](https://github.com/Nexxus-Tech-S
 
 > **Disclaimer:** JPilot is an independent project and is not affiliated with, endorsed by, or sponsored by Citrix Systems, Inc. NetScaler is a trademark of Citrix Systems, Inc.
 
-**Current release:** `v0.41` — JPilot Chat Beta, `/jpilot` routes, Settings HTTPS certificate replacement, and chat persistence in localStorage.
+**Current release:** `v0.42` — Installer TLS drag/drop and file browse for custom certificates.
 
 Bump the root [`VERSION`](VERSION) file when tagging a release so in-app update checks match GitHub.
 
@@ -41,6 +41,12 @@ Bump the root [`VERSION`](VERSION) file when tagging a release so in-app update 
 - **NetScaler SDX (SSH)** — Operator and Analyst for SVM platform and VPX lifecycle with `search_sdx_cli_reference` memory gate (beta).
 - **F5 BIG-IP (SSH / TMSH)** — Operator, Analyst, and Architect (official F5 docs only); `f5_*` MCP tools and `search_f5_tmsh_reference` / `search_f5_documentation` (beta).
 - **Nexxus licensing** — Settings → **License**: enter a license code, import an offline `.lic` file, or sync with the Nexxus licensing API; installation fingerprint binding; encrypted payload validation; daily background sync and expiry enforcement; **activation gate** redirects unlicensed or expired installs to Settings → License before using the app.
+
+## What's new in v0.42
+
+| Area | Highlights |
+|------|------------|
+| **Installer TLS UX** | Custom certificate step supports **drag-and-drop**, **Browse file**, and paste for certificate, private key, and optional CA chain; auto-routes keys/certs to the correct field and splits full-chain PEMs. |
 
 ## What's new in v0.41
 
@@ -436,7 +442,7 @@ starts the setup wizard. Then:
 1. Open **https://localhost:9443** (the installer uses a self-signed certificate, so
    accept the one-time browser warning).
 2. Complete the wizard: admin account (username, email, password), domain, **deploy mode**
-   (production or development), and TLS (self-signed or your own cert).
+   (production or development), and TLS (self-signed or your own cert — drag/drop, browse, or paste PEM).
 3. On **Review**, accept the legal terms, then **save the generated `NSAGENT_ENCRYPTION_KEY`** — it is
    required to restore or migrate the install and cannot be recovered.
 4. Click **Install JPilot**. **Keep the setup tab open** — a progress bar runs while Docker

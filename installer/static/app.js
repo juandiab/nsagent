@@ -9,6 +9,9 @@ const state = { step: 0, reconfigure: false, certValidated: false, result: null 
 
 const USERNAME_RE = /^[a-zA-Z0-9._-]{2,64}$/;
 const EMAIL_RE = /^[^@\s]+@[^@\s]+\.[^@\s]+$/;
+const PEM_CERT_RE = /-----BEGIN CERTIFICATE-----/;
+const PEM_KEY_RE = /-----BEGIN (?:RSA |EC )?PRIVATE KEY-----/;
+const PEM_CERT_BLOCK_RE = /-----BEGIN CERTIFICATE-----[\s\S]*?-----END CERTIFICATE-----/g;
 
 // ---------------------------------------------------------------- step rail
 function renderRail() {
@@ -117,6 +120,189 @@ function renderReview() {
 
 function escapeHtml(s) {
   return String(s).replace(/[&<>"]/g, (c) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;" }[c]));
+}
+
+// ---------------------------------------------------------------- PEM drop / browse
+function invalidateCert() {
+  state.certValidated = false;
+  hide($("certOk"));
+}
+
+function showDropMessage(msg, tone = "info") {
+  const el = $("certDropMsg");
+  if (!msg) {
+    hide(el);
+    return;
+  }
+  el.textContent = msg;
+  el.classList.toggle("field-error", tone === "error");
+  el.classList.toggle("field-info", tone !== "error");
+  show(el);
+}
+
+function readFileAsText(file) {
+  return new Promise((resolve, reject) => {
+    const reader = new FileReader();
+    reader.onload = () => resolve(String(reader.result || ""));
+    reader.onerror = () => reject(new Error(`Could not read ${file.name}`));
+    reader.readAsText(file);
+  });
+}
+
+function splitCertificateBlocks(text) {
+  return text.match(PEM_CERT_BLOCK_RE) || [];
+}
+
+function classifyPem(text) {
+  const trimmed = text.trim();
+  const hasCert = PEM_CERT_RE.test(trimmed);
+  const hasKey = PEM_KEY_RE.test(trimmed);
+  if (hasKey && !hasCert) return "private_key";
+  if (hasCert && !hasKey) return "certificate";
+  if (hasCert && hasKey) return "mixed";
+  return "unknown";
+}
+
+function appendChainText(text) {
+  const blocks = splitCertificateBlocks(text);
+  const next = (blocks.length ? blocks : [text.trim()]).join("\n");
+  const field = $("chain");
+  field.value = field.value.trim() ? `${field.value.trim()}\n${next}` : next;
+  invalidateCert();
+}
+
+function setPemField(field, text) {
+  if (field === "certificate") $("certificate").value = text.trim();
+  else if (field === "private_key") $("private_key").value = text.trim();
+  else {
+    appendChainText(text);
+    return;
+  }
+  invalidateCert();
+}
+
+function ingestPemText(text, preferredField, fileName = "") {
+  const kind = classifyPem(text);
+
+  if (kind === "unknown") {
+    showDropMessage(
+      fileName
+        ? `${fileName} does not look like a PEM certificate or private key.`
+        : "Dropped content does not look like a PEM certificate or private key.",
+      "error"
+    );
+    return false;
+  }
+
+  if (preferredField === "chain") {
+    if (kind === "private_key") {
+      setPemField("private_key", text);
+      showDropMessage(
+        fileName
+          ? `${fileName} looks like a private key — placed in the private key field.`
+          : "Placed the private key in the matching field."
+      );
+      return true;
+    }
+    appendChainText(text);
+    showDropMessage("");
+    return true;
+  }
+
+  const target =
+    kind === "certificate" || kind === "private_key" ? kind : preferredField;
+
+  if (target !== preferredField && kind !== "mixed") {
+    showDropMessage(
+      fileName
+        ? `${fileName} looks like a ${kind === "private_key" ? "private key" : "certificate"} — placed in the matching field.`
+        : `Placed the ${kind === "private_key" ? "private key" : "certificate"} in the matching field.`
+    );
+  } else {
+    showDropMessage("");
+  }
+
+  if (target === "certificate") {
+    const blocks = splitCertificateBlocks(text);
+    if (blocks.length > 1) {
+      setPemField("certificate", blocks[0]);
+      appendChainText(blocks.slice(1).join("\n"));
+      const routed = target !== preferredField && kind !== "mixed";
+      if (!routed) {
+        showDropMessage("Multiple certificates detected — leaf cert and intermediates were split automatically.");
+      }
+      return true;
+    }
+  }
+
+  setPemField(target, text);
+  return true;
+}
+
+async function loadPemFiles(files, preferredField) {
+  const list = [...files].filter((file) => file && file.size > 0);
+  if (!list.length) return;
+
+  showDropMessage("");
+  let loaded = 0;
+  for (const file of list) {
+    try {
+      const text = await readFileAsText(file);
+      if (ingestPemText(text, preferredField, file.name)) loaded += 1;
+    } catch (error) {
+      showDropMessage(error.message || `Could not read ${file.name}.`, "error");
+    }
+  }
+
+  if (loaded > 1 && $("certDropMsg").classList.contains("hidden")) {
+    showDropMessage(`Loaded ${loaded} files.`);
+  }
+}
+
+function wirePemDropZones() {
+  let dragField = null;
+
+  document.querySelectorAll(".pem-drop-zone").forEach((zone) => {
+    const field = zone.dataset.pemField;
+
+    zone.addEventListener("dragenter", (event) => {
+      event.preventDefault();
+      dragField = field;
+      zone.classList.add("is-dragover");
+    });
+    zone.addEventListener("dragover", (event) => {
+      event.preventDefault();
+      dragField = field;
+      zone.classList.add("is-dragover");
+    });
+    zone.addEventListener("dragleave", (event) => {
+      if (zone.contains(event.relatedTarget)) return;
+      if (dragField === field) dragField = null;
+      zone.classList.remove("is-dragover");
+    });
+    zone.addEventListener("drop", async (event) => {
+      event.preventDefault();
+      zone.classList.remove("is-dragover");
+      dragField = null;
+      await loadPemFiles(event.dataTransfer?.files || [], field);
+    });
+  });
+
+  document.querySelectorAll(".pem-browse").forEach((btn) => {
+    btn.addEventListener("click", () => {
+      const field = btn.dataset.pemField;
+      const input = document.querySelector(`.pem-file-input[data-pem-field="${field}"]`);
+      input?.click();
+    });
+  });
+
+  document.querySelectorAll(".pem-file-input").forEach((input) => {
+    input.addEventListener("change", async (event) => {
+      const field = input.dataset.pemField;
+      await loadPemFiles(event.target.files || [], field);
+      event.target.value = "";
+    });
+  });
 }
 
 // ---------------------------------------------------------------- API calls
@@ -293,8 +479,12 @@ function wire() {
       state.certValidated = !custom;
     }));
   $("validateCert").addEventListener("click", validateCert);
+  wirePemDropZones();
   ["certificate", "private_key", "chain"].forEach((id) =>
-    $(id).addEventListener("input", () => { state.certValidated = false; hide($("certOk")); }));
+    $(id).addEventListener("input", () => {
+      invalidateCert();
+      hide($("certDropMsg"));
+    }));
 
   $("acceptTerms").addEventListener("change", () => {
     hide($("termsErr"));
