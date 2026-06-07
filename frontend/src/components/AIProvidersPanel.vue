@@ -8,7 +8,7 @@
         </div>
         <h2 class="section-title mt-2">AI providers</h2>
         <p class="section-copy">
-          Connect OpenAI, Anthropic, Gemini, Grok, DeepSeek, LM Studio, or compatible endpoints.
+          Connect OpenAI, Anthropic, Gemini, Grok, DeepSeek, OpenRouter, Azure OpenAI, AWS Bedrock, LM Studio, or compatible endpoints.
           Assign each model to Architect, Operator, and/or Analyst roles — use a smart model for planning
           and a faster one for operations.
         </p>
@@ -205,15 +205,43 @@
           <Select
             id="model"
             v-model="form.model"
-            :options="availableModels"
+            :options="modelSelectOptions"
+            option-label="label"
+            option-value="value"
             append-to="body"
-            class="w-full"
+            class="w-full model-select"
             placeholder="Fetch models first"
-            :disabled="!availableModels.length"
+            :disabled="!modelSelectOptions.length"
             filter
             show-clear
+          >
+            <template #option="{ option }">
+              <div class="model-option-row">
+                <span class="model-option-name">{{ option.label }}</span>
+                <span v-if="option.cost" class="model-option-cost">{{ option.cost }}</span>
+              </div>
+            </template>
+            <template #value="{ value, placeholder }">
+              <div v-if="value" class="model-option-row model-option-value">
+                <span class="model-option-name">{{ value }}</span>
+                <span v-if="selectedModelCost" class="model-option-cost">{{ selectedModelCost }}</span>
+              </div>
+              <span v-else>{{ placeholder }}</span>
+            </template>
+          </Select>
+          <ModelRoleSuggestions
+            v-if="availableModels.length"
+            :provider-type="form.providerType"
+            :available-models="availableModels"
+            :selected-model="form.model"
+            @select-model="form.model = $event"
           />
-          <small class="field-hint">Select provider type, enter credentials, then load available models.</small>
+          <small class="field-hint">
+            Select provider type, enter credentials, then load available models.
+            <span v-if="form.providerType === 'Azure OpenAI'">
+              Model list shows Azure <strong>deployment</strong> names.
+            </span>
+          </small>
         </div>
         <div class="flex align-items-center gap-2">
           <ToggleSwitch v-model="form.enabled" input-id="provider-enabled" />
@@ -276,7 +304,9 @@ import Tag from 'primevue/tag'
 import ToggleSwitch from 'primevue/toggleswitch'
 import { getProviderHint } from '../config/aiProviders'
 import { JPILOT_ROLES } from '../config/jpilotRoles'
+import { buildModelSelectOptions, lookupModelCost } from '../config/modelPricing'
 import api from '../services/api'
+import ModelRoleSuggestions from './ModelRoleSuggestions.vue'
 
 const confirm = useConfirm()
 const toast = useToast()
@@ -295,7 +325,20 @@ const isEditing = ref(false)
 const editingId = ref(null)
 const searchQuery = ref('')
 
-const providerTypes = ['OpenAI', 'Anthropic', 'Gemini', 'Grok', 'DeepSeek', 'LM Studio', 'OpenAI-Compatible']
+const providerTypes = [
+  'OpenAI',
+  'Anthropic',
+  'Gemini',
+  'Grok',
+  'DeepSeek',
+  'OpenRouter',
+  'Azure OpenAI',
+  'AWS Bedrock',
+  'LM Studio',
+  'OpenAI-Compatible'
+]
+
+const LOCAL_PROVIDER_TYPES = new Set(['LM Studio', 'OpenAI-Compatible'])
 
 const llmRoles = JPILOT_ROLES
 
@@ -337,6 +380,14 @@ const form = reactive(emptyForm())
 const providerHint = computed(() => getProviderHint(form.providerType))
 
 const endpointRequired = computed(() => providerHint.value.required)
+
+const modelSelectOptions = computed(() =>
+  buildModelSelectOptions(availableModels.value, form.providerType)
+)
+
+const selectedModelCost = computed(() =>
+  form.model ? lookupModelCost(form.model, form.providerType) : null
+)
 
 const filteredProviders = computed(() => {
   const query = searchQuery.value.trim().toLowerCase()
@@ -415,7 +466,7 @@ async function loadModels() {
         })
         return
       }
-      if (form.providerType !== 'LM Studio' && form.providerType !== 'OpenAI-Compatible' && !form.apiKey) {
+      if (!LOCAL_PROVIDER_TYPES.has(form.providerType) && !form.apiKey) {
         toast.add({
           severity: 'warn',
           summary: 'API key required',
@@ -780,5 +831,43 @@ onMounted(loadProviders)
 .role-toggle :deep(.p-checkbox-box) {
   width: 1rem;
   height: 1rem;
+}
+
+.model-select :deep(.p-select-label) {
+  padding-right: 0.5rem;
+}
+
+.model-option-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.75rem;
+  width: 100%;
+  min-width: 0;
+}
+
+.model-option-value {
+  width: 100%;
+}
+
+.model-option-name {
+  flex: 1;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.model-option-cost {
+  flex-shrink: 0;
+  font-size: 0.6875rem;
+  font-weight: 600;
+  letter-spacing: 0.02em;
+  color: var(--p-text-muted-color);
+  white-space: nowrap;
+}
+
+:global(.app-dark) .model-option-cost {
+  color: color-mix(in srgb, var(--p-surface-0) 55%, transparent);
 }
 </style>

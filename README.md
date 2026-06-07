@@ -8,26 +8,26 @@ Repository: [github.com/Nexxus-Tech-SAS/jpilot](https://github.com/Nexxus-Tech-S
 
 > **Disclaimer:** JPilot is an independent project and is not affiliated with, endorsed by, or sponsored by Citrix Systems, Inc. NetScaler is a trademark of Citrix Systems, Inc.
 
-**Current release:** `v0.39` — Interactive web installer launch progress; opens JPilot only when Docker is ready.
+**Current release:** `v0.40` — Architect→Operator handoff, live chat generation metrics, OpenRouter/Azure/Bedrock, model-aware context limits, and passkey policy.
 
 Bump the root [`VERSION`](VERSION) file when tagging a release so in-app update checks match GitHub.
 
 ## Features
 
 - **Appliance inventory** — vendor → device → credentials wizard; **tags** for filtering; MPX, VPX, SDX, Cisco, and F5 product lines; **Beta Available** badges on SDX, Cisco, and F5; encrypted credentials (Fernet).
-- **AI provider management** — OpenAI, Anthropic, Gemini, Grok, DeepSeek, LM Studio, and OpenAI-compatible endpoints; assign each model to **Architect**, **Operator**, and/or **Analyst** roles.
+- **AI provider management** — OpenAI, Anthropic, Gemini, Grok, DeepSeek, LM Studio, **OpenRouter**, **Azure OpenAI**, **AWS Bedrock**, and OpenAI-compatible endpoints; assign each model to **Architect**, **Operator**, and/or **Analyst** roles; role suggestions with indicative pricing when loading models.
 - **JPilot chat** — tool-calling agent bound to the selected appliance; credentials never sent to the LLM.
-- **JPilot roles** — **Architect** (structured discovery and formal design documents), **Operator** (configure the ADC, including from attached `.md` designs), **Analyst** (read-first troubleshooting); dual-pane defaults to Architect + Operator; per-pane **context usage** ring and **Stop** while generating.
-- **Architect design workflow** — choice/boolean `jpilot-form` discovery; deliverable outline with AWS/Azure, Gateway integrations, and AAA topics; downloadable design `.md`; official doc reference index (Citrix Gateway, authentication, Tech Zone).
+- **JPilot roles** — **Architect** (structured discovery and formal design documents), **Operator** (configure the ADC, including from attached `.md` designs), **Analyst** (read-first troubleshooting); dual-pane defaults to Architect + Operator; **Send to Operator** handoff from design deliverables; per-pane **context usage** ring (model-aware), live **generation speed** while thinking, and **Stop** while generating.
+- **Architect design workflow** — choice/boolean `jpilot-form` discovery; deliverable outline with AWS/Azure, Gateway integrations, and AAA topics; downloadable design `.md` and one-click **Send to Operator** (opens pane 2 and starts implementation); official doc reference index (Citrix Gateway, authentication, Tech Zone).
 - **JPilot command menu** — searchable recommended actions by role with section grouping (~200 prompts); filters to the **selected appliance vendor** (NetScaler, SDX, Cisco, F5).
 - **MCP server** — Model Context Protocol tools for Next-Gen API, classic CLI over SSH, NITRO helpers, diagnostics, and SSL key/CSR generation.
 - **Multi-vendor brain** — `resources/vendors/<id>/manifest.json` drives memory, prompts, tools, and connect mode; NetScaler, Cisco, SDX, and F5 BIG-IP supported today.
-- **Token-optimized chat** — intent-based tool routing, slimmer Architect prompts (on-demand resource search), 18-message history, 10k-char tool results.
+- **Token-optimized chat** — intent-based tool routing, slimmer Architect prompts (on-demand resource search), **model-aware** history and tool-result limits (scales with context window size).
 - **Memory-guided RAG** — `backend-api/app/resources/memory/<vendor>/` gates API/CLI usage before execution.
 - **Classic + Next-Gen** — list virtual servers from Next-Gen applications and classic `lbvserver`; create apps via Next-Gen or multi-step LB setup via CLI.
 - **Guided load balancer forms** — JPilot can embed interactive `jpilot-form` blocks in chat (VIP, service type, backends, monitors); submissions drive CLI execution after reference lookup.
 - **Smart form routing** — responder, rewrite, transform, and other policy-on-vserver requests do not trigger the LB creation form.
-- **Authentication** — password login until a passkey is registered; then passkey-only sign-in (password login blocked server-side); failed password sign-in lockout and recovery-code attempt limits.
+- **Authentication** — password login until a passkey is registered (when passkeys are enabled); optional **passkey policy** (disable / enable / enforce) under Settings → Security; failed password sign-in lockout and recovery-code attempt limits.
 - **Account recovery** — email OTP via SMTP; self-service at `/account-recovery` or admin-initiated from Users; revokes passkeys and resets password and/or registers a new passkey.
 - **User management** — admin CRUD for users (roles `admin` / `user`), email for resets, initial password on create, passkey count and removal.
 - **SSL certificate tools** — generate CSRs or self-signed certificates on the appliance (UI + API + MCP).
@@ -40,6 +40,17 @@ Bump the root [`VERSION`](VERSION) file when tagging a release so in-app update 
 - **NetScaler SDX (SSH)** — Operator and Analyst for SVM platform and VPX lifecycle with `search_sdx_cli_reference` memory gate (beta).
 - **F5 BIG-IP (SSH / TMSH)** — Operator, Analyst, and Architect (official F5 docs only); `f5_*` MCP tools and `search_f5_tmsh_reference` / `search_f5_documentation` (beta).
 - **Nexxus licensing** — Settings → **License**: enter a license code, import an offline `.lic` file, or sync with the Nexxus licensing API; installation fingerprint binding; encrypted payload validation; daily background sync and expiry enforcement; **activation gate** redirects unlicensed or expired installs to Settings → License before using the app.
+
+## What's new in v0.40
+
+| Area | Highlights |
+|------|------------|
+| **Architect → Operator handoff** | **Send to Operator** on completed design documents; opens the Operator pane and starts implementation with the `.md` attached (no manual download step). |
+| **Live generation metrics** | Chat streams progress over SSE — elapsed time, phase labels (model vs tools), and **tok/s** after each model round. |
+| **AI providers** | **OpenRouter**, **Azure OpenAI**, and **AWS Bedrock**; model picker shows indicative **cost**; colorful **role suggestions** when loading models. |
+| **Model-aware context** | History message count and tool-result truncation scale with the selected model’s context window; context ring tooltip shows limits. |
+| **Passkey policy** | Admins set platform policy under Settings → Security: **Disable**, **Enable** (recommended), or **Enforce** passkeys. |
+| **Command menu UX** | Browse recommendations sidebar no longer overlaps results in the Ask JPilot dialog. |
 
 ## What's new in v0.39
 

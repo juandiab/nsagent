@@ -29,6 +29,26 @@ export const AI_PROVIDER_HINTS = {
     example: '',
     hostNote: 'Cloud API — get an API key from platform.deepseek.com'
   },
+  OpenRouter: {
+    required: false,
+    hint: 'Leave empty — uses https://openrouter.ai/api/v1',
+    example: '',
+    hostNote: 'Cloud API — one key for many models; get an API key from openrouter.ai/keys'
+  },
+  'Azure OpenAI': {
+    required: true,
+    hint: 'Azure resource root URL (not the deployment path)',
+    example: 'https://your-resource.openai.azure.com',
+    hostNote:
+      'Use the resource URL from Azure AI Foundry. Model dropdown lists deployments — pick a deployment name, not the base model SKU.'
+  },
+  'AWS Bedrock': {
+    required: true,
+    hint: 'AWS region code or full Bedrock OpenAI-compatible base URL',
+    example: 'us-east-1',
+    hostNote:
+      'Uses the Bedrock OpenAI-compatible API (…/openai/v1). Paste a Bedrock API key or long-term key from the AWS console. IAM access keys are not supported yet.'
+  },
   'LM Studio': {
     required: true,
     hint: 'OpenAI-compatible base URL — LM Studio uses /v1',

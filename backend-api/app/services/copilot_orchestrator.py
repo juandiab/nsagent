@@ -2,6 +2,7 @@ import json
 import logging
 import re
 import sys
+import time
 from typing import Any
 
 from motor.motor_asyncio import AsyncIOMotorDatabase
@@ -24,7 +25,13 @@ from app.services.copilot_attachment_service import (
     build_openai_user_content,
     validate_attachments,
 )
-from app.services.ai_provider_service import lm_studio_endpoint_candidates, resolve_base_url
+from app.services.ai_provider_service import (
+    lm_studio_endpoint_candidates,
+    normalize_azure_resource_endpoint,
+    OPENAI_COMPAT_CHAT_PROVIDER_TYPES,
+    resolve_base_url,
+    resolve_bedrock_openai_base,
+)
 from app.services.copilot_service import (
     chat_anthropic,
     chat_gemini,
@@ -68,9 +75,10 @@ from app.services.copilot_vendors import copilot_vendor_is_supported
 from app.services.vendor_registry import resolve_chat_vendor
 from app.services.encryption_service import decrypt_value
 
+from app.services.context_limits import ContextLimits, resolve_context_limits
+from app.services.copilot_progress import QueueChatProgressReporter
+
 MAX_TOOL_ITERATIONS = 20
-MAX_HISTORY_MESSAGES = 18
-MAX_TOOL_RESULT_CHARS = 10000
 
 
 class ChatCancelledError(Exception):
@@ -311,16 +319,16 @@ def guard_fabricated_execution(
         return f"{UNEXECUTED_ACTION_BANNER}\n\n---\n\n{content}"
     return content
 
-def trim_chat_history(history: list[dict]) -> list[dict]:
-    if len(history) <= MAX_HISTORY_MESSAGES:
+def trim_chat_history(history: list[dict], max_messages: int) -> list[dict]:
+    if max_messages <= 0 or len(history) <= max_messages:
         return history
-    return history[-MAX_HISTORY_MESSAGES:]
+    return history[-max_messages:]
 
 
-def _truncate_tool_result(result: str) -> str:
-    if len(result) <= MAX_TOOL_RESULT_CHARS:
+def _truncate_tool_result(result: str, max_chars: int) -> str:
+    if max_chars <= 0 or len(result) <= max_chars:
         return result
-    return result[:MAX_TOOL_RESULT_CHARS] + "\n...[truncated for context]"
+    return result[:max_chars] + "\n...[truncated for context]"
 
 
 def _finalize_chat_response(
@@ -445,6 +453,7 @@ async def run_copilot_chat(
     web_search: bool = True,
     role: str | None = None,
     request: Request | None = None,
+    progress: QueueChatProgressReporter | None = None,
 ) -> ChatResponse:
     from app.services.copilot_service import set_web_search_allowed
 
@@ -510,7 +519,11 @@ async def run_copilot_chat(
         from app.services.copilot_roles import operator_design_implementation_suffix
 
         system_prompt += "\n" + operator_design_implementation_suffix(appliance_name, vendor=chat_vendor)
-    history = trim_chat_history(history)
+    ctx_limits = resolve_context_limits(model, provider_type)
+    history = trim_chat_history(history, ctx_limits.max_history_messages)
+
+    if progress is not None:
+        await progress.status(phase="preparing", label="Preparing request…")
 
     from app.services.copilot_port_check import try_auto_tcp_port_check
 
@@ -560,6 +573,8 @@ async def run_copilot_chat(
             jpilot_role=chat_role.value,
             chat_vendor=chat_vendor,
             request=request,
+            context_limits=ctx_limits,
+            progress=progress,
         )
     elif provider_type == "Gemini":
         content = await _run_gemini_loop(
@@ -579,12 +594,20 @@ async def run_copilot_chat(
             jpilot_role=chat_role.value,
             chat_vendor=chat_vendor,
             request=request,
+            context_limits=ctx_limits,
+            progress=progress,
         )
-    elif provider_type in {"OpenAI", "Grok", "DeepSeek", "LM Studio", "OpenAI-Compatible"}:
+    elif provider_type in OPENAI_COMPAT_CHAT_PROVIDER_TYPES:
         if provider_type == "LM Studio":
             lm_base_urls = lm_studio_endpoint_candidates(endpoint.strip())
             base_url = lm_base_urls[0]
             base_url_candidates = lm_base_urls
+        elif provider_type == "AWS Bedrock":
+            base_url = resolve_bedrock_openai_base(endpoint.strip())
+            base_url_candidates = None
+        elif provider_type == "Azure OpenAI":
+            base_url = normalize_azure_resource_endpoint(endpoint.strip())
+            base_url_candidates = None
         else:
             base_url = resolve_base_url(provider_type, endpoint)
             base_url_candidates = None
@@ -607,6 +630,9 @@ async def run_copilot_chat(
             jpilot_role=chat_role.value,
             chat_vendor=chat_vendor,
             request=request,
+            endpoint=endpoint,
+            context_limits=ctx_limits,
+            progress=progress,
         )
     else:
         raise ValueError(f"Unsupported provider type: {provider_type}")
@@ -662,7 +688,11 @@ async def _run_openai_loop(
     jpilot_role: str | None = None,
     chat_vendor: str | None = None,
     request: Request | None = None,
+    endpoint: str = "",
+    context_limits: ContextLimits | None = None,
+    progress: QueueChatProgressReporter | None = None,
 ) -> str:
+    limits = context_limits or resolve_context_limits(model, provider_type)
     messages: list[dict[str, Any]] = [{"role": "system", "content": system_prompt}]
     for item in history:
         messages.append({"role": item["role"], "content": item["content"]})
@@ -681,6 +711,9 @@ async def _run_openai_loop(
 
     for _ in range(MAX_TOOL_ITERATIONS):
         await raise_if_chat_cancelled(request)
+        if progress is not None:
+            await progress.llm_started()
+        llm_started_at = time.perf_counter()
         data, active_base_url = await chat_openai_compatible(
             base_url=active_base_url,
             api_key=api_key,
@@ -690,7 +723,14 @@ async def _run_openai_loop(
             base_url_candidates=fallback_candidates,
             provider_type=provider_type,
             provider_name=provider_name,
+            endpoint=endpoint,
         )
+        if progress is not None:
+            await progress.llm_finished(
+                duration_ms=int((time.perf_counter() - llm_started_at) * 1000),
+                provider_type=provider_type,
+                data=data,
+            )
         fallback_candidates = None
         if usage_accumulator is not None:
             usage_accumulator.add_llm_response(provider_type, data)
@@ -730,6 +770,8 @@ async def _run_openai_loop(
             except (json.JSONDecodeError, TypeError):
                 arguments = {}
             try:
+                if progress is not None:
+                    await progress.tool_started(name)
                 result, nextgen_memory_reviewed, cli_memory_reviewed = await _execute_tool_with_memory_gate(
                     db,
                     name,
@@ -740,6 +782,8 @@ async def _run_openai_loop(
                     role=jpilot_role,
                     vendor=chat_vendor,
                 )
+                if progress is not None:
+                    await progress.tool_finished(name)
             except Exception as exc:
                 logger.exception("tool_call name=%s failed", name)
                 result = json.dumps({"success": False, "errorMessage": str(exc)})
@@ -750,7 +794,7 @@ async def _run_openai_loop(
                 {
                     "role": "tool",
                     "tool_call_id": tool_call_id,
-                    "content": _truncate_tool_result(result),
+                    "content": _truncate_tool_result(result, limits.max_tool_result_chars),
                 }
             )
             retry_hint = build_tool_retry_hint(
@@ -782,7 +826,10 @@ async def _run_gemini_loop(
     jpilot_role: str | None = None,
     chat_vendor: str | None = None,
     request: Request | None = None,
+    context_limits: ContextLimits | None = None,
+    progress: QueueChatProgressReporter | None = None,
 ) -> str:
+    limits = context_limits or resolve_context_limits(model, provider_type)
     contents: list[dict[str, Any]] = []
     for item in history:
         gemini_role = "model" if item["role"] == "assistant" else "user"
@@ -800,6 +847,9 @@ async def _run_gemini_loop(
 
     for _ in range(MAX_TOOL_ITERATIONS):
         await raise_if_chat_cancelled(request)
+        if progress is not None:
+            await progress.llm_started()
+        llm_started_at = time.perf_counter()
         data = await chat_gemini(
             api_key=api_key,
             model=model,
@@ -808,6 +858,12 @@ async def _run_gemini_loop(
             tools=tools,
             provider_name=provider_name,
         )
+        if progress is not None:
+            await progress.llm_finished(
+                duration_ms=int((time.perf_counter() - llm_started_at) * 1000),
+                provider_type=provider_type,
+                data=data,
+            )
         if usage_accumulator is not None:
             usage_accumulator.add_llm_response(provider_type, data)
 
@@ -845,6 +901,8 @@ async def _run_gemini_loop(
         for function_call in function_calls:
             name = function_call["name"]
             arguments = function_call.get("args", {})
+            if progress is not None:
+                await progress.tool_started(name)
             result, nextgen_memory_reviewed, cli_memory_reviewed = await _execute_tool_with_memory_gate(
                 db,
                 name,
@@ -855,12 +913,15 @@ async def _run_gemini_loop(
                 role=jpilot_role,
                 vendor=chat_vendor,
             )
+            if progress is not None:
+                await progress.tool_finished(name)
             tool_traces.append(ToolCallTrace(name=name, arguments=arguments, result=result))
+            truncated = _truncate_tool_result(result, limits.max_tool_result_chars)
             response_parts.append(
                 {
                     "functionResponse": {
                         "name": name,
-                        "response": {"result": result},
+                        "response": {"result": truncated},
                     }
                 }
             )
@@ -892,7 +953,10 @@ async def _run_anthropic_loop(
     jpilot_role: str | None = None,
     chat_vendor: str | None = None,
     request: Request | None = None,
+    context_limits: ContextLimits | None = None,
+    progress: QueueChatProgressReporter | None = None,
 ) -> str:
+    limits = context_limits or resolve_context_limits(model, provider_type)
     messages: list[dict[str, Any]] = []
     for item in history:
         messages.append({"role": item["role"], "content": item["content"]})
@@ -909,6 +973,9 @@ async def _run_anthropic_loop(
 
     for _ in range(MAX_TOOL_ITERATIONS):
         await raise_if_chat_cancelled(request)
+        if progress is not None:
+            await progress.llm_started()
+        llm_started_at = time.perf_counter()
         data = await chat_anthropic(
             api_key=api_key,
             model=model,
@@ -917,6 +984,12 @@ async def _run_anthropic_loop(
             tools=tools,
             provider_name=provider_name,
         )
+        if progress is not None:
+            await progress.llm_finished(
+                duration_ms=int((time.perf_counter() - llm_started_at) * 1000),
+                provider_type=provider_type,
+                data=data,
+            )
         if usage_accumulator is not None:
             usage_accumulator.add_llm_response(provider_type, data)
 
@@ -952,6 +1025,8 @@ async def _run_anthropic_loop(
         for tool_use in tool_uses:
             name = tool_use["name"]
             arguments = tool_use.get("input", {})
+            if progress is not None:
+                await progress.tool_started(name)
             result, nextgen_memory_reviewed, cli_memory_reviewed = await _execute_tool_with_memory_gate(
                 db,
                 name,
@@ -962,12 +1037,14 @@ async def _run_anthropic_loop(
                 role=jpilot_role,
                 vendor=chat_vendor,
             )
+            if progress is not None:
+                await progress.tool_finished(name)
             tool_traces.append(ToolCallTrace(name=name, arguments=arguments, result=result))
             tool_results.append(
                 {
                     "type": "tool_result",
                     "tool_use_id": tool_use["id"],
-                    "content": result,
+                    "content": _truncate_tool_result(result, limits.max_tool_result_chars),
                 }
             )
             retry_hint = build_tool_retry_hint(

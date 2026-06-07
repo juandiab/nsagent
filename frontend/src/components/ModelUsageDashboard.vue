@@ -145,6 +145,9 @@ function providerIcon(type) {
     Gemini: 'pi pi-google',
     Grok: 'pi pi-bolt',
     DeepSeek: 'pi pi-code',
+    OpenRouter: 'pi pi-share-alt',
+    'Azure OpenAI': 'pi pi-microsoft',
+    'AWS Bedrock': 'pi pi-cloud',
     'LM Studio': 'pi pi-desktop',
     'OpenAI-Compatible': 'pi pi-server'
   }

@@ -89,12 +89,13 @@
 </template>
 
 <script setup>
-import { computed, onMounted, ref } from 'vue'
+import { computed, onMounted, ref, watch } from 'vue'
 import { useRouter } from 'vue-router'
 import Button from 'primevue/button'
 import Message from 'primevue/message'
 import SelectButton from 'primevue/selectbutton'
 import ChatPane from '../components/ChatPane.vue'
+import { handoffState, OPERATOR_SESSION_ID } from '../stores/copilotHandoff'
 import {
   CHAT_BACKGROUNDS,
   getChatBackground,
@@ -170,6 +171,15 @@ onMounted(() => {
   loadAppliances()
   loadWebSearchAvailability()
 })
+
+watch(
+  () => handoffState.pending,
+  (pending) => {
+    if (pending?.targetSessionId === OPERATOR_SESSION_ID && windowCount.value === 1) {
+      windowCount.value = 2
+    }
+  }
+)
 </script>
 
 <style scoped>

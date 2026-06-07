@@ -59,6 +59,30 @@
           {{ errorMessage }}
         </Message>
 
+        <Message
+          v-if="status?.passkeyPolicy === 'disabled'"
+          severity="secondary"
+          :closable="false"
+        >
+          Passkeys are disabled on this platform. Sign in with your password.
+        </Message>
+
+        <Message
+          v-else-if="status?.passkeyEnforced && !status?.hasPasskey"
+          severity="warn"
+          :closable="false"
+        >
+          Passkeys are required. Sign in with your password once, then register a passkey under Settings → Security.
+        </Message>
+
+        <Message
+          v-else-if="status?.passkeyRecommended && !status?.hasPasskey"
+          severity="info"
+          :closable="false"
+        >
+          Passkeys are recommended for faster, phishing-resistant sign-in. Register one in Settings → Security after you sign in.
+        </Message>
+
         <div class="flex align-items-start gap-2">
           <Checkbox v-model="agreed" :binary="true" input-id="agree" />
           <label for="agree" class="agree-label">
@@ -156,7 +180,7 @@
           </div>
         </template>
 
-        <template v-else-if="status?.exists && !status?.hasPasskey">
+        <template v-else-if="status?.exists && !status?.hasPasskey && status?.passkeyPolicy !== 'disabled'">
           <div class="login-divider">
             <span>optional</span>
           </div>

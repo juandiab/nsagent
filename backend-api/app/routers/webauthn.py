@@ -3,8 +3,7 @@ from typing import Any
 from fastapi import APIRouter, Depends, HTTPException, status
 from motor.motor_asyncio import AsyncIOMotorDatabase
 
-from app.dependencies import get_current_user, get_db, get_optional_current_user, require_admin
-from app.schemas.auth import MessageResponse
+from app.dependencies import get_db, get_optional_current_user
 from app.schemas.webauthn import (
     WebAuthnLoginBeginRequest,
     WebAuthnLoginFinishRequest,
@@ -14,6 +13,7 @@ from app.schemas.webauthn import (
     WebAuthnUsernameRequest,
 )
 from app.services.auth_service import create_access_token, decode_recovery_token
+from app.services.security_settings_service import get_passkey_policy
 from app.services.user_service import get_user_by_username
 from app.services.webauthn_service import (
     begin_authentication,
@@ -75,30 +75,74 @@ def _require_email_for_first_passkey(user: dict[str, Any], passkey_count: int) -
         )
 
 
+def _require_passkeys_enabled(policy: str) -> None:
+    if policy == "disabled":
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail="Passkeys are disabled for this platform",
+        )
+
+
+def _build_status_response(
+    *,
+    username: str,
+    exists: bool,
+    has_passkey: bool,
+    passkey_policy: str,
+    can_register: bool,
+) -> WebAuthnStatusResponse:
+    if passkey_policy == "disabled":
+        passkey_required = False
+        passkey_recommended = False
+        passkey_enforced = False
+        can_register = False
+    elif passkey_policy == "enforced":
+        passkey_required = has_passkey
+        passkey_recommended = not has_passkey
+        passkey_enforced = True
+    else:
+        passkey_required = has_passkey
+        passkey_recommended = not has_passkey
+        passkey_enforced = False
+
+    return WebAuthnStatusResponse(
+        username=username,
+        exists=exists,
+        hasPasskey=has_passkey,
+        passkeyRequired=passkey_required,
+        canRegister=can_register,
+        passkeyPolicy=passkey_policy,
+        passkeyRecommended=passkey_recommended,
+        passkeyEnforced=passkey_enforced,
+    )
+
+
 @router.post("/status", response_model=WebAuthnStatusResponse)
 async def passkey_status(
     payload: WebAuthnUsernameRequest,
     db: AsyncIOMotorDatabase = Depends(get_db),
     current_user: dict | None = Depends(get_optional_current_user),
 ) -> WebAuthnStatusResponse:
+    passkey_policy = await get_passkey_policy(db)
     user = await get_user_by_username(db, payload.username)
     if user is None:
-        return WebAuthnStatusResponse(
+        return _build_status_response(
             username=payload.username.strip().lower(),
             exists=False,
-            hasPasskey=False,
-            passkeyRequired=False,
-            canRegister=False,
+            has_passkey=False,
+            passkey_policy=passkey_policy,
+            can_register=False,
         )
 
     passkey_count = await count_user_passkeys(db, user["_id"])
     has_passkey = passkey_count > 0
-    return WebAuthnStatusResponse(
+    can_register = _can_register_passkey(user, passkey_count, current_user, None)
+    return _build_status_response(
         username=user["username"],
         exists=True,
-        hasPasskey=has_passkey,
-        passkeyRequired=has_passkey,
-        canRegister=_can_register_passkey(user, passkey_count, current_user, None),
+        has_passkey=has_passkey,
+        passkey_policy=passkey_policy,
+        can_register=can_register,
     )
 
 
@@ -109,8 +153,11 @@ async def register_begin(
     current_user: dict | None = Depends(get_optional_current_user),
 ) -> dict[str, Any]:
     user = await _resolve_user(db, payload.username)
-    passkey_count = await count_user_passkeys(db, user["_id"])
+    passkey_policy = await get_passkey_policy(db)
     recovery_username = _recovery_username(payload.recoveryToken)
+    if recovery_username is None:
+        _require_passkeys_enabled(passkey_policy)
+    passkey_count = await count_user_passkeys(db, user["_id"])
     if not _can_register_passkey(user, passkey_count, current_user, recovery_username):
         raise HTTPException(
             status_code=status.HTTP_403_FORBIDDEN,
@@ -131,8 +178,11 @@ async def register_finish(
     current_user: dict | None = Depends(get_optional_current_user),
 ) -> dict[str, Any]:
     user = await _resolve_user(db, payload.username)
-    passkey_count = await count_user_passkeys(db, user["_id"])
+    passkey_policy = await get_passkey_policy(db)
     recovery_username = _recovery_username(payload.recoveryToken)
+    if recovery_username is None:
+        _require_passkeys_enabled(passkey_policy)
+    passkey_count = await count_user_passkeys(db, user["_id"])
     if not _can_register_passkey(user, passkey_count, current_user, recovery_username):
         raise HTTPException(
             status_code=status.HTTP_403_FORBIDDEN,
@@ -157,6 +207,8 @@ async def login_begin(
     db: AsyncIOMotorDatabase = Depends(get_db),
 ) -> dict[str, Any]:
     user = await _resolve_user(db, payload.username)
+    passkey_policy = await get_passkey_policy(db)
+    _require_passkeys_enabled(passkey_policy)
     try:
         return await begin_authentication(
             db,
@@ -173,6 +225,8 @@ async def login_finish(
     db: AsyncIOMotorDatabase = Depends(get_db),
 ) -> dict[str, Any]:
     user = await _resolve_user(db, payload.username)
+    passkey_policy = await get_passkey_policy(db)
+    _require_passkeys_enabled(passkey_policy)
     try:
         await finish_authentication(db, user, payload.credential)
     except ValueError as exc:

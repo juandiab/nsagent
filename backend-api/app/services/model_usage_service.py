@@ -32,6 +32,9 @@ DEFAULT_TOKEN_LIMIT_BY_TYPE: dict[str, int | None] = {
     "Gemini": 1_000_000,
     "Grok": 500_000,
     "DeepSeek": 500_000,
+    "OpenRouter": 1_000_000,
+    "Azure OpenAI": 1_000_000,
+    "AWS Bedrock": 1_000_000,
     "LM Studio": None,
     "OpenAI-Compatible": None,
 }
@@ -42,6 +45,9 @@ DEFAULT_REQUEST_LIMIT_BY_TYPE: dict[str, int | None] = {
     "Gemini": 5_000,
     "Grok": 3_000,
     "DeepSeek": 3_000,
+    "OpenRouter": 5_000,
+    "Azure OpenAI": 5_000,
+    "AWS Bedrock": 5_000,
     "LM Studio": None,
     "OpenAI-Compatible": None,
 }
@@ -73,13 +79,19 @@ def _counter_document_id(counter_key: str, period_key: str) -> str:
     return f"{counter_key}:{period_key}"
 
 
-def extract_token_usage(provider_type: str, data: dict[str, Any]) -> int:
+def extract_llm_usage_details(provider_type: str, data: dict[str, Any]) -> dict[str, int]:
     if not isinstance(data, dict):
-        return 0
+        return {"input_tokens": 0, "output_tokens": 0, "total_tokens": 0}
 
     if provider_type == "Anthropic":
         usage = data.get("usage") or {}
-        return int(usage.get("input_tokens") or 0) + int(usage.get("output_tokens") or 0)
+        input_tokens = int(usage.get("input_tokens") or 0)
+        output_tokens = int(usage.get("output_tokens") or 0)
+        return {
+            "input_tokens": input_tokens,
+            "output_tokens": output_tokens,
+            "total_tokens": input_tokens + output_tokens,
+        }
 
     if provider_type == "Gemini":
         for metadata in (
@@ -87,22 +99,33 @@ def extract_token_usage(provider_type: str, data: dict[str, Any]) -> int:
             ((data.get("candidates") or [{}])[0]).get("usageMetadata"),
         ):
             if isinstance(metadata, dict) and metadata:
+                input_tokens = int(metadata.get("promptTokenCount") or 0)
+                output_tokens = int(
+                    metadata.get("candidatesTokenCount") or metadata.get("responseTokenCount") or 0
+                )
                 total = metadata.get("totalTokenCount")
-                if total is not None:
-                    return int(total)
-                prompt = int(metadata.get("promptTokenCount") or 0)
-                completion = int(metadata.get("candidatesTokenCount") or metadata.get("responseTokenCount") or 0)
-                if prompt or completion:
-                    return prompt + completion
-        return 0
+                total_tokens = int(total) if total is not None else input_tokens + output_tokens
+                return {
+                    "input_tokens": input_tokens,
+                    "output_tokens": output_tokens,
+                    "total_tokens": total_tokens,
+                }
+        return {"input_tokens": 0, "output_tokens": 0, "total_tokens": 0}
 
     usage = data.get("usage") or {}
+    input_tokens = int(usage.get("prompt_tokens") or 0)
+    output_tokens = int(usage.get("completion_tokens") or 0)
     total = usage.get("total_tokens")
-    if total is not None:
-        return int(total)
-    prompt = int(usage.get("prompt_tokens") or 0)
-    completion = int(usage.get("completion_tokens") or 0)
-    return prompt + completion
+    total_tokens = int(total) if total is not None else input_tokens + output_tokens
+    return {
+        "input_tokens": input_tokens,
+        "output_tokens": output_tokens,
+        "total_tokens": total_tokens,
+    }
+
+
+def extract_token_usage(provider_type: str, data: dict[str, Any]) -> int:
+    return extract_llm_usage_details(provider_type, data)["total_tokens"]
 
 
 def _percent(used: int, limit: int | None) -> float | None:

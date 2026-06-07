@@ -17,6 +17,7 @@ from app.schemas.ai_provider_ops import (
 )
 from app.schemas.test import TestConnectionResponse
 from app.services.ai_provider_service import (
+    ENDPOINT_REQUIRED_PROVIDER_TYPES,
     fetch_models,
     normalize_lm_studio_endpoint,
     test_provider,
@@ -42,7 +43,7 @@ async def get_endpoint_hints() -> dict[str, dict[str, str | bool]]:
         provider: {
             "hint": meta.get("endpoint_hint", ""),
             "example": meta.get("endpoint_example", ""),
-            "required": provider in {"LM Studio", "OpenAI-Compatible"},
+            "required": provider in ENDPOINT_REQUIRED_PROVIDER_TYPES,
         }
         for provider, meta in PROVIDER_DEFAULTS.items()
     }

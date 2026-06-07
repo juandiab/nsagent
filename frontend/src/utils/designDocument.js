@@ -60,6 +60,25 @@ export function designDocumentFilename(content) {
  * @param {string} content
  * @param {string} [filename]
  */
+export function createDesignDocumentAttachment(content, filename) {
+  const markdown = stripDesignDocumentMarker(content)
+  const name = filename || designDocumentFilename(markdown)
+  const bytes = new TextEncoder().encode(markdown).length
+  if (bytes > 1024 * 1024) {
+    throw new Error('Design document exceeds the 1 MB attachment limit')
+  }
+  return {
+    name,
+    kind: 'config',
+    mimeType: 'text/markdown',
+    data: markdown
+  }
+}
+
+/**
+ * @param {string} content
+ * @param {string} [filename]
+ */
 export function downloadDesignDocument(content, filename) {
   const markdown = stripDesignDocumentMarker(content)
   const name = filename || designDocumentFilename(markdown)

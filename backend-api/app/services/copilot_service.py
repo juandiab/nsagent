@@ -1351,11 +1351,19 @@ async def _chat_openai_at_base(
     tools: list[dict[str, Any]],
     provider_type: str = "OpenAI-Compatible",
     provider_name: str = "",
+    endpoint: str = "",
 ) -> dict[str, Any]:
-    url = f"{base_url.rstrip('/')}/chat/completions"
-    headers = build_openai_compatible_headers(api_key)
-    headers["Content-Type"] = "application/json"
-    payload = {"model": model, "messages": messages, "tools": tools, "tool_choice": "auto"}
+    from app.services.ai_provider_service import prepare_openai_chat_request
+
+    url, headers, payload = prepare_openai_chat_request(
+        provider_type=provider_type,
+        api_key=api_key,
+        model=model,
+        messages=messages,
+        tools=tools,
+        endpoint=endpoint,
+        base_url=base_url,
+    )
 
     async with httpx.AsyncClient(timeout=120.0) as client:
         response = await client.post(url, json=payload, headers=headers)
@@ -1406,6 +1414,7 @@ async def chat_openai_compatible(
     base_url_candidates: list[str] | None = None,
     provider_type: str = "OpenAI-Compatible",
     provider_name: str = "",
+    endpoint: str = "",
 ) -> tuple[dict[str, Any], str]:
     candidates = _openai_base_candidates(base_url, base_url_candidates)
 
@@ -1420,6 +1429,7 @@ async def chat_openai_compatible(
                 tools=tools,
                 provider_type=provider_type,
                 provider_name=provider_name,
+                endpoint=endpoint,
             )
             return data, candidate
         except httpx.ConnectError as exc:

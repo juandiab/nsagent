@@ -1,7 +1,10 @@
-/** Keep MAX_HISTORY_MESSAGES in sync with backend copilot_orchestrator.py */
-export const MAX_HISTORY_MESSAGES = 18
+/** Context budgeting tiers — keep in sync with backend context_limits.py */
+export const MAX_HISTORY_MESSAGES = 20
 
-/** Rough system prompt + tool schema overhead sent each turn. */
+/** @deprecated Use resolveMaxHistoryMessages(contextTokenLimit) for model-aware limits. */
+export const LEGACY_MAX_HISTORY_MESSAGES = MAX_HISTORY_MESSAGES
+
+/** Rough system prompt + tool schema overhead sent each turn (128k+ models). */
 export const SYSTEM_PROMPT_TOKEN_OVERHEAD = 4000
 
 const MODEL_CONTEXT_PATTERNS = [
@@ -36,6 +39,9 @@ const PROVIDER_DEFAULT_CONTEXT = {
   Gemini: 1_048_576,
   Grok: 131_072,
   DeepSeek: 64_000,
+  OpenRouter: 128_000,
+  'Azure OpenAI': 128_000,
+  'AWS Bedrock': 200_000,
   'LM Studio': 32_768,
   'OpenAI-Compatible': 32_768
 }
@@ -48,4 +54,42 @@ export function resolveContextTokenLimit(model, providerType) {
     }
   }
   return PROVIDER_DEFAULT_CONTEXT[providerType] || 128_000
+}
+
+export function resolveMaxHistoryMessages(contextTokenLimit) {
+  const limit = Number(contextTokenLimit) || 128_000
+  if (limit >= 1_000_000) return 48
+  if (limit >= 512_000) return 36
+  if (limit >= 200_000) return 28
+  if (limit >= 128_000) return 20
+  if (limit >= 64_000) return 14
+  if (limit >= 32_768) return 10
+  if (limit >= 16_000) return 8
+  return 6
+}
+
+export function resolveMaxToolResultChars(contextTokenLimit) {
+  const limit = Number(contextTokenLimit) || 128_000
+  if (limit >= 512_000) return 16_000
+  if (limit >= 128_000) return 12_000
+  if (limit >= 64_000) return 8_000
+  if (limit >= 32_768) return 5_000
+  return 3_000
+}
+
+export function resolveSystemPromptTokenOverhead(contextTokenLimit) {
+  const limit = Number(contextTokenLimit) || 128_000
+  if (limit >= 128_000) return 4000
+  if (limit >= 32_768) return 3500
+  return 3000
+}
+
+export function resolveContextLimits(model, providerType) {
+  const tokenLimit = resolveContextTokenLimit(model, providerType)
+  return {
+    tokenLimit,
+    maxHistoryMessages: resolveMaxHistoryMessages(tokenLimit),
+    maxToolResultChars: resolveMaxToolResultChars(tokenLimit),
+    systemPromptOverhead: resolveSystemPromptTokenOverhead(tokenLimit)
+  }
 }

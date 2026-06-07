@@ -31,3 +31,6 @@ class WebAuthnStatusResponse(BaseModel):
     hasPasskey: bool
     passkeyRequired: bool
     canRegister: bool
+    passkeyPolicy: str = "enabled"
+    passkeyRecommended: bool = False
+    passkeyEnforced: bool = False

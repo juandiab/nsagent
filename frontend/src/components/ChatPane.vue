@@ -80,6 +80,7 @@
         :prompt-tokens="contextUsage.promptTokens"
         :context-token-limit="contextUsage.contextTokenLimit"
         :trimmed-count="contextUsage.trimmedCount"
+        :max-history-messages="contextUsage.maxHistoryMessages"
         :model="activeProvider.model"
       />
       <span class="pane-spacer" />
@@ -227,6 +228,13 @@
                 class="design-doc-download"
               >
                 <Button
+                  label="Send to Operator"
+                  icon="pi pi-arrow-right"
+                  size="small"
+                  :disabled="isGenerating"
+                  @click="sendDesignToOperator(assistantView(msg).content)"
+                />
+                <Button
                   label="Download design document"
                   icon="pi pi-download"
                   size="small"
@@ -274,7 +282,10 @@
         <div v-if="isGenerating" class="chat-message chat-message-assistant">
           <div class="chat-bubble chat-bubble-loading">
             <ProgressSpinner style="width: 1.25rem; height: 1.25rem" stroke-width="4" />
-            <span>Thinking...</span>
+            <div class="generation-status">
+              <span class="generation-label">{{ generationStatus.label }}</span>
+              <span class="generation-meta">{{ generationStatusMeta(generationStatus) }}</span>
+            </div>
             <Button
               label="Stop"
               icon="pi pi-stop"
@@ -349,8 +360,9 @@ import ChatConfigForm from './ChatConfigForm.vue'
 import AskJpilotCommandMenu from './AskJpilotCommandMenu.vue'
 import ChatMarkdown from './ChatMarkdown.vue'
 import ChatToolTrace from './ChatToolTrace.vue'
-import api from '../services/api'
+import { streamCopilotChat } from '../services/copilotStream'
 import { formatCopilotError, isChatAbortError, isProviderQuotaError } from '../utils/chatErrors'
+import { generationStatusMeta } from '../utils/generationStatus'
 import {
   CONFIG_ACCEPT,
   attachmentPreviewUrl,
@@ -361,7 +373,15 @@ import {
 } from '../services/copilot'
 import { parseInputFormFromContent, resolveAssistantMessage } from '../utils/copilotForm'
 import { estimateSessionContextUsage } from '../utils/contextUsage'
-import { downloadDesignDocument, isDesignDocumentMessage } from '../utils/designDocument'
+import { downloadDesignDocument, createDesignDocumentAttachment, isDesignDocumentMessage } from '../utils/designDocument'
+import {
+  ARCHITECT_SESSION_ID,
+  DESIGN_HANDOFF_MESSAGE,
+  OPERATOR_SESSION_ID,
+  consumeDesignHandoff,
+  handoffState,
+  queueDesignHandoff
+} from '../stores/copilotHandoff'
 import { clearSession, getSession } from '../stores/copilotSessions'
 import {
   beginChatRun,
@@ -417,6 +437,65 @@ const configInputRef = ref(null)
 const attachMenu = ref(null)
 const askInputRef = ref(null)
 const commandMenuRef = ref(null)
+const generationStatus = ref({
+  phase: 'thinking',
+  label: 'Thinking…',
+  elapsedMs: 0,
+  tokensPerSec: null,
+  round: 0
+})
+let generationStartedAt = 0
+let generationElapsedTimer = null
+let lastGenerationStats = null
+
+function resetGenerationStatus() {
+  generationStatus.value = {
+    phase: 'thinking',
+    label: 'Thinking…',
+    elapsedMs: 0,
+    tokensPerSec: null,
+    round: 0
+  }
+  lastGenerationStats = null
+}
+
+function startGenerationTimer() {
+  generationStartedAt = Date.now()
+  stopGenerationTimer()
+  generationElapsedTimer = setInterval(() => {
+    generationStatus.value = {
+      ...generationStatus.value,
+      elapsedMs: Date.now() - generationStartedAt
+    }
+  }, 250)
+}
+
+function stopGenerationTimer() {
+  if (generationElapsedTimer) {
+    clearInterval(generationElapsedTimer)
+    generationElapsedTimer = null
+  }
+}
+
+function onGenerationEvent(event) {
+  if (event.type === 'llm_stats') {
+    lastGenerationStats = {
+      tokensPerSec: event.tokensPerSec,
+      outputTokens: event.outputTokens,
+      durationMs: event.durationMs,
+      totalTokens: event.totalTokens
+    }
+  }
+  if (event.type === 'status' || event.type === 'llm_stats') {
+    generationStatus.value = {
+      phase: event.phase || generationStatus.value.phase,
+      label: event.label || generationStatus.value.label,
+      elapsedMs: event.elapsedMs ?? generationStatus.value.elapsedMs,
+      tokensPerSec: event.tokensPerSec ?? generationStatus.value.tokensPerSec,
+      round: event.round ?? generationStatus.value.round
+    }
+  }
+}
 
 const configAccept = CONFIG_ACCEPT
 
@@ -621,6 +700,78 @@ function downloadDesignDocMessage(content) {
   })
 }
 
+function sendDesignToOperator(content) {
+  if (props.sessionId !== ARCHITECT_SESSION_ID || session.role !== 'architect') {
+    toast.add({
+      severity: 'warn',
+      summary: 'Architect pane only',
+      detail: 'Send designs to Operator from the Architect chat pane.',
+      life: 4000
+    })
+    return
+  }
+  try {
+    const attachment = createDesignDocumentAttachment(content)
+    queueDesignHandoff({
+      content,
+      sourceLabel: attachment.name
+    })
+    toast.add({
+      severity: 'info',
+      summary: 'Sent to Operator',
+      detail: 'Opening the Operator pane and starting implementation…',
+      life: 3500
+    })
+  } catch (error) {
+    toast.add({
+      severity: 'error',
+      summary: 'Handoff failed',
+      detail: error.message || 'Could not send design to Operator.',
+      life: 4000
+    })
+  }
+}
+
+async function acceptDesignHandoff(handoff) {
+  if (isGenerating.value) {
+    queueDesignHandoff(handoff)
+    toast.add({
+      severity: 'warn',
+      summary: 'Operator is busy',
+      detail: 'Stop the current reply, then send the design again from Architect.',
+      life: 4000
+    })
+    return
+  }
+
+  setFocusedChatSession(props.sessionId)
+  if (session.role !== 'operator') {
+    session.role = 'operator'
+  }
+
+  let attachment
+  try {
+    attachment = createDesignDocumentAttachment(handoff.content, handoff.sourceLabel || undefined)
+  } catch (error) {
+    toast.add({
+      severity: 'error',
+      summary: 'Handoff failed',
+      detail: error.message || 'Design document is too large to attach.',
+      life: 4000
+    })
+    return
+  }
+
+  await sendMessage(DESIGN_HANDOFF_MESSAGE, [attachment])
+}
+
+async function tryConsumeDesignHandoff() {
+  if (props.sessionId !== OPERATOR_SESSION_ID) return
+  const handoff = consumeDesignHandoff(props.sessionId)
+  if (!handoff) return
+  await acceptDesignHandoff(handoff)
+}
+
 function onCommandPick(cmd) {
   if (cmd.type === 'link') {
     router.push(cmd.to)
@@ -784,6 +935,8 @@ async function runChat(content, attachments) {
   stopChatRun(props.sessionId)
   const controller = new AbortController()
   beginChatRun(props.sessionId, controller)
+  resetGenerationStatus()
+  startGenerationTimer()
   let wasError = false
   let userStopped = false
   await scrollToBottom()
@@ -795,8 +948,7 @@ async function runChat(content, attachments) {
     if (history.length && history[history.length - 1].role === 'user' && history[history.length - 1].content === content) {
       history = history.slice(0, -1)
     }
-    const { data } = await api.post(
-      '/copilot/chat',
+    const data = await streamCopilotChat(
       {
         message: content,
         history,
@@ -807,7 +959,10 @@ async function runChat(content, attachments) {
         providerId: session.providerId || undefined,
         webSearch: session.webSearch !== false
       },
-      { signal: controller.signal }
+      {
+        signal: controller.signal,
+        onEvent: onGenerationEvent
+      }
     )
     const parsed = parseInputFormFromContent(data.content || '')
     session.messages.push({
@@ -815,7 +970,8 @@ async function runChat(content, attachments) {
       content: parsed.content,
       toolCalls: data.toolCalls,
       webSources: extractWebSources(data.toolCalls),
-      inputForm: data.inputForm || parsed.inputForm
+      inputForm: data.inputForm || parsed.inputForm,
+      generationStats: lastGenerationStats
     })
   } catch (error) {
     if (isChatAbortError(error)) {
@@ -835,6 +991,7 @@ async function runChat(content, attachments) {
       providerQuotaError: isProviderQuotaError(error)
     })
   } finally {
+    stopGenerationTimer()
     endChatRun(props.sessionId)
     submittingFormIndex.value = null
     await scrollToBottom()
@@ -883,9 +1040,10 @@ async function submitConfigForm(values, messageIndex) {
   }
 }
 
-async function sendMessage(text) {
+async function sendMessage(text, externalAttachments = null) {
   const content = (text || session.input).trim()
-  const attachments = pendingAttachments.value.map((item) => ({
+  const sourceAttachments = externalAttachments ?? pendingAttachments.value
+  const attachments = sourceAttachments.map((item) => ({
     name: item.name,
     kind: item.kind,
     mimeType: item.mimeType,
@@ -895,7 +1053,9 @@ async function sendMessage(text) {
 
   session.messages.push({ role: 'user', content, attachments: attachments.map((item) => ({ ...item })) })
   session.input = ''
-  pendingAttachments.value = []
+  if (!externalAttachments) {
+    pendingAttachments.value = []
+  }
   await scrollToBottom()
 
   if (roleNeedsAppliance.value && !isApplianceConnected()) {
@@ -924,6 +1084,18 @@ watch(
 onMounted(() => {
   markPaneFocused()
   scrollToBottom()
+  tryConsumeDesignHandoff()
+})
+
+watch(
+  () => handoffState.pending?.queuedAt,
+  () => {
+    tryConsumeDesignHandoff()
+  }
+)
+
+onUnmounted(() => {
+  stopGenerationTimer()
 })
 </script>
 
@@ -1284,6 +1456,9 @@ onMounted(() => {
 }
 
 .design-doc-download {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.5rem;
   margin-top: 0.75rem;
   padding-top: 0.75rem;
   border-top: 1px solid var(--glass-border);
@@ -1294,6 +1469,24 @@ onMounted(() => {
   align-items: center;
   gap: 0.65rem;
   color: var(--glass-muted);
+}
+
+.generation-status {
+  display: flex;
+  flex-direction: column;
+  gap: 0.15rem;
+  min-width: 0;
+}
+
+.generation-label {
+  font-size: 0.875rem;
+  color: var(--glass-text);
+}
+
+.generation-meta {
+  font-size: 0.75rem;
+  color: var(--glass-muted);
+  font-variant-numeric: tabular-nums;
 }
 
 .chat-role {

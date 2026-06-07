@@ -1,7 +1,7 @@
 import {
-  MAX_HISTORY_MESSAGES,
-  SYSTEM_PROMPT_TOKEN_OVERHEAD,
-  resolveContextTokenLimit
+  resolveContextLimits,
+  resolveMaxHistoryMessages,
+  resolveSystemPromptTokenOverhead
 } from '../config/modelContextWindows'
 
 function estimateTextTokens(text) {
@@ -59,9 +59,11 @@ export function estimateSessionContextUsage({
   model = '',
   providerType = ''
 }) {
+  const limits = resolveContextLimits(model, providerType)
   const history = conversationalMessages(messages)
-  const trimmed = history.slice(-MAX_HISTORY_MESSAGES)
-  let promptTokens = SYSTEM_PROMPT_TOKEN_OVERHEAD
+  const maxHistoryMessages = limits.maxHistoryMessages
+  const trimmed = history.slice(-maxHistoryMessages)
+  let promptTokens = limits.systemPromptOverhead
 
   for (const message of trimmed) {
     promptTokens += estimateMessageTokens(message)
@@ -74,8 +76,11 @@ export function estimateSessionContextUsage({
     promptTokens += estimateAttachmentTokens(attachment)
   }
 
-  const contextTokenLimit = resolveContextTokenLimit(model, providerType)
-  const usableLimit = Math.max(contextTokenLimit - Math.min(8192, Math.floor(contextTokenLimit * 0.08)), 1)
+  const contextTokenLimit = limits.tokenLimit
+  const usableLimit = Math.max(
+    contextTokenLimit - Math.min(8192, Math.floor(contextTokenLimit * 0.08)),
+    1
+  )
   const percentUsed = Math.min(100, (promptTokens / usableLimit) * 100)
 
   return {
@@ -84,7 +89,8 @@ export function estimateSessionContextUsage({
     usableLimit,
     percentUsed,
     messageCount: trimmed.length,
-    trimmedCount: Math.max(0, history.length - MAX_HISTORY_MESSAGES)
+    maxHistoryMessages,
+    trimmedCount: Math.max(0, history.length - maxHistoryMessages)
   }
 }
 
@@ -94,3 +100,5 @@ export function formatTokenCount(value) {
   if (n >= 1000) return `${Math.round(n / 1000)}k`
   return String(Math.round(n))
 }
+
+export { resolveMaxHistoryMessages, resolveSystemPromptTokenOverhead }

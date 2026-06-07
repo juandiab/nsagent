@@ -42,6 +42,10 @@ const props = defineProps({
     type: Number,
     default: 0
   },
+  maxHistoryMessages: {
+    type: Number,
+    default: 0
+  },
   model: {
     type: String,
     default: ''
@@ -68,7 +72,9 @@ const tooltipText = computed(() => {
   const trimmedLine =
     props.trimmedCount > 0
       ? `\n${props.trimmedCount} older message(s) are trimmed before each send.`
-      : ''
+      : props.maxHistoryMessages > 0
+        ? `\nKeeps the last ${props.maxHistoryMessages} messages for this model.`
+        : ''
   return [
     `Context ~${Math.round(clampedPercent.value)}% (estimated)`,
     `${formatTokenCount(props.promptTokens)} / ${formatTokenCount(props.contextTokenLimit)} tokens`,

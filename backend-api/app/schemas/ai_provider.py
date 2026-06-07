@@ -4,7 +4,18 @@ from typing import Literal
 from pydantic import BaseModel, ConfigDict, Field, field_validator
 
 
-ProviderType = Literal["OpenAI", "Anthropic", "Gemini", "Grok", "DeepSeek", "LM Studio", "OpenAI-Compatible"]
+ProviderType = Literal[
+    "OpenAI",
+    "Anthropic",
+    "Gemini",
+    "Grok",
+    "DeepSeek",
+    "OpenRouter",
+    "Azure OpenAI",
+    "AWS Bedrock",
+    "LM Studio",
+    "OpenAI-Compatible",
+]
 LLMRole = Literal["architect", "operator", "analyst"]
 ALL_LLM_ROLES: list[LLMRole] = ["architect", "operator", "analyst"]
 

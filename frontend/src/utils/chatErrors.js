@@ -99,7 +99,11 @@ function quotaExhaustedMessage(providerMessage) {
 }
 
 export function isChatAbortError(error) {
-  return error?.code === 'ERR_CANCELED' || error?.name === 'CanceledError'
+  return (
+    error?.code === 'ERR_CANCELED' ||
+    error?.name === 'CanceledError' ||
+    error?.name === 'AbortError'
+  )
 }
 
 /**
