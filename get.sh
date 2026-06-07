@@ -1,16 +1,16 @@
 #!/usr/bin/env sh
 # JPilot / NSAgent one-line bootstrap for macOS & Linux.
 #
-#   curl -fsSL https://raw.githubusercontent.com/juandiab/nsagent/main/get.sh | bash
+#   curl -fsSL https://raw.githubusercontent.com/nexxus-tech-sas/jpilot/main/get.sh | bash
 #
 # It checks prerequisites, downloads the project, and launches the setup wizard.
 # Override defaults with environment variables, e.g.:
 #   curl -fsSL .../get.sh | JPILOT_DIR=~/apps/jpilot JPILOT_REF=main bash
 set -eu
 
-REPO_URL="${JPILOT_REPO:-https://github.com/juandiab/nsagent.git}"
+REPO_URL="${JPILOT_REPO:-https://github.com/nexxus-tech-sas/jpilot.git}"
 REF="${JPILOT_REF:-main}"
-TARGET="${JPILOT_DIR:-$(pwd)/nsagent}"
+TARGET="${JPILOT_DIR:-$(pwd)/jpilot}"
 
 # ---- pretty output ---------------------------------------------------------
 if [ -t 1 ]; then B="$(printf '\033[1m')"; G="$(printf '\033[32m')"; Y="$(printf '\033[33m')"; R="$(printf '\033[31m')"; N="$(printf '\033[0m')"; else B=""; G=""; Y=""; R=""; N=""; fi

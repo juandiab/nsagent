@@ -8,12 +8,12 @@ real stack (this service intentionally does NOT touch Docker).
 from __future__ import annotations
 
 import datetime as dt
+import html
 import ipaddress
 import os
 import re
 import secrets
 from pathlib import Path
-from typing import Optional
 
 from cryptography import x509
 from cryptography.fernet import Fernet
@@ -21,12 +21,22 @@ from cryptography.hazmat.primitives import hashes, serialization
 from cryptography.hazmat.primitives.asymmetric import rsa
 from cryptography.x509.oid import NameOID
 from fastapi import FastAPI, HTTPException
-from fastapi.responses import FileResponse, JSONResponse
+from fastapi.responses import FileResponse, HTMLResponse, JSONResponse
 from fastapi.staticfiles import StaticFiles
 from pydantic import BaseModel, Field
 
 WORKSPACE = Path(os.environ.get("WORKSPACE", "/workspace"))
 STATIC_DIR = Path(__file__).parent / "static"
+LEGAL_DIR = Path(__file__).parent / "legal"
+if not LEGAL_DIR.exists():
+    LEGAL_DIR = WORKSPACE / "frontend" / "src" / "legal"
+
+LEGAL_DOCS = {
+    "terms": ("Terms of Service", "terms-of-service.md"),
+    "privacy": ("Privacy Policy", "privacy-policy.md"),
+    "eula": ("EULA", "eula.md"),
+    "acceptable-use": ("Acceptable Use Policy", "acceptable-use-policy.md"),
+}
 
 ENV_PATH = WORKSPACE / ".env"
 SSL_DIR = WORKSPACE / "nginx" / "ssl"
@@ -39,6 +49,8 @@ DOMAIN_RE = re.compile(
     r"(\d{1,3}\.){3}\d{1,3}|"
     r"([a-zA-Z0-9](-?[a-zA-Z0-9])*\.)+[a-zA-Z]{2,})$"
 )
+USERNAME_RE = re.compile(r"^[a-zA-Z0-9._-]{2,64}$")
+EMAIL_RE = re.compile(r"^[^@\s]+@[^@\s]+\.[^@\s]+$")
 
 app = FastAPI(title="JPilot Installer", docs_url=None, redoc_url=None)
 
@@ -52,6 +64,7 @@ class CertCheck(BaseModel):
 
 class InstallRequest(BaseModel):
     reconfigure: bool = False
+    accepted_terms: bool = False
     deploy_mode: str = Field(default="prod")  # "prod" | "dev"
     admin_username: str = Field(default="admin")
     admin_password: str
@@ -73,6 +86,56 @@ class InstallRequest(BaseModel):
 
 
 # ----------------------------------------------------------------------- helpers
+def _inline_markdown(text: str) -> str:
+    escaped = html.escape(text)
+    escaped = re.sub(r"\*\*(.+?)\*\*", r"<strong>\1</strong>", escaped)
+    escaped = re.sub(
+        r"\[([^\]]+)\]\(([^)]+)\)",
+        r'<a href="\2" target="_blank" rel="noopener noreferrer">\1</a>',
+        escaped,
+    )
+    return escaped
+
+
+def render_legal_markdown(text: str) -> str:
+    blocks: list[str] = []
+    in_list = False
+    for line in text.splitlines():
+        stripped = line.strip()
+        if stripped.startswith("# "):
+            if in_list:
+                blocks.append("</ul>")
+                in_list = False
+            blocks.append(f"<h1>{_inline_markdown(stripped[2:])}</h1>")
+        elif stripped.startswith("## "):
+            if in_list:
+                blocks.append("</ul>")
+                in_list = False
+            blocks.append(f"<h2>{_inline_markdown(stripped[3:])}</h2>")
+        elif stripped.startswith("### "):
+            if in_list:
+                blocks.append("</ul>")
+                in_list = False
+            blocks.append(f"<h3>{_inline_markdown(stripped[4:])}</h3>")
+        elif stripped == "":
+            if in_list:
+                blocks.append("</ul>")
+                in_list = False
+        elif stripped.startswith("- "):
+            if not in_list:
+                blocks.append("<ul>")
+                in_list = True
+            blocks.append(f"<li>{_inline_markdown(stripped[2:])}</li>")
+        else:
+            if in_list:
+                blocks.append("</ul>")
+                in_list = False
+            blocks.append(f"<p>{_inline_markdown(line)}</p>")
+    if in_list:
+        blocks.append("</ul>")
+    return "\n".join(blocks)
+
+
 def _public_bytes(key) -> bytes:
     return key.public_bytes(
         serialization.Encoding.DER,
@@ -179,6 +242,7 @@ def render_env(req: InstallRequest, encryption_key: str, jwt_secret: str) -> str
         f"JWT_SECRET_KEY={_env_value(jwt_secret)}",
         f"ADMIN_USERNAME={_env_value(req.admin_username.strip() or 'admin')}",
         f"ADMIN_PASSWORD={_env_value(req.admin_password)}",
+        f"ADMIN_EMAIL={_env_value(req.admin_email.strip())}",
         "",
         "# Deploy mode: prod = compiled stack (recommended); dev = hot reload for hacking",
         f"NSAGENT_DEPLOY_MODE={_env_value(req.deploy_mode.strip().lower() or 'prod')}",
@@ -227,8 +291,41 @@ def validate_cert(body: CertCheck):
     return {"ok": True, **info}
 
 
+@app.get("/legal/{slug}")
+def legal_doc(slug: str):
+    doc = LEGAL_DOCS.get(slug)
+    if doc is None:
+        raise HTTPException(status_code=404, detail="Legal document not found.")
+    title, filename = doc
+    path = LEGAL_DIR / filename
+    if not path.is_file():
+        raise HTTPException(status_code=404, detail="Legal document file is missing.")
+    body = render_legal_markdown(path.read_text(encoding="utf-8"))
+    page = f"""<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>{html.escape(title)} — JPilot Setup</title>
+  <link rel="stylesheet" href="/static/styles.css" />
+</head>
+<body class="legal-page">
+  <main class="legal-shell">
+    <p class="legal-back"><a href="/">← Back to setup</a></p>
+    <article class="legal-body">{body}</article>
+  </main>
+</body>
+</html>"""
+    return HTMLResponse(page)
+
+
 @app.post("/api/install")
 def install(req: InstallRequest):
+    if not req.accepted_terms:
+        raise HTTPException(
+            status_code=422,
+            detail="You must accept the Terms of Service, Privacy Policy, Acceptable Use Policy, and EULA.",
+        )
     if ENV_PATH.exists() and not req.reconfigure:
         raise HTTPException(
             status_code=409,
@@ -238,6 +335,17 @@ def install(req: InstallRequest):
     domain = req.domain.strip() or "localhost"
     if not DOMAIN_RE.match(domain):
         raise HTTPException(status_code=422, detail=f"'{domain}' is not a valid hostname or IP.")
+    username = req.admin_username.strip() or "admin"
+    if not USERNAME_RE.match(username):
+        raise HTTPException(
+            status_code=422,
+            detail="Username must be 2–64 characters and use only letters, numbers, dots, underscores, or hyphens.",
+        )
+    email = req.admin_email.strip()
+    if not email:
+        raise HTTPException(status_code=422, detail="Admin email is required for password recovery.")
+    if not EMAIL_RE.match(email):
+        raise HTTPException(status_code=422, detail="Enter a valid email address.")
     if len(req.admin_password) < 8:
         raise HTTPException(status_code=422, detail="Admin password must be at least 8 characters.")
     if req.deploy_mode.strip().lower() not in ("prod", "dev"):

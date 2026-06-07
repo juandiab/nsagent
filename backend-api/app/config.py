@@ -14,6 +14,7 @@ class Settings(BaseSettings):
     jwt_expire_minutes: int = 480
     admin_username: str = "admin"
     admin_password: str = "admin"
+    admin_email: str = ""
     webauthn_rp_id: str = "localhost"
     webauthn_rp_name: str = "NSAgent"
     webauthn_origin: str = "http://localhost:5173"

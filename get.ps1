@@ -1,7 +1,7 @@
 <#
   JPilot / NSAgent one-line bootstrap for Windows (PowerShell).
 
-      irm https://raw.githubusercontent.com/juandiab/nsagent/main/get.ps1 | iex
+      irm https://raw.githubusercontent.com/nexxus-tech-sas/jpilot/main/get.ps1 | iex
 
   Checks prerequisites, downloads the project, and launches the setup wizard.
   Override defaults with environment variables before running, e.g.:
@@ -9,9 +9,9 @@
 #>
 $ErrorActionPreference = 'Stop'
 
-$RepoUrl = if ($env:JPILOT_REPO) { $env:JPILOT_REPO } else { 'https://github.com/juandiab/nsagent.git' }
+$RepoUrl = if ($env:JPILOT_REPO) { $env:JPILOT_REPO } else { 'https://github.com/nexxus-tech-sas/jpilot.git' }
 $Ref     = if ($env:JPILOT_REF)  { $env:JPILOT_REF }  else { 'main' }
-$Target  = if ($env:JPILOT_DIR)  { $env:JPILOT_DIR }  else { Join-Path (Get-Location) 'nsagent' }
+$Target  = if ($env:JPILOT_DIR)  { $env:JPILOT_DIR }  else { Join-Path (Get-Location) 'jpilot' }
 
 function Info($m) { Write-Host "  $m" }
 function Ok($m)   { Write-Host "  $([char]0x2713) $m" -ForegroundColor Green }

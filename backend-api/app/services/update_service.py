@@ -10,7 +10,7 @@ import httpx
 from app.schemas.system import UpdateCheckResponse, UpdateInstructions, VersionResponse
 
 _VERSION_RE = re.compile(r"^\s*v?(?P<version>\d+(?:\.\d+)*)\s*$", re.IGNORECASE)
-_DEFAULT_REPO = "juandiab/nsagent"
+_DEFAULT_REPO = "nexxus-tech-sas/jpilot"
 _CACHE_TTL = dt.timedelta(hours=1)
 
 _version_paths = (

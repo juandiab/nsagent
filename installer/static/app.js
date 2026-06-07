@@ -7,6 +7,9 @@ const hide = (el) => el.classList.add("hidden");
 
 const state = { step: 0, reconfigure: false, certValidated: false, result: null };
 
+const USERNAME_RE = /^[a-zA-Z0-9._-]{2,64}$/;
+const EMAIL_RE = /^[^@\s]+@[^@\s]+\.[^@\s]+$/;
+
 // ---------------------------------------------------------------- step rail
 function renderRail() {
   const ol = $("steps");
@@ -32,9 +35,16 @@ function gotoStep(n) {
 // ---------------------------------------------------------------- validation
 function validateStep(n) {
   if (n === 1) {
+    const username = $("admin_username").value.trim() || "admin";
+    const email = $("admin_email").value.trim();
     const pw = $("admin_password").value;
     const pw2 = $("admin_password2").value;
     const err = $("adminErr");
+    if (!USERNAME_RE.test(username)) {
+      return fail(err, "Username must be 2–64 characters and use only letters, numbers, dots, underscores, or hyphens.");
+    }
+    if (!email) return fail(err, "Email is required for password recovery.");
+    if (!EMAIL_RE.test(email)) return fail(err, "Enter a valid email address.");
     if (pw.length < 8) return fail(err, "Password must be at least 8 characters.");
     if (pw !== pw2) return fail(err, "Passwords do not match.");
     hide(err);
@@ -77,7 +87,12 @@ function collect() {
     certificate: mode === "custom" ? $("certificate").value : "",
     chain: mode === "custom" ? $("chain").value : "",
     private_key: mode === "custom" ? $("private_key").value : "",
+    accepted_terms: $("acceptTerms").checked,
   };
+}
+
+function syncInstallButton() {
+  $("installBtn").disabled = !$("acceptTerms").checked;
 }
 
 function renderReview() {
@@ -85,7 +100,7 @@ function renderReview() {
   const rows = [
     ["Deploy mode", d.deploy_mode === "dev" ? "Development (hot reload)" : "Production (compiled)"],
     ["Admin username", d.admin_username],
-    ["Admin email", d.admin_email || "—"],
+    ["Admin email", d.admin_email],
     ["Domain", `https://${d.domain}`],
     ["Display name", d.app_name],
     ["TLS certificate", d.cert_mode === "custom" ? "Custom (provided)" : "Self-signed (generated)"],
@@ -95,6 +110,9 @@ function renderReview() {
   $("reviewList").innerHTML = rows
     .map(([k, v]) => `<dt>${k}</dt><dd>${escapeHtml(v)}</dd>`)
     .join("");
+  $("acceptTerms").checked = false;
+  hide($("termsErr"));
+  syncInstallButton();
 }
 
 function escapeHtml(s) {
@@ -134,8 +152,14 @@ async function validateCert() {
 }
 
 async function install() {
-  const btn = $("installBtn"), err = $("installErr");
+  const btn = $("installBtn"), err = $("installErr"), termsErr = $("termsErr");
   hide(err);
+  hide(termsErr);
+  if (!$("acceptTerms").checked) {
+    fail(termsErr, "You must accept the Terms of Service, Privacy Policy, Acceptable Use Policy, and EULA.");
+    syncInstallButton();
+    return;
+  }
   btn.disabled = true; btn.textContent = "Installing…";
   try {
     const res = await fetch("/api/install", {
@@ -146,14 +170,16 @@ async function install() {
     const data = await res.json();
     if (!res.ok) {
       fail(err, data.detail || "Installation failed.");
-      btn.disabled = false; btn.textContent = "Install JPilot";
+      btn.textContent = "Install JPilot";
+      syncInstallButton();
       return;
     }
     state.result = data;
     showDone(data);
   } catch (e) {
     fail(err, "Could not reach the installer service.");
-    btn.disabled = false; btn.textContent = "Install JPilot";
+    btn.textContent = "Install JPilot";
+    syncInstallButton();
   }
 }
 
@@ -164,7 +190,7 @@ function showDone(data) {
   $("doneMsg").innerHTML =
     `Your terminal is now launching JPilot at <code>${escapeHtml(data.app_url)}</code>. ` +
     `The first boot takes about a minute — use the button below once it's up, and sign ` +
-    `in with the admin account you created. Passkeys can be enrolled afterwards from ` +
+    `in with <strong>${escapeHtml(collect().admin_username)}</strong>. Passkeys can be enrolled afterwards from ` +
     `<strong>Settings</strong>.`;
   $("openApp").href = data.app_url;
   const blob = new Blob(
@@ -172,7 +198,6 @@ function showDone(data) {
      `JWT_SECRET_KEY=${data.secrets.JWT_SECRET_KEY}\n`],
     { type: "text/plain" });
   $("downloadEnv").href = URL.createObjectURL(blob);
-  // mark all rail steps done
   state.step = STEP_NAMES.length;
   renderRail();
   show($("done"));
@@ -203,6 +228,10 @@ function wire() {
   ["certificate", "private_key", "chain"].forEach((id) =>
     $(id).addEventListener("input", () => { state.certValidated = false; hide($("certOk")); }));
 
+  $("acceptTerms").addEventListener("change", () => {
+    hide($("termsErr"));
+    syncInstallButton();
+  });
   $("installBtn").addEventListener("click", install);
   $("guardContinue").addEventListener("click", () => {
     state.reconfigure = true;

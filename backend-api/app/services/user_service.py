@@ -11,6 +11,7 @@ from app.utils.time import utc_now
 
 async def ensure_default_admin(db: AsyncIOMotorDatabase) -> None:
     cleaned_username = settings.admin_username.strip().lower()
+    cleaned_email = settings.admin_email.strip().lower()
     existing = await db.users.find_one({"username": cleaned_username})
     if existing is not None:
         updates: dict = {"updatedAt": utc_now()}
@@ -18,20 +19,25 @@ async def ensure_default_admin(db: AsyncIOMotorDatabase) -> None:
             updates["role"] = "admin"
         if not existing.get("hashedPassword"):
             updates["hashedPassword"] = hash_password(settings.admin_password)
+        if cleaned_email and not (existing.get("email") or "").strip():
+            email_owner = await get_user_by_email(db, cleaned_email)
+            if email_owner is None or email_owner["_id"] == existing["_id"]:
+                updates["email"] = cleaned_email
         if len(updates) > 1:
             await db.users.update_one({"_id": existing["_id"]}, {"$set": updates})
         return
 
-    await db.users.insert_one(
-        {
-            "username": cleaned_username,
-            "displayName": cleaned_username.title(),
-            "role": "admin",
-            "hashedPassword": hash_password(settings.admin_password),
-            "createdAt": utc_now(),
-            "updatedAt": utc_now(),
-        }
-    )
+    doc: dict[str, Any] = {
+        "username": cleaned_username,
+        "displayName": cleaned_username.title(),
+        "role": "admin",
+        "hashedPassword": hash_password(settings.admin_password),
+        "createdAt": utc_now(),
+        "updatedAt": utc_now(),
+    }
+    if cleaned_email:
+        doc["email"] = cleaned_email
+    await db.users.insert_one(doc)
 
 
 async def get_user_by_username(db: AsyncIOMotorDatabase, username: str) -> dict | None:

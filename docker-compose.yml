@@ -1,3 +1,5 @@
+name: jpilot
+
 services:
   nginx:
     build: ./nginx
@@ -9,7 +11,7 @@ services:
     volumes:
       - ${SSL_CERTS_PATH:-./nginx/ssl}:/etc/nginx/ssl:ro
     networks:
-      - nsagent-network
+      - jpilot-network
     depends_on:
       - frontend
       - backend-api
@@ -27,7 +29,7 @@ services:
       - VITE_API_BASE_URL=${VITE_API_BASE_URL:-https://jpilot.nexxus-tech.com/api}
       - NGINX_HOSTNAME=${NGINX_HOSTNAME:-jpilot.nexxus-tech.com}
     networks:
-      - nsagent-network
+      - jpilot-network
     depends_on:
       - backend-api
 
@@ -52,7 +54,8 @@ services:
       - MONGO_DB=nsagent
       - MCP_SERVER_URL=http://mcp-server:8001
       - WEBAUTHN_RP_ID=${WEBAUTHN_RP_ID:-jpilot.nexxus-tech.com}
-      - WEBAUTHN_RP_NAME=${WEBAUTHN_RP_NAME:-NSAgent}
+      - WEBAUTHN_RP_NAME=${WEBAUTHN_RP_NAME:-JPilot}
+      - ADMIN_EMAIL=${ADMIN_EMAIL:-}
       - WEBAUTHN_ORIGIN=${WEBAUTHN_ORIGIN:-https://jpilot.nexxus-tech.com}
       - CORS_ORIGINS=${CORS_ORIGINS:-https://jpilot.nexxus-tech.com}
       - SMTP_HOST=${SMTP_HOST:-}
@@ -64,7 +67,7 @@ services:
       - SMTP_USE_SSL=${SMTP_USE_SSL:-false}
       - PASSWORD_RESET_LOG_CODES=${PASSWORD_RESET_LOG_CODES:-false}
     networks:
-      - nsagent-network
+      - jpilot-network
     healthcheck:
       test:
         [
@@ -106,7 +109,7 @@ services:
       retries: 5
       start_period: 15s
     networks:
-      - nsagent-network
+      - jpilot-network
 
   mongodb:
     image: mongo:8.2
@@ -121,12 +124,12 @@ services:
       retries: 5
       start_period: 30s
     volumes:
-      - nsagent_mongodb_data:/data/db
+      - mongodb_data:/data/db
     networks:
-      - nsagent-network
+      - jpilot-network
 
 networks:
-  nsagent-network:
+  jpilot-network:
 
 volumes:
-  nsagent_mongodb_data:
+  mongodb_data:

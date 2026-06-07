@@ -1,3 +1,5 @@
+name: jpilot-installer
+
 # First-run web installer. Started on its own by install.sh; it writes ./.env and
 # ./nginx/ssl/ on the host (via the bind mount) plus a sentinel file, then exits.
 # It deliberately has no access to the Docker socket — install.sh launches the real

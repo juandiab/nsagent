@@ -12,23 +12,25 @@
   <div class="shell">
     <aside class="rail">
       <div class="brand">
-        <div class="brand-mark">
-          <img src="/static/JPilot-logo-big.svg" alt="JPilot" width="47" height="47" />
-        </div>
-        <div>
+        <img class="brand-jpilot" src="/static/jpilot-favicon.png" alt="" width="52" height="52" />
+        <div class="brand-text">
           <div class="brand-name">JPilot</div>
-          <div class="brand-sub">JPilot setup</div>
+          <div class="brand-sub">Setup wizard</div>
         </div>
       </div>
       <ol class="steps" id="steps"></ol>
       <div class="rail-foot">
-        <nav class="rail-links" aria-label="Nexxus Tech links">
-          <a href="https://www.nexxus-tech.com" target="_blank" rel="noopener noreferrer">Website</a>
-          <a href="https://www.nexxus-tech.com/blog" target="_blank" rel="noopener noreferrer">Blog</a>
-          <a href="https://www.nexxus-tech.com/contact" target="_blank" rel="noopener noreferrer">Contact</a>
-        </nav>
-        <p class="rail-copy">Built &amp; maintained by
-          <a href="https://www.nexxus-tech.com" target="_blank" rel="noopener noreferrer">Nexxus Tech</a></p>
+        <div class="help-card">
+          <p class="help-card-title">Need help?</p>
+          <p class="help-card-copy">Visit Nexxus Tech for documentation, support, and professional services.</p>
+          <a class="help-card-link" href="https://www.nexxus-tech.com" target="_blank" rel="noopener noreferrer">
+            nexxus-tech.com →
+          </a>
+        </div>
+        <a class="nexxus-lockup" href="https://www.nexxus-tech.com" target="_blank" rel="noopener noreferrer"
+          aria-label="Nexxus Tech — visit website">
+          <img src="/static/nexxus-tech-logo-full.svg" alt="Nexxus Tech" width="210" height="57" />
+        </a>
       </div>
     </aside>
 
@@ -47,12 +49,19 @@
 
       <!-- Welcome -->
       <section class="panel step" data-step="0">
+        <div class="welcome-hero" aria-hidden="true">
+          <img class="welcome-jpilot" src="/static/jpilot-favicon.png" alt="" width="72" height="72" />
+          <div class="welcome-divider" role="presentation"></div>
+          <a class="welcome-nexxus" href="https://www.nexxus-tech.com" target="_blank" rel="noopener noreferrer">
+            <img src="/static/nexxus-tech-logo-full.svg" alt="Nexxus Tech" width="220" height="60" />
+          </a>
+        </div>
         <h1>Welcome to JPilot</h1>
         <p class="muted">This wizard configures everything needed to run the platform: an admin
           account, your domain, and TLS. Secrets are generated for you. It takes
           under a minute.</p>
         <ul class="checklist">
-          <li>Create the admin login</li>
+          <li>Create the admin login (username, email, and password)</li>
           <li>Pick the domain JPilot will be served from</li>
           <li>Choose production or development mode</li>
           <li>Use your own TLS certificate or generate a self-signed one</li>
@@ -63,13 +72,18 @@
       <!-- Admin -->
       <section class="panel step hidden" data-step="1">
         <h1>Administrator account</h1>
-        <p class="muted">The first account that can sign in to JPilot.</p>
+        <p class="muted">Create the first account that can sign in to JPilot. You can choose any
+          username — it does not have to be <code>admin</code>.</p>
         <label>Username
-          <input type="text" id="admin_username" value="admin" autocomplete="off" />
+          <input type="text" id="admin_username" value="admin" autocomplete="username"
+            spellcheck="false" pattern="[a-zA-Z0-9._-]{2,64}" title="2–64 characters: letters, numbers, dots, underscores, or hyphens" />
         </label>
-        <label>Email <span class="opt">(for password resets)</span>
-          <input type="email" id="admin_email" placeholder="you@example.com" autocomplete="off" />
+        <label>Email <span class="req">(required)</span>
+          <input type="email" id="admin_email" placeholder="you@example.com" autocomplete="email"
+            required />
         </label>
+        <p class="hint">Used for password recovery after installation. Configure SMTP in
+          <strong>Settings → MCP Server</strong> to enable email reset codes.</p>
         <label>Password
           <input type="password" id="admin_password" placeholder="At least 8 characters" autocomplete="new-password" />
         </label>
@@ -157,9 +171,19 @@
       <section class="panel step hidden" data-step="5">
         <h1>Review &amp; install</h1>
         <dl class="review" id="reviewList"></dl>
+        <label class="agree">
+          <input type="checkbox" id="acceptTerms" />
+          <span>I have read and agree to the
+            <a href="/legal/terms" target="_blank" rel="noopener noreferrer">Terms of Service</a>,
+            <a href="/legal/privacy" target="_blank" rel="noopener noreferrer">Privacy Policy</a>,
+            <a href="/legal/acceptable-use" target="_blank" rel="noopener noreferrer">Acceptable Use Policy</a>, and
+            <a href="/legal/eula" target="_blank" rel="noopener noreferrer">EULA</a>.
+          </span>
+        </label>
+        <p class="field-error hidden" id="termsErr"></p>
         <p class="field-error hidden" id="installErr"></p>
         <div class="actions"><button class="btn ghost" data-back>Back</button>
-          <button class="btn primary" id="installBtn">Install JPilot</button></div>
+          <button class="btn primary" id="installBtn" disabled>Install JPilot</button></div>
       </section>
 
       <!-- Done -->
@@ -185,8 +209,14 @@
           <span></span>
           <a class="btn primary" id="openApp" target="_blank" rel="noopener">Open JPilot →</a>
         </div>
-        <p class="contact-note">Need a hand getting set up?
-          <a href="https://www.nexxus-tech.com/contact" target="_blank" rel="noopener noreferrer">Contact Nexxus Tech</a>.</p>
+        <div class="done-support">
+          <a class="nexxus-lockup done-nexxus" href="https://www.nexxus-tech.com" target="_blank" rel="noopener noreferrer">
+            <img src="/static/nexxus-tech-logo-full.svg" alt="Nexxus Tech" width="200" height="54" />
+          </a>
+          <p class="contact-note">Questions during or after setup?
+            <a href="https://www.nexxus-tech.com" target="_blank" rel="noopener noreferrer">Visit nexxus-tech.com</a>
+            for help and support.</p>
+        </div>
       </section>
     </main>
   </div>

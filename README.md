@@ -4,11 +4,11 @@
 
 The **Free edition** is offered at no charge so teams can try the product and so practitioners can see how it works. **Nexxus-Tech SAS does not supply or pay for AI inference** — you choose the provider, you hold the API keys, and **you pay that provider** under its terms. JPilot only connects to what you configure.
 
-Repository: [github.com/juandiab/nsagent](https://github.com/juandiab/nsagent)
+Repository: [github.com/nexxus-tech-sas/jpilot](https://github.com/nexxus-tech-sas/jpilot)
 
 > **Disclaimer:** JPilot is an independent project and is not affiliated with, endorsed by, or sponsored by Citrix Systems, Inc. NetScaler is a trademark of Citrix Systems, Inc.
 
-**Current release:** `v0.37` — Full screen toggle in sidebar and mobile menu.
+**Current release:** `v0.38` — Installer overhaul, `jpilot` Docker project name, and repository move to Nexxus Tech.
 
 Bump the root [`VERSION`](VERSION) file when tagging a release so in-app update checks match GitHub.
 
@@ -40,6 +40,16 @@ Bump the root [`VERSION`](VERSION) file when tagging a release so in-app update 
 - **NetScaler SDX (SSH)** — Operator and Analyst for SVM platform and VPX lifecycle with `search_sdx_cli_reference` memory gate (beta).
 - **F5 BIG-IP (SSH / TMSH)** — Operator, Analyst, and Architect (official F5 docs only); `f5_*` MCP tools and `search_f5_tmsh_reference` / `search_f5_documentation` (beta).
 - **Nexxus licensing** — Settings → **License**: enter a license code, import an offline `.lic` file, or sync with the Nexxus licensing API; installation fingerprint binding; encrypted payload validation; daily background sync and expiry enforcement; **activation gate** redirects unlicensed or expired installs to Settings → License before using the app.
+
+## What's new in v0.38
+
+| Area | Highlights |
+|------|------------|
+| **Repository** | Canonical home is [github.com/nexxus-tech-sas/jpilot](https://github.com/nexxus-tech-sas/jpilot); bootstrap scripts (`get.sh` / `get.ps1`) and in-app update checks point here. |
+| **Docker naming** | Compose project name is `jpilot` (images/containers like `jpilot-frontend`, volume `jpilot_mongodb_data`) instead of `nsagent`. Fresh installs do not overwrite old `nsagent_*` volumes. |
+| **Installer admin** | Choose any bootstrap username; **email is required** and written to `ADMIN_EMAIL` for password recovery after install. |
+| **Installer legal** | Review step requires accepting Terms, Privacy, AUP, and EULA; legal docs open in the setup wizard. |
+| **Installer branding** | JPilot favicon and Nexxus Tech full logo in the wizard; help links to [nexxus-tech.com](https://www.nexxus-tech.com). |
 
 ## What's new in v0.37
 
@@ -366,7 +376,7 @@ Install [Docker Desktop](https://docs.docker.com/desktop/install/windows-install
 [Git for Windows](https://git-scm.com/download/win)). Then, in **PowerShell**:
 
 ```powershell
-irm https://raw.githubusercontent.com/juandiab/nsagent/main/get.ps1 | iex
+irm https://raw.githubusercontent.com/nexxus-tech-sas/jpilot/main/get.ps1 | iex
 ```
 
 ### macOS
@@ -375,7 +385,7 @@ Install [Docker Desktop](https://docs.docker.com/desktop/install/mac-install/) (
 installer set it up via Homebrew). Then, in **Terminal**:
 
 ```bash
-curl -fsSL https://raw.githubusercontent.com/juandiab/nsagent/main/get.sh | bash
+curl -fsSL https://raw.githubusercontent.com/nexxus-tech-sas/jpilot/main/get.sh | bash
 ```
 
 ### Ubuntu / Linux
@@ -384,7 +394,7 @@ Docker Engine is required — if it's missing, the installer offers to install i
 Then run:
 
 ```bash
-curl -fsSL https://raw.githubusercontent.com/juandiab/nsagent/main/get.sh | bash
+curl -fsSL https://raw.githubusercontent.com/nexxus-tech-sas/jpilot/main/get.sh | bash
 ```
 
 ---
@@ -394,16 +404,17 @@ starts the setup wizard. Then:
 
 1. Open **https://localhost:9443** (the installer uses a self-signed certificate, so
    accept the one-time browser warning).
-2. Complete the wizard: admin account, domain, **deploy mode** (production or development),
-   and TLS (self-signed or your own cert).
-3. On the **Review** step, **save the generated `NSAGENT_ENCRYPTION_KEY`** — it is
+2. Complete the wizard: admin account (username, email, password), domain, **deploy mode**
+   (production or development), and TLS (self-signed or your own cert).
+3. On **Review**, accept the legal terms, then **save the generated `NSAGENT_ENCRYPTION_KEY`** — it is
    required to restore or migrate the install and cannot be recovered.
 4. Click **Install JPilot**. The wizard writes `.env` and `nginx/ssl/`, and your
    terminal automatically launches the full stack and opens it in your browser.
 5. Sign in at **https://&lt;your-domain&gt;** with the admin account you created.
 
-> Already cloned the repo? Skip the one-liner and just run `./install.sh` (macOS/Linux) or
-> `.\install.ps1` (Windows) from the project root.
+> **Clone manually instead?** `git clone https://github.com/nexxus-tech-sas/jpilot.git` then
+> `cd jpilot` and run `./install.sh` (macOS/Linux) or `.\install.ps1` (Windows). If you already
+> have a checkout, skip the one-liner and run the installer from the project root.
 
 To reconfigure an existing install (overwrites `.env`):
 
@@ -445,6 +456,7 @@ Prefer to configure things by hand instead of the wizard? You can:
    | `JWT_SECRET_KEY`         | Secret for session JWTs              |
    | `ADMIN_USERNAME`         | Bootstrap admin (installer sets; leave blank after) |
    | `ADMIN_PASSWORD`         | Bootstrap password (installer sets; leave blank after) |
+   | `ADMIN_EMAIL`            | Bootstrap admin email for password recovery (installer sets; leave blank after) |
    | `NSAGENT_DEPLOY_MODE`    | `prod` (compiled, default) or `dev` (hot reload) |
    | `NGINX_HOSTNAME`         | Public hostname for nginx TLS        |
    | `NEXXUS_LICENSING_BASE_URL` | Nexxus licensing API base (optional; default in config) |
@@ -689,13 +701,13 @@ data has feature compatibility version **8.2** — `mongo:7.0` or `mongo:8.0` ex
 Before recreating, confirm the running image:
 
 ```bash
-docker inspect nsagent-mongodb-1 --format '{{index .Config.Labels "org.opencontainers.image.version"}} {{.Config.Image}}'
+docker inspect jpilot-mongodb-1 --format '{{index .Config.Labels "org.opencontainers.image.version"}} {{.Config.Image}}'
 ```
 
 **Check logs for corruption / abrupt shutdown:**
 
 ```bash
-docker logs nsagent-mongodb-1 2>&1 | grep -i "fatal\|assert\|crash\|signal\|segfault\|abrupt\|unclean"
+docker logs jpilot-mongodb-1 2>&1 | grep -i "fatal\|assert\|crash\|signal\|segfault\|abrupt\|unclean"
 ```
 
 **Redeploy after pulling compose changes** (recreate Mongo so the pinned image applies):
@@ -706,11 +718,11 @@ docker logs nsagent-mongodb-1 2>&1 | grep -i "fatal\|assert\|crash\|signal\|segf
 ```
 
 **If MongoDB keeps exiting with code 139**, stop the stack and repair the data volume (volume
-name is usually `<project>_nsagent_mongodb_data`, e.g. `nsagent_nsagent_mongodb_data`):
+name is `jpilot_mongodb_data`; older installs may still use `nsagent_nsagent_mongodb_data`):
 
 ```bash
 docker compose -f docker-compose.yml -f docker-compose.prod.yml stop mongodb
-docker run --rm -v nsagent_nsagent_mongodb_data:/data/db mongo:8.2 mongod --repair
+docker run --rm -v jpilot_mongodb_data:/data/db mongo:8.2 mongod --repair
 ./compose.sh up -d mongodb
 ./compose.sh up -d backend-api mcp-server nginx
 ```
