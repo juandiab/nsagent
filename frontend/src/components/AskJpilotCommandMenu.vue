@@ -1,6 +1,7 @@
 <template>
-  <div class="cmd-menu">
+  <div v-if="!headless" class="cmd-menu" :class="{ 'cmd-menu-beta': variant === 'beta' }">
     <button
+      v-if="showTrigger"
       type="button"
       class="cmd-menu-trigger"
       :disabled="disabled"
@@ -11,7 +12,7 @@
       <span class="cmd-kbd">⌘K</span>
     </button>
 
-    <div class="cmd-inline">
+    <div v-if="showInlinePreview" class="cmd-inline">
       <div class="cmd-tabs" role="tablist">
         <button
           v-for="tab in jpilotCommandTabs"
@@ -56,27 +57,30 @@
         Show all {{ flatResults.length }} actions by section
       </button>
     </div>
+  </div>
 
-    <Dialog
-      v-model:visible="dialogVisible"
-      dismissable-mask
-      modal
-      :show-header="false"
-      :draggable="false"
-      :breakpoints="{ '1199px': '92vw', '767px': '96vw' }"
-      :style="{ width: '60rem', maxWidth: '92vw' }"
-      :content-style="{
-        padding: 0,
-        overflow: 'hidden',
-        display: 'flex',
-        flexDirection: 'column',
-        width: '100%'
-      }"
-      class="cmd-dialog"
-      content-class="cmd-dialog-content"
-      append-to="body"
-      @hide="onDialogHide"
-    >
+  <Dialog
+    v-model:visible="dialogVisible"
+    dismissable-mask
+    modal
+    :show-header="false"
+    :draggable="false"
+    :breakpoints="{ '1199px': '92vw', '767px': '96vw' }"
+    :style="{ width: '60rem', maxWidth: '92vw' }"
+    :content-style="{
+      padding: 0,
+      overflow: 'hidden',
+      display: 'flex',
+      flexDirection: 'column',
+      flex: '1 1 0',
+      minHeight: 0,
+      width: '100%'
+    }"
+    class="cmd-dialog"
+    content-class="cmd-dialog-content"
+    append-to="body"
+    @hide="onDialogHide"
+  >
       <div class="cmd-dialog-layout">
         <div class="cmd-dialog-main">
           <div class="cmd-dialog-search">
@@ -117,7 +121,7 @@
                 <span class="cmd-results-count">{{ flatResults.length }} actions</span>
               </div>
 
-              <div class="cmd-results cmd-results-dialog" ref="resultsEl">
+              <div class="cmd-dialog-scroll" ref="resultsEl">
                 <template v-for="group in groupedResults" :key="group.id">
                   <div class="cmd-section-head cmd-section-head-dialog">
                     {{ group.title }}
@@ -176,7 +180,6 @@
         </div>
       </div>
     </Dialog>
-  </div>
 </template>
 
 <script setup>
@@ -196,7 +199,13 @@ const props = defineProps({
   activeRole: { type: String, default: 'operator' },
   /** When set (appliance selected), only show actions for this vendor. */
   applianceVendor: { type: String, default: null },
-  disabled: { type: Boolean, default: false }
+  disabled: { type: Boolean, default: false },
+  /** Dialog-only mode — keeps ⌘K and openMenu() without visible chrome. */
+  headless: { type: Boolean, default: false },
+  showTrigger: { type: Boolean, default: true },
+  showInlinePreview: { type: Boolean, default: true },
+  /** `beta` keeps inline previews visible in narrower beta chat layouts. */
+  variant: { type: String, default: 'default' }
 })
 
 const emit = defineEmits(['pick'])
@@ -481,10 +490,8 @@ defineExpose({ openMenu })
   }
 }
 
-.cmd-results-dialog {
-  flex: 1;
-  min-height: 0;
-  overflow-y: auto;
+.cmd-results-dialog,
+.cmd-dialog-scroll {
   padding-bottom: 0.5rem;
 }
 
@@ -583,7 +590,6 @@ defineExpose({ openMenu })
   min-width: min(42rem, 92vw) !important;
   border: none !important;
   border-radius: 0.85rem !important;
-  overflow: hidden !important;
   background: color-mix(in srgb, var(--p-surface-900) 88%, transparent) !important;
   backdrop-filter: blur(20px);
   box-shadow: 0 24px 64px rgb(0 0 0 / 45%) !important;
@@ -597,67 +603,30 @@ defineExpose({ openMenu })
   }
 }
 
-:global(.p-dialog.cmd-dialog .p-dialog-content),
-:global(.p-dialog.cmd-dialog .cmd-dialog-content) {
-  padding: 0 !important;
-  background: transparent !important;
-  display: flex !important;
-  flex-direction: column !important;
-  width: 100% !important;
-  max-height: min(90dvh, 42rem) !important;
-  overflow: hidden !important;
-}
-
-@media (min-width: 992px) {
-  :global(.p-dialog.cmd-dialog .p-dialog-content),
-  :global(.p-dialog.cmd-dialog .cmd-dialog-content) {
-    max-height: min(90dvh, 52rem) !important;
-  }
-}
+/* Height / scroll layout lives in global.css (dialog is teleported to body). */
 
 :global(.p-dialog.cmd-dialog) .cmd-dialog-layout {
-  display: flex;
-  flex-direction: column;
-  flex: 1;
   width: 100%;
   min-width: 0;
-  min-height: 0;
-  overflow: hidden;
 }
 
 :global(.p-dialog.cmd-dialog) .cmd-dialog-main {
-  flex: 1;
   width: 100%;
   min-width: 0;
-  min-height: 0;
-  display: flex;
-  flex-direction: column;
-  overflow: hidden;
 }
 
 :global(.p-dialog.cmd-dialog) .cmd-dialog-body {
-  flex: 1;
-  min-height: 0;
-  min-width: 0;
   width: 100%;
-  display: flex;
-  flex-direction: column;
-  overflow: hidden;
+  min-width: 0;
 }
 
 :global(.p-dialog.cmd-dialog) .cmd-dialog-results-column {
-  flex: 1 1 auto;
-  min-height: 0;
-  min-width: 0;
   width: 100%;
-  display: flex;
-  flex-direction: column;
-  overflow: hidden;
+  min-width: 0;
 }
 
 @media (min-width: 768px) {
   :global(.p-dialog.cmd-dialog) .cmd-dialog-body {
-    flex-direction: row;
     align-items: stretch;
   }
 }
@@ -873,8 +842,16 @@ defineExpose({ openMenu })
     display: none;
   }
 
+  .cmd-menu-beta .cmd-inline {
+    display: block;
+  }
+
   .cmd-menu-trigger .cmd-kbd {
     display: none;
   }
+}
+
+.cmd-menu-beta {
+  margin-top: 0;
 }
 </style>

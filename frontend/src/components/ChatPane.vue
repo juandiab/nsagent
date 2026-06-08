@@ -25,6 +25,17 @@
     <template v-if="uiVariant === 'beta'">
       <div class="beta-shell flex flex-column h-full">
         <div class="beta-header">
+          <Button
+            v-if="showConversationSwitcher"
+            v-tooltip.bottom="'Chats'"
+            icon="pi pi-comments"
+            outlined
+            severity="secondary"
+            rounded
+            class="beta-header-chats"
+            aria-label="Open chats"
+            @click="$emit('open-conversations')"
+          />
           <div class="beta-header-identity">
             <div class="beta-avatar-wrap">
               <img src="/jpilot-favicon.png" alt="JPilot" class="beta-avatar" />
@@ -166,31 +177,30 @@
           <div v-if="!session.messages.length" class="beta-empty">
             <p class="beta-empty-title">Ask JPilot — {{ activeRole.label }}</p>
             <p class="beta-empty-hint">{{ activeRole.description }}</p>
-            <AskJpilotCommandMenu
-              ref="commandMenuRef"
-              :active-role="session.role"
-              :appliance-vendor="commandMenuVendor"
-              :disabled="isGenerating || !ready"
-              @pick="onCommandPick"
-            />
-            <p v-if="!ready" class="beta-empty-note">
-              No LLM assigned to {{ activeRole.label }} — configure one in Settings → AI Providers.
-            </p>
-            <p v-else-if="activeProviderName" class="beta-empty-note">
-              <i class="pi pi-sparkles" aria-hidden="true" />
-              Using <strong>{{ activeProviderName }}</strong>
-            </p>
           </div>
 
           <template v-else>
             <div v-for="(msg, index) in session.messages" :key="index">
-              <div v-if="msg.role !== 'user'" class="beta-msg-grid beta-msg-grid-assistant">
+              <div
+                v-if="msg.roleSwitchNotice"
+                class="role-switch-notice"
+                :class="`role-switch-notice-${msg.roleSwitchNotice.toRole}`"
+              >
+                <i :class="msg.roleSwitchNotice.icon" aria-hidden="true" />
+                <span>
+                  Switched to <strong>{{ msg.roleSwitchNotice.label }}</strong>
+                  to handle this request — {{ msg.roleSwitchNotice.reason }}.
+                  You can change role anytime in chat settings.
+                </span>
+              </div>
+
+              <div v-else-if="msg.role !== 'user'" class="beta-msg-grid beta-msg-grid-assistant">
                 <div class="beta-msg-avatar-col">
                   <img src="/jpilot-favicon.png" alt="JPilot" class="beta-msg-avatar" />
                 </div>
                 <div class="beta-msg-content-col">
                   <p class="beta-message-author">JPilot</p>
-                  <div v-if="msg.attachments?.length" class="chat-attachments mb-2">
+                  <div v-if="msg.attachments?.length" class="chat-attachments beta-attachments">
                     <div v-for="(a, ai) in msg.attachments" :key="ai" class="attachment-chip">
                       <img v-if="a.kind === 'image' && a.data" :src="attachmentPreviewUrl(a)" :alt="a.name" class="attachment-thumb" />
                       <i v-else class="pi pi-file" />
@@ -199,7 +209,7 @@
                   </div>
                   <div v-if="assistantView(msg).content" :class="{ 'chat-error-block': msg.isError }">
                     <span class="beta-bubble beta-bubble-assistant">
-                      <ChatMarkdown :content="assistantView(msg).content" />
+                      <ChatMarkdown compact :content="assistantView(msg).content" />
                     </span>
                     <div
                       v-if="session.role === 'architect' && canDownloadDesignDoc(assistantView(msg).content)"
@@ -260,7 +270,7 @@
 
               <div v-else class="beta-msg-grid beta-msg-grid-user">
                 <div class="beta-msg-content-col beta-msg-content-user">
-                  <div v-if="msg.attachments?.length" class="chat-attachments mb-2">
+                  <div v-if="msg.attachments?.length" class="chat-attachments beta-attachments">
                     <div v-for="(a, ai) in msg.attachments" :key="ai" class="attachment-chip">
                       <img v-if="a.kind === 'image' && a.data" :src="attachmentPreviewUrl(a)" :alt="a.name" class="attachment-thumb" />
                       <i v-else class="pi pi-file" />
@@ -291,6 +301,24 @@
               </div>
             </div>
           </template>
+
+          <AskJpilotCommandMenu
+            ref="commandMenuRef"
+            variant="beta"
+            :headless="session.messages.length > 0"
+            :active-role="session.role"
+            :appliance-vendor="commandMenuVendor"
+            :disabled="isGenerating || !ready"
+            @pick="onCommandPick"
+          />
+
+          <p v-if="!session.messages.length && !ready" class="beta-empty-note">
+            No LLM assigned to {{ activeRole.label }} — configure one in Settings → AI Providers.
+          </p>
+          <p v-else-if="!session.messages.length && activeProviderName" class="beta-empty-note">
+            <i class="pi pi-sparkles" aria-hidden="true" />
+            Using <strong>{{ activeProviderName }}</strong>
+          </p>
         </div>
 
         <div v-if="pendingAttachments.length" class="pending-attachments beta-pending">
@@ -313,6 +341,15 @@
             @keydown.enter="sendMessage()"
           />
           <div class="beta-footer-actions">
+            <Button
+              v-tooltip.top="'Browse recommended actions (⌘K)'"
+              icon="pi pi-search"
+              severity="secondary"
+              outlined
+              class="beta-footer-browse"
+              :disabled="isGenerating || !ready"
+              @click="openCommandMenu"
+            />
             <Button
               v-tooltip.top="'Attach file'"
               icon="pi pi-paperclip"
@@ -524,12 +561,25 @@
     <!-- ACTIVE CONVERSATION -->
     <template v-else>
       <div ref="messagesEl" class="chat-messages flex-1">
-        <div
-          v-for="(msg, index) in session.messages"
-          :key="index"
-          class="chat-message"
-          :class="msg.role === 'user' ? 'chat-message-user' : 'chat-message-assistant'"
-        >
+        <template v-for="(msg, index) in session.messages" :key="index">
+          <div
+            v-if="msg.roleSwitchNotice"
+            class="role-switch-notice"
+            :class="`role-switch-notice-${msg.roleSwitchNotice.toRole}`"
+          >
+            <i :class="msg.roleSwitchNotice.icon" aria-hidden="true" />
+            <span>
+              Switched to <strong>{{ msg.roleSwitchNotice.label }}</strong>
+              to handle this request — {{ msg.roleSwitchNotice.reason }}.
+              You can change role anytime in the toolbar.
+            </span>
+          </div>
+
+          <div
+            v-else
+            class="chat-message"
+            :class="msg.role === 'user' ? 'chat-message-user' : 'chat-message-assistant'"
+          >
           <div class="chat-bubble">
             <div class="chat-role">{{ msg.role === 'user' ? 'You' : 'JPilot' }}</div>
             <div v-if="msg.attachments?.length" class="chat-attachments mb-2">
@@ -596,6 +646,7 @@
             <ChatToolTrace v-if="msg.toolCalls?.length" :tools="msg.toolCalls" />
           </div>
         </div>
+        </template>
 
         <div v-if="isGenerating" class="chat-message chat-message-assistant">
           <div class="chat-bubble chat-bubble-loading">
@@ -717,6 +768,7 @@ import {
   DEFAULT_JPILOT_ROLE,
   JPILOT_ROLES,
   getRoleById,
+  normalizeRoleId,
   roleRequiresAppliance
 } from '../config/jpilotRoles'
 import {
@@ -725,6 +777,7 @@ import {
 } from '../config/jpilotApplianceAccess'
 import { isNetScalerVendor } from '../config/applianceVendors'
 import { resolveCommandFilterVendor } from '../config/jpilotRecommendedActions'
+import { buildRoleSwitchNotice, inferChatRoleFromMessage } from '../config/jpilotRoleInference'
 
 const props = defineProps({
   sessionId: { type: String, required: true },
@@ -734,10 +787,12 @@ const props = defineProps({
   defaultProviderId: { type: String, default: '' },
   webSearchAvailable: { type: Boolean, default: false },
   canClose: { type: Boolean, default: false },
-  uiVariant: { type: String, default: 'classic' }
+  uiVariant: { type: String, default: 'classic' },
+  /** Mobile beta chat: show button to open conversation list in parent. */
+  showConversationSwitcher: { type: Boolean, default: false }
 })
 
-defineEmits(['close'])
+defineEmits(['close', 'open-conversations'])
 
 const router = useRouter()
 const toast = useToast()
@@ -1136,7 +1191,7 @@ async function acceptDesignHandoff(handoff) {
     return
   }
 
-  await sendMessage(DESIGN_HANDOFF_MESSAGE, [attachment])
+  await sendMessage(DESIGN_HANDOFF_MESSAGE, [attachment], { skipRoleInference: true })
 }
 
 async function tryConsumeDesignHandoff() {
@@ -1145,13 +1200,42 @@ async function tryConsumeDesignHandoff() {
   await acceptDesignHandoff(handoff)
 }
 
+function applyRoleForCommand(cmd) {
+  if (!cmd?.role) return
+  const nextRole = normalizeRoleId(cmd.role)
+  if (nextRole !== session.role) {
+    session.role = nextRole
+  }
+}
+
+function maybeSwitchRoleForMessage(content, attachmentNames, options = {}) {
+  if (options.skipRoleInference) return
+  const inference = inferChatRoleFromMessage(content, {
+    attachmentNames,
+    currentRole: session.role
+  })
+  if (!inference) return
+  session.role = normalizeRoleId(inference.role)
+  session.messages.push({
+    role: 'assistant',
+    content: '',
+    roleSwitchNotice: buildRoleSwitchNotice(inference.role, inference.reason),
+    createdAt: Date.now()
+  })
+}
+
 function onCommandPick(cmd) {
   if (cmd.type === 'link') {
     router.push(cmd.to)
     return
   }
+  applyRoleForCommand(cmd)
   if (!ready.value) return
-  sendMessage(cmd.text)
+  sendMessage(cmd.text, null, { skipRoleInference: true })
+}
+
+function openCommandMenu() {
+  commandMenuRef.value?.openMenu?.()
 }
 
 function focusAskInput() {
@@ -1315,7 +1399,11 @@ async function runChat(content, attachments) {
   await scrollToBottom()
   try {
     const conversational = session.messages.filter(
-      (msg) => (msg.role === 'user' || msg.role === 'assistant') && msg.content && !msg.appliancePicker
+      (msg) =>
+        (msg.role === 'user' || msg.role === 'assistant') &&
+        msg.content &&
+        !msg.appliancePicker &&
+        !msg.roleSwitchNotice
     )
     let history = conversational.map((msg) => ({ role: msg.role, content: msg.content }))
     if (history.length && history[history.length - 1].role === 'user' && history[history.length - 1].content === content) {
@@ -1414,7 +1502,7 @@ async function submitConfigForm(values, messageIndex) {
   }
 }
 
-async function sendMessage(text, externalAttachments = null) {
+async function sendMessage(text, externalAttachments = null, options = {}) {
   const content = (text || session.input).trim()
   const sourceAttachments = externalAttachments ?? pendingAttachments.value
   const attachments = sourceAttachments.map((item) => ({
@@ -1423,7 +1511,14 @@ async function sendMessage(text, externalAttachments = null) {
     mimeType: item.mimeType,
     data: item.data
   }))
-  if ((!content && !attachments.length) || isGenerating.value || !ready.value) return
+  if ((!content && !attachments.length) || isGenerating.value) return
+
+  maybeSwitchRoleForMessage(
+    content,
+    attachments.map((item) => item.name),
+    options
+  )
+  if (!ready.value) return
 
   session.messages.push({
     role: 'user',
@@ -1990,14 +2085,14 @@ onUnmounted(() => {
 
 /* ---------- Beta variant (Diamond ChatBox-style) ---------- */
 .chat-pane-beta {
-  --glass-bg: var(--p-content-background);
-  --glass-strong: var(--p-content-background);
-  --glass-border: var(--p-content-border-color);
+  --glass-bg: color-mix(in srgb, var(--p-content-background) 72%, transparent);
+  --glass-strong: color-mix(in srgb, var(--p-content-background) 78%, transparent);
+  --glass-border: color-mix(in srgb, var(--p-content-border-color) 70%, transparent);
   --glass-text: var(--p-text-color);
   --glass-muted: var(--p-text-muted-color);
-  --glass-field: var(--p-surface-100);
-  background: var(--p-content-background);
-  border-color: var(--p-content-border-color);
+  --glass-field: color-mix(in srgb, var(--p-surface-100) 82%, transparent);
+  background: transparent;
+  border-color: transparent;
   backdrop-filter: none;
   -webkit-backdrop-filter: none;
   box-shadow: none;
@@ -2005,7 +2100,7 @@ onUnmounted(() => {
 }
 
 :global(.app-dark) .chat-pane-beta {
-  --glass-field: var(--p-surface-800);
+  --glass-field: color-mix(in srgb, var(--p-surface-800) 82%, transparent);
 }
 
 .beta-shell {
@@ -2015,15 +2110,26 @@ onUnmounted(() => {
 .beta-header {
   display: flex;
   align-items: center;
-  gap: 1rem;
-  padding: 1rem;
-  border-bottom: 1px solid var(--p-content-border-color);
-  flex-wrap: wrap;
+  gap: 0.65rem;
+  padding: 0.65rem 0.75rem;
+  border-bottom: 1px solid color-mix(in srgb, var(--p-content-border-color) 70%, transparent);
+  background: color-mix(in srgb, var(--p-content-background) 80%, transparent);
+  backdrop-filter: blur(10px);
+  -webkit-backdrop-filter: blur(10px);
+  flex-wrap: nowrap;
+  flex-shrink: 0;
+}
+
+.beta-header-chats {
+  flex-shrink: 0;
 }
 
 @media (min-width: 992px) {
   .beta-header {
+    gap: 1rem;
     padding: 1rem 3rem;
+    padding-top: 1rem;
+    flex-wrap: wrap;
   }
 }
 
@@ -2032,6 +2138,7 @@ onUnmounted(() => {
   align-items: center;
   gap: 0.85rem;
   min-width: 0;
+  flex: 1 1 auto;
 }
 
 .beta-avatar-wrap {
@@ -2148,22 +2255,30 @@ onUnmounted(() => {
 .user-message-container {
   flex: 1;
   overflow-y: auto;
-  padding: 0.75rem 1rem;
-  margin-top: 0.5rem;
+  padding: 0.5rem 0.75rem;
+  margin-top: 0.25rem;
   min-height: 0;
 }
 
 @media (min-width: 768px) {
   .beta-messages,
   .user-message-container {
-    padding: 1rem 1.5rem;
+    padding: 0.625rem 1rem;
   }
 }
 
 @media (min-width: 992px) {
   .beta-messages,
   .user-message-container {
-    padding: 1.5rem 3rem;
+    padding: 0.75rem 1.5rem;
+  }
+}
+
+@media (max-width: 991px) {
+  .beta-messages,
+  .user-message-container {
+    padding: 0.35rem 0.5rem;
+    margin-top: 0;
   }
 }
 
@@ -2210,21 +2325,43 @@ onUnmounted(() => {
 .beta-msg-grid {
   display: grid;
   grid-template-columns: auto 1fr;
-  gap: 1rem;
-  margin-bottom: 1.5rem;
+  gap: 0.625rem;
+  margin-bottom: 0.75rem;
 }
 
 .beta-msg-grid-user {
   grid-template-columns: 1fr;
 }
 
+.beta-msg-grid-user .beta-msg-content-col {
+  margin-top: 0;
+}
+
 .beta-msg-avatar-col {
-  margin-top: 0.25rem;
+  margin-top: 0.125rem;
 }
 
 .beta-msg-content-col {
-  margin-top: 1rem;
+  margin-top: 0.125rem;
   min-width: 0;
+}
+
+.beta-msg-content-col :deep(.tool-trace-panel) {
+  margin-top: 0.5rem;
+}
+
+.beta-msg-content-col :deep(.design-doc-download) {
+  margin-top: 0.5rem;
+  padding-top: 0.5rem;
+}
+
+.beta-msg-content-col :deep(.web-sources) {
+  margin-top: 0.35rem;
+  padding-top: 0.35rem;
+}
+
+.beta-attachments {
+  margin-bottom: 0.35rem;
 }
 
 .beta-msg-content-user {
@@ -2232,14 +2369,15 @@ onUnmounted(() => {
 }
 
 .beta-msg-avatar {
-  width: 3rem;
-  height: 3rem;
+  width: 2.25rem;
+  height: 2.25rem;
   border-radius: 999px;
-  box-shadow: 0 6px 18px rgba(2, 6, 23, 0.1);
+  box-shadow: 0 4px 12px rgba(2, 6, 23, 0.08);
 }
 
 .beta-message-author {
-  margin: 0 0 1rem;
+  margin: 0 0 0.25rem;
+  font-size: 0.8125rem;
   font-weight: 600;
   color: var(--p-text-color);
 }
@@ -2247,11 +2385,12 @@ onUnmounted(() => {
 .beta-bubble {
   display: inline-block;
   max-width: 80%;
-  padding: 1rem;
+  padding: 0.625rem 0.75rem;
   border-radius: var(--p-content-border-radius);
   border: 1px solid var(--p-content-border-color);
   font-weight: 500;
-  line-height: 1.55;
+  line-height: 1.45;
+  font-size: 0.875rem;
   word-break: break-word;
   white-space: pre-wrap;
   text-align: left;
@@ -2259,18 +2398,31 @@ onUnmounted(() => {
 
 .beta-bubble-assistant {
   color: var(--p-text-color);
-  background: var(--p-content-background);
+  background: color-mix(in srgb, var(--p-content-background) 78%, transparent);
+  border-color: color-mix(in srgb, var(--p-content-border-color) 65%, transparent);
+  backdrop-filter: blur(8px);
+  -webkit-backdrop-filter: blur(8px);
+  box-shadow: 0 2px 10px rgba(2, 6, 23, 0.06);
 }
 
 .beta-bubble-user {
   color: var(--p-primary-900);
-  background: var(--p-primary-100);
-  border-color: color-mix(in srgb, var(--p-primary-color) 25%, var(--p-content-border-color));
+  background: color-mix(in srgb, var(--p-primary-100) 82%, transparent);
+  border-color: color-mix(in srgb, var(--p-primary-color) 25%, transparent);
+  backdrop-filter: blur(8px);
+  -webkit-backdrop-filter: blur(8px);
+  box-shadow: 0 2px 10px rgba(2, 6, 23, 0.05);
+}
+
+:global(.app-dark) .beta-bubble-assistant {
+  background: color-mix(in srgb, var(--p-surface-900) 76%, transparent);
+  box-shadow: 0 2px 12px rgba(0, 0, 0, 0.22);
 }
 
 :global(.app-dark) .beta-bubble-user {
   color: var(--p-primary-100);
-  background: color-mix(in srgb, var(--p-primary-color) 22%, var(--p-surface-900));
+  background: color-mix(in srgb, var(--p-primary-color) 20%, transparent);
+  box-shadow: 0 2px 12px rgba(0, 0, 0, 0.18);
 }
 
 .beta-bubble-loading {
@@ -2280,8 +2432,8 @@ onUnmounted(() => {
 }
 
 .beta-message-time {
-  margin: 1rem 0 0;
-  font-size: 0.875rem;
+  margin: 0.35rem 0 0;
+  font-size: 0.75rem;
   color: var(--p-text-muted-color);
 }
 
@@ -2291,24 +2443,35 @@ onUnmounted(() => {
 }
 
 .beta-pending {
-  border-top: 1px solid var(--p-content-border-color);
+  border-top: 1px solid color-mix(in srgb, var(--p-content-border-color) 70%, transparent);
   padding: 0.75rem 1rem 0;
+  background: color-mix(in srgb, var(--p-content-background) 72%, transparent);
+  backdrop-filter: blur(8px);
+  -webkit-backdrop-filter: blur(8px);
 }
 
 .beta-footer {
   display: flex;
   flex-direction: column;
   align-items: stretch;
-  gap: 1rem;
-  padding: 1rem;
+  gap: 0.75rem;
+  padding: 0.65rem 0.75rem;
+  padding-bottom: calc(0.65rem + env(safe-area-inset-bottom, 0px));
   margin-top: auto;
-  border-top: 1px solid var(--p-content-border-color);
+  border-top: 1px solid color-mix(in srgb, var(--p-content-border-color) 70%, transparent);
+  background: color-mix(in srgb, var(--p-content-background) 82%, transparent);
+  backdrop-filter: blur(10px);
+  -webkit-backdrop-filter: blur(10px);
+  flex-shrink: 0;
 }
 
 @media (min-width: 576px) {
   .beta-footer {
     flex-direction: row;
     align-items: center;
+    gap: 1rem;
+    padding: 1rem;
+    padding-bottom: 1rem;
   }
 }
 
@@ -2330,11 +2493,13 @@ onUnmounted(() => {
   }
 }
 
+.beta-footer-browse,
 .beta-footer-attach {
   flex: 1;
 }
 
 @media (min-width: 576px) {
+  .beta-footer-browse,
   .beta-footer-attach {
     flex: 0 0 auto;
   }
@@ -2342,5 +2507,62 @@ onUnmounted(() => {
 
 .beta-input {
   min-width: 0;
+}
+
+.role-switch-notice {
+  display: flex;
+  align-items: flex-start;
+  gap: 0.55rem;
+  margin: 0.35rem 0 0.75rem;
+  padding: 0.55rem 0.75rem;
+  border-radius: 0.65rem;
+  border: 1px solid color-mix(in srgb, var(--p-primary-color) 28%, transparent);
+  background: color-mix(in srgb, var(--p-primary-color) 8%, transparent);
+  font-size: 0.8125rem;
+  line-height: 1.45;
+  color: var(--p-text-muted-color);
+}
+
+.role-switch-notice i {
+  margin-top: 0.1rem;
+  color: var(--p-primary-color);
+  flex-shrink: 0;
+}
+
+.role-switch-notice strong {
+  color: var(--p-text-color);
+}
+
+.role-switch-notice-architect {
+  border-color: color-mix(in srgb, #7c3aed 35%, transparent);
+  background: color-mix(in srgb, #7c3aed 10%, transparent);
+}
+
+.role-switch-notice-architect i {
+  color: #7c3aed;
+}
+
+.role-switch-notice-operator {
+  border-color: color-mix(in srgb, #059669 35%, transparent);
+  background: color-mix(in srgb, #059669 10%, transparent);
+}
+
+.role-switch-notice-operator i {
+  color: #059669;
+}
+
+.role-switch-notice-analyst {
+  border-color: color-mix(in srgb, #d97706 35%, transparent);
+  background: color-mix(in srgb, #d97706 10%, transparent);
+}
+
+.role-switch-notice-analyst i {
+  color: #d97706;
+}
+
+.chat-messages .role-switch-notice {
+  max-width: 42rem;
+  margin-left: auto;
+  margin-right: auto;
 }
 </style>

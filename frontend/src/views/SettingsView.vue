@@ -363,6 +363,11 @@
           <section v-if="activeSection === 'beta-features'">
             <BetaFeaturesPanel />
           </section>
+
+          <!-- Slack notifications (Enterprise Pro) -->
+          <section v-if="activeSection === 'slack'" class="settings-section-full">
+            <SlackNotificationsPanel />
+          </section>
   
           <!-- Security -->
           <section v-if="activeSection === 'security'" class="settings-section-full flex flex-column gap-4">
@@ -561,6 +566,7 @@ import UsersPanel from '../components/UsersPanel.vue'
 import UpdatesPanel from '../components/UpdatesPanel.vue'
 import JpilotTlsPanel from '../components/JpilotTlsPanel.vue'
 import LicensePanel from '../components/LicensePanel.vue'
+import SlackNotificationsPanel from '../components/SlackNotificationsPanel.vue'
 import { getCopilotSettings, saveCopilotSettings } from '../services/copilot'
 import { getMcpConfig, getMcpStatus, saveMcpConfig } from '../services/mcp'
 import { getSmtpConfig, saveSmtpConfig, testSmtpConfig } from '../services/smtp'
@@ -593,6 +599,7 @@ const allSections = [
   { key: 'mcp', label: 'MCP Server', icon: 'pi pi-server', adminOnly: true, group: 'platform' },
   { key: 'nextgen', label: 'Next-Gen API', icon: 'pi pi-code', adminOnly: true, group: 'platform' },
   { key: 'beta-features', label: 'Beta features', icon: 'pi pi-flag', adminOnly: true, group: 'platform' },
+  { key: 'slack', label: 'Slack', icon: 'pi pi-send', adminOnly: true, group: 'platform' },
   { key: 'users', label: 'Users', icon: 'pi pi-users', adminOnly: true, group: 'people' },
   { key: 'security', label: 'Security', icon: 'pi pi-shield', group: 'personal' },
   { key: 'about', label: 'About', icon: 'pi pi-info-circle', group: 'app' },

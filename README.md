@@ -8,7 +8,7 @@ Repository: [github.com/Nexxus-Tech-SAS/jpilot](https://github.com/Nexxus-Tech-S
 
 > **Disclaimer:** JPilot is an independent project and is not affiliated with, endorsed by, or sponsored by Citrix Systems, Inc. NetScaler is a trademark of Citrix Systems, Inc.
 
-**Current release:** `v0.42` — Installer TLS drag/drop and file browse for custom certificates.
+**Current release:** `v0.43` — Chat Beta mobile UX, auto role switching, Slack notifications, and command menu scroll fix.
 
 Bump the root [`VERSION`](VERSION) file when tagging a release so in-app update checks match GitHub.
 
@@ -41,6 +41,17 @@ Bump the root [`VERSION`](VERSION) file when tagging a release so in-app update 
 - **NetScaler SDX (SSH)** — Operator and Analyst for SVM platform and VPX lifecycle with `search_sdx_cli_reference` memory gate (beta).
 - **F5 BIG-IP (SSH / TMSH)** — Operator, Analyst, and Architect (official F5 docs only); `f5_*` MCP tools and `search_f5_tmsh_reference` / `search_f5_documentation` (beta).
 - **Nexxus licensing** — Settings → **License**: enter a license code, import an offline `.lic` file, or sync with the Nexxus licensing API; installation fingerprint binding; encrypted payload validation; daily background sync and expiry enforcement; **activation gate** redirects unlicensed or expired installs to Settings → License before using the app.
+
+## What's new in v0.43
+
+| Area | Highlights |
+|------|------------|
+| **Command menu** | Recommended-actions dialog scrolls correctly on desktop and mobile — all sections and actions are reachable (PrimeVue dialog flex/overflow fix). |
+| **Chat Beta (mobile)** | Full-screen chat on narrow layouts; **Chats** drawer to switch or create conversations; page toolbar and background picker hidden on mobile; compact message markdown. |
+| **Auto role switching** | Picking a recommended action switches Architect / Operator / Analyst to match; free-text messages infer the best role with an inline notice (e.g. design work → Architect). |
+| **Mobile footer** | Single-line legal link: **© year Nexxus Tech · Terms & legal** → `/legal`. |
+| **Slack notifications** | Settings → **Slack** (Enterprise Pro): configure incoming webhook, choose events, and send a test message. |
+| **Plans page** | Refreshed early-access layout with mobile plan tabs and updated copy. |
 
 ## What's new in v0.42
 

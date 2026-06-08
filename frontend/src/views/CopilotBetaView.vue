@@ -1,6 +1,6 @@
 <template>
   <div class="page copilot-page flex flex-column">
-    <div class="copilot-toolbar flex justify-content-between align-items-center gap-2 flex-wrap mb-2">
+    <div v-if="!isMobileLayout" class="copilot-toolbar flex justify-content-between align-items-center gap-2 flex-wrap mb-2">
       <div class="flex align-items-center gap-2">
         <Tag value="Beta" severity="warn" icon="pi pi-sparkles" />
         <span class="beta-view-label">Saved on this device until you delete them</span>
@@ -30,7 +30,7 @@
       </div>
     </div>
 
-    <Message v-if="!ready" severity="warn" :closable="false" class="mb-3">
+    <Message v-if="!ready && !isMobileLayout" severity="warn" :closable="false" class="copilot-warn mb-3">
       No enabled AI provider found.
       <RouterLink to="/settings?section=ai-providers" class="ml-2">Configure AI Providers →</RouterLink>
     </Message>
@@ -63,19 +63,49 @@
             :default-provider-id="defaultProviderId"
             :web-search-available="webSearchAvailable"
             :can-close="false"
+            :show-conversation-switcher="isMobileLayout"
+            @open-conversations="mobileChatsOpen = true"
           />
         </div>
       </div>
     </div>
+
+    <Drawer
+      v-model:visible="mobileChatsOpen"
+      position="left"
+      :modal="true"
+      :dismissable="true"
+      :show-close-icon="false"
+      class="beta-chats-drawer"
+    >
+      <div class="beta-chats-drawer-head">
+        <span class="beta-chats-drawer-title">Chats</span>
+        <button type="button" class="beta-chats-drawer-close" aria-label="Close chats" @click="mobileChatsOpen = false">
+          <i class="pi pi-times" />
+        </button>
+      </div>
+      <BetaChatSidebar
+        variant="drawer"
+        :panes="paneSummaries"
+        :active-session-id="activeSessionId"
+        :can-add="canAddConversation"
+        :conversation-count="betaChatState.conversations.length"
+        :max-conversations="MAX_BETA_CONVERSATIONS"
+        @select="onMobileSelectChat"
+        @new-chat="onMobileNewChat"
+        @delete="onDeleteChat"
+      />
+    </Drawer>
   </div>
 </template>
 
 <script setup>
-import { computed, onMounted, ref, watch } from 'vue'
+import { computed, onMounted, onUnmounted, ref, watch } from 'vue'
 import { useRouter } from 'vue-router'
 import { useToast } from 'primevue/usetoast'
 import { useConfirm } from 'primevue/useconfirm'
 import Button from 'primevue/button'
+import Drawer from 'primevue/drawer'
 import Message from 'primevue/message'
 import Tag from 'primevue/tag'
 import BetaChatSidebar from '../components/BetaChatSidebar.vue'
@@ -112,6 +142,17 @@ const backgrounds = CHAT_BACKGROUNDS
 const background = ref(getChatBackground())
 const bgPickerOpen = ref(false)
 const webSearchAvailable = ref(false)
+const mobileChatsOpen = ref(false)
+
+const MOBILE_LAYOUT_MQL = typeof window !== 'undefined' ? window.matchMedia('(max-width: 991px)') : null
+const isMobileLayout = ref(MOBILE_LAYOUT_MQL?.matches ?? false)
+
+function syncMobileLayout() {
+  isMobileLayout.value = MOBILE_LAYOUT_MQL?.matches ?? false
+  if (!isMobileLayout.value) {
+    mobileChatsOpen.value = false
+  }
+}
 
 const ready = computed(() => providers.value.length > 0)
 const canAddConversation = computed(() => canAddBetaConversation())
@@ -177,6 +218,16 @@ function onNewChat() {
   createBetaConversation('operator', 'New chat')
 }
 
+function onMobileSelectChat(sessionId) {
+  setActiveBetaConversation(sessionId)
+  mobileChatsOpen.value = false
+}
+
+function onMobileNewChat() {
+  onNewChat()
+  mobileChatsOpen.value = false
+}
+
 function onDeleteChat(sessionId) {
   const pane = paneSummaries.value.find((p) => p.sessionId === sessionId)
   confirm.require({
@@ -232,12 +283,18 @@ async function loadWebSearchAvailability() {
 }
 
 onMounted(() => {
+  syncMobileLayout()
+  MOBILE_LAYOUT_MQL?.addEventListener('change', syncMobileLayout)
   if (!betaChatState.conversations.length) {
     createBetaConversation('architect', 'Architect')
   }
   loadProviders()
   loadAppliances()
   loadWebSearchAvailability()
+})
+
+onUnmounted(() => {
+  MOBILE_LAYOUT_MQL?.removeEventListener('change', syncMobileLayout)
 })
 
 watch(
@@ -255,6 +312,49 @@ watch(
   height: calc(100vh - 5rem);
   min-height: 32rem;
   overflow: hidden;
+}
+
+@media (max-width: 991px) {
+  .copilot-page {
+    flex: 1;
+    min-height: 0;
+    height: auto;
+    margin: -0.75rem;
+    margin-bottom: calc(-0.75rem - env(safe-area-inset-bottom, 0px));
+    width: calc(100% + 1.5rem);
+    max-width: none;
+    overflow: hidden;
+  }
+
+  .stage {
+    border-radius: 0;
+    background-image: none !important;
+  }
+
+  .stage-scrim {
+    display: none;
+  }
+
+  .beta-chat-layout {
+    padding: 0;
+    gap: 0;
+  }
+
+  .beta-sidebar-card {
+    display: none;
+  }
+
+  .beta-chat-card {
+    flex: 1;
+    min-height: 0;
+    border-radius: 0;
+    box-shadow: none;
+    background: var(--p-content-background);
+  }
+
+  :global(.app-dark) .beta-chat-card {
+    background: var(--p-surface-950);
+  }
 }
 
 .beta-view-label {
@@ -295,6 +395,20 @@ watch(
   height: 100%;
   min-height: 0;
   padding: 0.75rem;
+}
+
+.beta-sidebar-card.content-panel,
+.beta-chat-card.content-panel {
+  background: color-mix(in srgb, var(--p-content-background) 70%, transparent);
+  border-color: color-mix(in srgb, var(--p-content-border-color) 65%, transparent);
+  backdrop-filter: blur(12px);
+  -webkit-backdrop-filter: blur(12px);
+  box-shadow: 0 8px 28px rgba(2, 6, 23, 0.08);
+}
+
+:global(.app-dark) .beta-sidebar-card.content-panel,
+:global(.app-dark) .beta-chat-card.content-panel {
+  box-shadow: 0 8px 28px rgba(0, 0, 0, 0.28);
 }
 
 .beta-sidebar-card,
@@ -369,5 +483,45 @@ watch(
 
 .bg-thumb-active {
   border-color: var(--p-primary-color);
+}
+
+.beta-chats-drawer-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.75rem;
+  margin-bottom: 0.75rem;
+}
+
+.beta-chats-drawer-title {
+  font-size: 1.05rem;
+  font-weight: 700;
+}
+
+.beta-chats-drawer-close {
+  width: 2.25rem;
+  height: 2.25rem;
+  border: 0;
+  border-radius: 0.5rem;
+  background: transparent;
+  color: var(--p-text-color);
+  cursor: pointer;
+}
+
+.beta-chats-drawer-close:hover {
+  background: var(--p-surface-100);
+}
+
+:global(.p-drawer.beta-chats-drawer) {
+  width: min(20rem, 100vw) !important;
+}
+
+:global(.p-drawer.beta-chats-drawer .p-drawer-content) {
+  display: flex;
+  flex-direction: column;
+  height: 100%;
+  padding: 1rem;
+  padding-top: calc(1rem + env(safe-area-inset-top, 0px));
+  padding-bottom: calc(1rem + env(safe-area-inset-bottom, 0px));
 }
 </style>

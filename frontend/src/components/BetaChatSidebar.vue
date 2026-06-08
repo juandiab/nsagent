@@ -1,6 +1,6 @@
 <template>
-  <div class="beta-sidebar flex flex-column h-full">
-    <div class="beta-sidebar-profile">
+  <div class="beta-sidebar flex flex-column h-full" :class="{ 'beta-sidebar-drawer': variant === 'drawer' }">
+    <div v-if="variant !== 'drawer'" class="beta-sidebar-profile">
       <img src="/jpilot-favicon.png" alt="JPilot" class="beta-sidebar-logo" />
       <span class="beta-sidebar-brand">JPilot</span>
       <span class="beta-sidebar-tagline">AI assistant for your appliances</span>
@@ -61,7 +61,9 @@ const props = defineProps({
   activeSessionId: { type: String, required: true },
   canAdd: { type: Boolean, default: true },
   conversationCount: { type: Number, default: 0 },
-  maxConversations: { type: Number, default: 12 }
+  maxConversations: { type: Number, default: 12 },
+  /** `drawer` — compact list for mobile slide-over. */
+  variant: { type: String, default: 'default' }
 })
 
 defineEmits(['select', 'new-chat', 'delete'])
@@ -160,24 +162,41 @@ const filteredPanes = computed(() => {
 }
 
 @media (max-width: 991px) {
-  .beta-sidebar-profile {
+  .beta-sidebar:not(.beta-sidebar-drawer) .beta-sidebar-profile {
     padding: 1.25rem;
   }
 
-  .beta-sidebar-logo {
+  .beta-sidebar:not(.beta-sidebar-drawer) .beta-sidebar-logo {
     width: 4.5rem;
     height: 4.5rem;
   }
 
-  .beta-sidebar-list {
+  .beta-sidebar:not(.beta-sidebar-drawer) .beta-sidebar-list {
     flex-direction: row;
     overflow-x: auto;
     overflow-y: hidden;
     padding-bottom: 0.25rem;
   }
 
-  .beta-sidebar-list :deep(.beta-pane-card) {
+  .beta-sidebar:not(.beta-sidebar-drawer) .beta-sidebar-list :deep(.beta-pane-card) {
     min-width: 16rem;
   }
+}
+
+.beta-sidebar-drawer .beta-sidebar-body {
+  padding: 0;
+  gap: 0.75rem;
+  flex: 1;
+  min-height: 0;
+}
+
+.beta-sidebar-drawer .beta-sidebar-list {
+  flex-direction: column;
+  overflow-x: hidden;
+  overflow-y: auto;
+}
+
+.beta-sidebar-drawer .beta-sidebar-list :deep(.beta-pane-card) {
+  min-width: 0;
 }
 </style>

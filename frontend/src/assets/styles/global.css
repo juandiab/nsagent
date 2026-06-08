@@ -150,6 +150,101 @@ html.app-dark .welcome-panel {
   font-weight: 600;
 }
 
+/* JPilot command menu dialog — teleported to body; keep scroll rules global. */
+.p-dialog.cmd-dialog {
+  display: flex !important;
+  flex-direction: column !important;
+  height: min(90dvh, 42rem) !important;
+  max-height: min(90dvh, 42rem) !important;
+  overflow: hidden !important;
+}
+
+@media (min-width: 992px) {
+  .p-dialog.cmd-dialog {
+    height: min(90dvh, 52rem) !important;
+    max-height: min(90dvh, 52rem) !important;
+  }
+}
+
+.p-dialog.cmd-dialog .p-dialog-content,
+.p-dialog.cmd-dialog .cmd-dialog-content {
+  flex: 1 1 0 !important;
+  min-height: 0 !important;
+  height: auto !important;
+  max-height: none !important;
+  overflow: hidden !important;
+  overflow-y: hidden !important;
+  display: flex !important;
+  flex-direction: column !important;
+  padding: 0 !important;
+}
+
+.p-dialog.cmd-dialog .cmd-dialog-layout {
+  display: flex;
+  flex-direction: column;
+  flex: 1 1 0;
+  height: 100%;
+  min-height: 0;
+  overflow: hidden;
+}
+
+.p-dialog.cmd-dialog .cmd-dialog-main {
+  display: grid;
+  grid-template-rows: auto auto minmax(0, 1fr);
+  flex: 1 1 0;
+  height: 0;
+  min-height: 0;
+  overflow: hidden;
+}
+
+.p-dialog.cmd-dialog .cmd-dialog-body {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr);
+  grid-template-rows: minmax(0, 1fr);
+  min-height: 0;
+  overflow: hidden;
+}
+
+@media (min-width: 768px) {
+  .p-dialog.cmd-dialog .cmd-dialog-body {
+    grid-template-columns: minmax(0, 1fr) 14rem;
+  }
+}
+
+.p-dialog.cmd-dialog .cmd-dialog-results-column {
+  display: grid;
+  grid-template-rows: auto minmax(0, 1fr);
+  min-height: 0;
+  overflow: hidden;
+}
+
+.p-dialog.cmd-dialog .cmd-dialog-scroll {
+  min-height: 0;
+  overflow-x: hidden;
+  overflow-y: auto;
+  overscroll-behavior: contain;
+  -webkit-overflow-scrolling: touch;
+  scrollbar-gutter: stable;
+}
+
+.p-dialog.cmd-dialog .cmd-dialog-footer {
+  flex-shrink: 0;
+}
+
+.p-dialog.cmd-dialog .cmd-dialog-search,
+.p-dialog.cmd-dialog .cmd-tabs-dialog {
+  flex-shrink: 0;
+}
+
+.p-dialog.cmd-dialog .cmd-results-meta-dialog {
+  flex-shrink: 0;
+}
+
+.p-dialog.cmd-dialog .cmd-dialog-scroll .cmd-section-head,
+.p-dialog.cmd-dialog .cmd-dialog-scroll .cmd-result {
+  flex-shrink: 0;
+}
+
 /* ---------------------------------------------------------------------------
    Dark-mode surfaces. The app's component CSS predates dark mode and paints
    backgrounds with PrimeVue's fixed palette tokens (--p-surface-0/50/100),

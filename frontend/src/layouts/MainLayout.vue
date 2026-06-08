@@ -200,13 +200,27 @@
       </div>
 
       <footer class="app-legal">
-        <span class="app-legal-copy">© {{ currentYear }} Nexxus Tech</span>
-        <nav class="app-legal-links">
+        <span class="app-legal-copy app-legal-desktop">
+          © {{ currentYear }}
+          <a
+            :href="NEXXUS_TECH.websiteUrl"
+            target="_blank"
+            rel="noopener noreferrer"
+            class="app-legal-brand-link"
+          >Nexxus Tech</a>
+        </span>
+        <nav class="app-legal-links app-legal-desktop">
           <RouterLink to="/legal/privacy">Privacy Policy</RouterLink>
           <RouterLink to="/legal/terms">Terms of Service</RouterLink>
           <RouterLink to="/legal/eula">EULA</RouterLink>
           <RouterLink to="/legal/acceptable-use">Acceptable Use</RouterLink>
         </nav>
+        <RouterLink to="/legal" class="app-legal-mobile">
+          <span>© {{ currentYear }}</span>
+          <span class="app-legal-mobile-brand">Nexxus Tech</span>
+          <span class="app-legal-mobile-sep" aria-hidden="true">·</span>
+          <span>Terms &amp; legal</span>
+        </RouterLink>
       </footer>
     </main>
 
@@ -226,6 +240,7 @@ import Message from 'primevue/message'
 import Tag from 'primevue/tag'
 import Toast from 'primevue/toast'
 import JPilot from '../components/JPilot.vue'
+import { NEXXUS_TECH } from '../config/nexxusTech'
 import api from '../services/api'
 import { clearAuth, getStoredUser } from '../services/auth'
 import { checkForUpdates } from '../services/system'
@@ -656,6 +671,25 @@ function isActive(item) {
   color: var(--p-primary-color);
 }
 
+.app-legal-brand-link {
+  color: var(--p-text-muted-color);
+  font-weight: 600;
+  text-decoration: none;
+}
+
+.app-legal-brand-link:hover {
+  color: var(--p-primary-color);
+  text-decoration: underline;
+}
+
+.app-legal-mobile {
+  display: none;
+}
+
+.app-legal-mobile-sep {
+  opacity: 0.55;
+}
+
 .mobile-nav {
   display: flex;
   flex-direction: column;
@@ -895,7 +929,33 @@ function isActive(item) {
   }
 
   .app-legal {
-    padding-inline: 0.25rem;
+    justify-content: center;
+    padding: 0.35rem 0.25rem;
+    padding-bottom: calc(0.35rem + env(safe-area-inset-bottom, 0px));
+    border-top: 0;
+  }
+
+  .app-legal-desktop {
+    display: none;
+  }
+
+  .app-legal-mobile {
+    display: inline-flex;
+    align-items: center;
+    gap: 0.35rem;
+    color: var(--p-text-muted-color);
+    font-size: 0.75rem;
+    line-height: 1.3;
+    text-decoration: none;
+    white-space: nowrap;
+  }
+
+  .app-legal-mobile:hover {
+    color: var(--p-primary-color);
+  }
+
+  .app-legal-mobile-brand {
+    font-weight: 600;
   }
 
   :global(.p-drawer.mobile-nav-drawer) {

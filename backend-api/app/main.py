@@ -7,7 +7,7 @@ from fastapi.middleware.cors import CORSMiddleware
 from app.config import settings
 from app.database import close_mongo_connection, connect_to_mongo, get_database
 from app.dependencies import get_current_user
-from app.routers import ai_providers, appliance_ops, appliances, auth, copilot, health, mcp, security, ssl_csr, system, users, webauthn
+from app.routers import ai_providers, appliance_ops, appliances, auth, copilot, health, integrations, mcp, security, ssl_csr, system, users, webauthn
 from app.services.mcp_client import push_config_to_mcp_server
 from app.services.mcp_config_service import ensure_default_settings, get_mcp_settings
 from app.services.ai_provider_service import migrate_lm_studio_endpoints
@@ -17,6 +17,7 @@ from app.services.license_scheduler import periodic_license_sync, run_startup_li
 from app.services.license_service import ensure_license_collection
 from app.services.user_service import ensure_default_admin
 from app.services.security_settings_service import ensure_security_settings
+from app.services.slack_settings_service import ensure_slack_settings
 from app.services.webauthn_service import ensure_webauthn_indexes
 
 
@@ -31,6 +32,7 @@ async def lifespan(app: FastAPI):
     await ensure_auth_lockout_indexes(db)
     await ensure_password_reset_indexes(db)
     await ensure_default_settings(db)
+    await ensure_slack_settings(db)
     await migrate_lm_studio_endpoints(db)
     try:
         mcp_settings = await get_mcp_settings(db)
@@ -66,6 +68,7 @@ protected = [Depends(get_current_user)]
 app.include_router(users.router, dependencies=protected)
 
 app.include_router(mcp.router, dependencies=protected)
+app.include_router(integrations.router, dependencies=protected)
 app.include_router(security.router, dependencies=protected)
 app.include_router(copilot.router, dependencies=protected)
 app.include_router(appliance_ops.router, dependencies=protected)

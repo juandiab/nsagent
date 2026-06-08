@@ -1,5 +1,5 @@
 <template>
-  <div class="chat-markdown" v-html="rendered" />
+  <div class="chat-markdown" :class="{ 'chat-markdown-compact': compact }" v-html="rendered" />
 </template>
 
 <script setup>
@@ -11,6 +11,10 @@ const props = defineProps({
   content: {
     type: String,
     default: ''
+  },
+  compact: {
+    type: Boolean,
+    default: false
   }
 })
 
@@ -126,5 +130,52 @@ const rendered = computed(() => {
 
 .chat-markdown :deep(strong) {
   font-weight: 600;
+}
+
+.chat-markdown-compact {
+  line-height: 1.45;
+  font-size: 0.875rem;
+}
+
+.chat-markdown-compact :deep(p) {
+  margin: 0 0 0.35rem;
+}
+
+.chat-markdown-compact :deep(h1),
+.chat-markdown-compact :deep(h2),
+.chat-markdown-compact :deep(h3),
+.chat-markdown-compact :deep(h4) {
+  margin: 0.5rem 0 0.25rem;
+}
+
+.chat-markdown-compact :deep(ul),
+.chat-markdown-compact :deep(ol) {
+  margin: 0.25rem 0 0.4rem;
+  padding-left: 1.1rem;
+}
+
+.chat-markdown-compact :deep(li) {
+  margin-bottom: 0.15rem;
+}
+
+.chat-markdown-compact :deep(li:last-child) {
+  margin-bottom: 0;
+}
+
+.chat-markdown-compact :deep(table) {
+  margin: 0.4rem 0;
+}
+
+.chat-markdown-compact :deep(pre) {
+  margin: 0.4rem 0;
+  padding: 0.5rem 0.625rem;
+}
+
+.chat-markdown-compact :deep(blockquote) {
+  margin: 0.4rem 0;
+}
+
+.chat-markdown-compact :deep(hr) {
+  margin: 0.5rem 0;
 }
 </style>
