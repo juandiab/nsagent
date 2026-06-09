@@ -8,9 +8,56 @@ Repository: [github.com/Nexxus-Tech-SAS/jpilot](https://github.com/Nexxus-Tech-S
 
 > **Disclaimer:** JPilot is an independent project and is not affiliated with, endorsed by, or sponsored by Citrix Systems, Inc. NetScaler is a trademark of Citrix Systems, Inc.
 
-**Current release:** `v0.45` — transparent installer: provenance banner, source/admin disclosure on auto-installs, and a support contact.
+**Current release:** `v0.46` — install-first README with per-platform sections, and in-app support contact in JPilot chat.
 
 Bump the root [`VERSION`](VERSION) file when tagging a release so in-app update checks match GitHub.
+
+## Install
+
+One command downloads JPilot, generates its secrets and TLS certificate, writes `.env`,
+launches the Docker stack, and opens it in your browser. Pick your platform:
+
+### 🪟 Windows
+
+In **PowerShell**, run:
+
+```powershell
+irm https://install.nexxus-tech.com/jpilot/ps1 | iex
+```
+
+Offers to install **Git for Windows** and **Docker Desktop** via `winget` if they're missing
+(or install them yourself:
+[Git](https://git-scm.com/download/win) ·
+[Docker Desktop](https://docs.docker.com/desktop/install/windows-install/)).
+
+### 🍎 macOS
+
+In **Terminal**, run:
+
+```bash
+curl -fsSL https://install.nexxus-tech.com/jpilot | bash
+```
+
+Offers to install **git** and **Docker Desktop** for you (via Homebrew / Xcode Command Line
+Tools) if they're missing.
+
+### 🐧 Linux (Ubuntu recommended)
+
+In a **terminal**, run:
+
+```bash
+curl -fsSL https://install.nexxus-tech.com/jpilot | bash
+```
+
+Offers to install **git** and **Docker Engine** if they're missing
+(`apt`/`dnf`/`yum`/`pacman`/`zypper`/`apk` are detected automatically). Tested most on
+**Ubuntu**.
+
+> **Need help?** The installer prints its source and a support contact when it runs. If you
+> get stuck, reach us at [www.nexxus-tech.com](https://www.nexxus-tech.com) or
+> [support@nexxus-tech.com](mailto:support@nexxus-tech.com).
+
+➡️ Once it runs, [finish setup in the browser](#quick-start).
 
 ## Features
 
@@ -42,13 +89,21 @@ Bump the root [`VERSION`](VERSION) file when tagging a release so in-app update 
 - **F5 BIG-IP (SSH / TMSH)** — Operator, Analyst, and Architect (official F5 docs only); `f5_*` MCP tools and `search_f5_tmsh_reference` / `search_f5_documentation` (beta).
 - **Nexxus licensing** — Settings → **License**: enter a license code, import an offline `.lic` file, or sync with the Nexxus licensing API; installation fingerprint binding; encrypted payload validation; daily background sync and expiry enforcement; **activation gate** redirects unlicensed or expired installs to Settings → License before using the app.
 
+## What's new in v0.46
+
+| Area | Highlights |
+|------|------------|
+| **Install-first README** | The one-line installer now leads the README (right under the intro), with clear per-platform sections — 🪟 Windows, 🍎 macOS, 🐧 Linux (Ubuntu recommended) — so new users can get started immediately. |
+| **In-app support** | The JPilot chat empty state now shows a **Need help?** line linking [support@nexxus-tech.com](mailto:support@nexxus-tech.com) and [nexxus-tech.com](https://www.nexxus-tech.com), so users can reach support without leaving the app. |
+| **Clickable contact** | Support email is now a `mailto:` link everywhere it appears in the docs. |
+
 ## What's new in v0.45
 
 | Area | Highlights |
 |------|------------|
 | **Transparent installer** | The bootstrap scripts now open with a provenance banner: publisher (Nexxus-Tech SAS), the exact source repo/branch JPilot is downloaded from, and a link to read the script before running it. |
 | **Disclosed auto-installs** | Before installing git or Docker, the prompts name the exact source (winget official packages, your distro's package manager, `get.docker.com`, or Homebrew), warn that **Administrator (UAC) / sudo** rights may be required, and link the manual install as an alternative. |
-| **Support contact** | Every run prints how to reach us — [www.nexxus-tech.com](https://www.nexxus-tech.com) or `support@nexxus-tech.com` — if you need help or hit trouble. |
+| **Support contact** | Every run prints how to reach us — [www.nexxus-tech.com](https://www.nexxus-tech.com) or [support@nexxus-tech.com](mailto:support@nexxus-tech.com) — if you need help or hit trouble. |
 
 ## What's new in v0.44
 
@@ -430,47 +485,9 @@ Bump the root [`VERSION`](VERSION) file when tagging a release so in-app update 
 
 ## Quick start
 
-The only prerequisite is **Docker**. The installer downloads the project, generates the
-secrets and TLS certificate, writes `.env`, launches the stack, and opens JPilot in your
-browser. Pick your platform:
-
-### Windows
-
-In **PowerShell**, run:
-
-```powershell
-irm https://install.nexxus-tech.com/jpilot/ps1 | iex
-```
-
-The installer offers to install **Git for Windows** and **Docker Desktop** via `winget` if
-they're missing (or install them yourself:
-[Git](https://git-scm.com/download/win) ·
-[Docker Desktop](https://docs.docker.com/desktop/install/windows-install/)).
-
-### macOS
-
-In **Terminal**, run:
-
-```bash
-curl -fsSL https://install.nexxus-tech.com/jpilot | bash
-```
-
-The installer offers to install **git** and **Docker Desktop** for you (via Homebrew / Xcode
-Command Line Tools) if they're missing.
-
-### Ubuntu / Linux
-
-If **git** or **Docker Engine** is missing, the installer offers to install it for you
-(apt/dnf/yum/pacman/zypper/apk are detected automatically). Then run:
-
-```bash
-curl -fsSL https://install.nexxus-tech.com/jpilot | bash
-```
-
----
-
-The script checks for Docker (offering to install it if absent), downloads JPilot, and
-starts the setup wizard. Then:
+Run the one-liner for your platform from [Install](#install) above. The script checks for
+Docker (offering to install it if absent), downloads JPilot, and starts the setup wizard.
+Then:
 
 1. Open **https://localhost:9443** (the installer uses a self-signed certificate, so
    accept the one-time browser warning).
@@ -488,7 +505,8 @@ starts the setup wizard. Then:
 > have a checkout, skip the one-liner and run the installer from the project root.
 
 > **Need help?** The installer prints its source and a support contact when it runs. If you get
-> stuck, reach us at [www.nexxus-tech.com](https://www.nexxus-tech.com) or `support@nexxus-tech.com`.
+> stuck, reach us at [www.nexxus-tech.com](https://www.nexxus-tech.com) or
+> [support@nexxus-tech.com](mailto:support@nexxus-tech.com).
 
 To reconfigure an existing install (overwrites `.env`):
 

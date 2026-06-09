@@ -319,6 +319,13 @@
             <i class="pi pi-sparkles" aria-hidden="true" />
             Using <strong>{{ activeProviderName }}</strong>
           </p>
+          <p v-if="!session.messages.length" class="beta-empty-note chat-support-note">
+            <i class="pi pi-life-ring" aria-hidden="true" />
+            Need help? Email
+            <a href="mailto:support@nexxus-tech.com">support@nexxus-tech.com</a>
+            or visit
+            <a href="https://www.nexxus-tech.com" target="_blank" rel="noopener noreferrer">nexxus-tech.com</a>.
+          </p>
         </div>
 
         <div v-if="pendingAttachments.length" class="pending-attachments beta-pending">
@@ -554,6 +561,13 @@
         <p v-else-if="activeProviderName" class="glass-hint glass-llm-hint">
           <i class="pi pi-sparkles" aria-hidden="true" />
           Using <strong>{{ activeProviderName }}</strong> for {{ activeRole.label }}
+        </p>
+        <p class="glass-hint chat-support-note">
+          <i class="pi pi-life-ring" aria-hidden="true" />
+          Need help? Email
+          <a href="mailto:support@nexxus-tech.com">support@nexxus-tech.com</a>
+          or visit
+          <a href="https://www.nexxus-tech.com" target="_blank" rel="noopener noreferrer">nexxus-tech.com</a>.
         </p>
       </div>
     </div>
@@ -2320,6 +2334,24 @@ onUnmounted(() => {
   margin: 1rem 0 0;
   font-size: 0.8125rem;
   color: var(--p-text-muted-color);
+}
+
+.chat-support-note {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.375rem;
+  flex-wrap: wrap;
+  justify-content: center;
+}
+
+.chat-support-note a {
+  color: var(--p-primary-color);
+  text-decoration: none;
+  font-weight: 500;
+}
+
+.chat-support-note a:hover {
+  text-decoration: underline;
 }
 
 .beta-msg-grid {
