@@ -21,10 +21,26 @@ $Interactive = [Environment]::UserInteractive -and -not $env:CI
 
 function Info($m) { Write-Host "  $m" }
 function Ok($m)   { Write-Host "  $([char]0x2713) $m" -ForegroundColor Green }
+function Warn($m) { Write-Host "  ! $m" -ForegroundColor Yellow }
 function Die($m)  {
   Write-Host "  $([char]0x2717) $m" -ForegroundColor Red
   if ($Interactive) { Read-Host "`n  Press Enter to close" | Out-Null }
   exit 1
+}
+
+# Ask a yes/no question; default No. Returns $true only on an explicit yes.
+function Ask-YesNo($q) {
+  if (-not $Interactive) { return $false }
+  return (Read-Host "  $q [y/N]") -match '^(y|yes)$'
+}
+
+# winget installs into the machine/user PATH, but the current session keeps its
+# old PATH. Rebuild $env:Path from the registry so a freshly installed tool is
+# visible without re-launching PowerShell.
+function Update-SessionPath {
+  $machine = [Environment]::GetEnvironmentVariable('Path', 'Machine')
+  $user    = [Environment]::GetEnvironmentVariable('Path', 'User')
+  $env:Path = (@($machine, $user) | Where-Object { $_ }) -join ';'
 }
 
 Write-Host ""
@@ -33,12 +49,33 @@ Write-Host ""
 
 # ---- prerequisites ---------------------------------------------------------
 if (-not (Get-Command git -ErrorAction SilentlyContinue)) {
-  Die "git is required but not installed. Install Git for Windows (https://git-scm.com/download/win) and re-run."
+  Warn "Git is not installed (it's required to download JPilot)."
+  if (Ask-YesNo "Try to install Git for Windows automatically with winget?") {
+    if (Get-Command winget -ErrorAction SilentlyContinue) {
+      Info "Installing Git for Windows via winget..."
+      winget install -e --id Git.Git --accept-source-agreements --accept-package-agreements
+      Update-SessionPath
+      if (Get-Command git -ErrorAction SilentlyContinue) {
+        Ok "Git installed"
+      }
+      else {
+        Die "Git was installed but isn't on this session's PATH yet.
+     Close this window, open a new PowerShell, and re-run this command."
+      }
+    }
+    else {
+      Die "winget was not found. Install Git for Windows manually, then re-run:
+       https://git-scm.com/download/win"
+    }
+  }
+  else {
+    Die "Git is required. Install Git for Windows and re-run:
+       https://git-scm.com/download/win"
+  }
 }
 if (-not (Get-Command docker -ErrorAction SilentlyContinue)) {
-  Write-Host "  ! Docker is not installed (it's required to run JPilot)." -ForegroundColor Yellow
-  $ans = Read-Host "  Try to install Docker Desktop automatically with winget? [y/N]"
-  if ($ans -match '^(y|yes)$') {
+  Warn "Docker is not installed (it's required to run JPilot)."
+  if (Ask-YesNo "Try to install Docker Desktop automatically with winget?") {
     if (Get-Command winget -ErrorAction SilentlyContinue) {
       Info "Installing Docker Desktop via winget..."
       winget install -e --id Docker.DockerDesktop --accept-source-agreements --accept-package-agreements

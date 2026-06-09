@@ -8,7 +8,7 @@ Repository: [github.com/Nexxus-Tech-SAS/jpilot](https://github.com/Nexxus-Tech-S
 
 > **Disclaimer:** JPilot is an independent project and is not affiliated with, endorsed by, or sponsored by Citrix Systems, Inc. NetScaler is a trademark of Citrix Systems, Inc.
 
-**Current release:** `v0.44` — branded install URLs (`install.nexxus-tech.com`) and a Windows installer fix so prerequisite errors stay readable.
+**Current release:** `v0.44` — branded install URLs (`install.nexxus-tech.com`), automatic git install, and a Windows installer fix so prerequisite errors stay readable.
 
 Bump the root [`VERSION`](VERSION) file when tagging a release so in-app update checks match GitHub.
 
@@ -48,6 +48,7 @@ Bump the root [`VERSION`](VERSION) file when tagging a release so in-app update 
 |------|------------|
 | **Branded install URLs** | One-liners now use the short, branded endpoint: `curl -fsSL https://install.nexxus-tech.com/jpilot \| bash` (macOS/Linux) and `irm https://install.nexxus-tech.com/jpilot/ps1 \| iex` (Windows), proxied to the canonical `get.sh` / `get.ps1`. |
 | **Windows installer fix** | `get.ps1` no longer closes the PowerShell window silently when a prerequisite check fails under `irm \| iex`. Errors now pause (**Press Enter to close**) when interactive so the message stays readable; automated/CI runs are unaffected. |
+| **Auto-install git** | When git is missing, the installer now offers to install it for you — `winget` on Windows, Homebrew / Xcode CLT on macOS, and apt/dnf/yum/pacman/zypper/apk on Linux — matching the existing Docker auto-install. |
 
 ## What's new in v0.43
 
@@ -427,26 +428,32 @@ browser. Pick your platform:
 
 ### Windows
 
-Install [Docker Desktop](https://docs.docker.com/desktop/install/windows-install/) (and
-[Git for Windows](https://git-scm.com/download/win)). Then, in **PowerShell**:
+In **PowerShell**, run:
 
 ```powershell
 irm https://install.nexxus-tech.com/jpilot/ps1 | iex
 ```
 
+The installer offers to install **Git for Windows** and **Docker Desktop** via `winget` if
+they're missing (or install them yourself:
+[Git](https://git-scm.com/download/win) ·
+[Docker Desktop](https://docs.docker.com/desktop/install/windows-install/)).
+
 ### macOS
 
-Install [Docker Desktop](https://docs.docker.com/desktop/install/mac-install/) (or let the
-installer set it up via Homebrew). Then, in **Terminal**:
+In **Terminal**, run:
 
 ```bash
 curl -fsSL https://install.nexxus-tech.com/jpilot | bash
 ```
 
+The installer offers to install **git** and **Docker Desktop** for you (via Homebrew / Xcode
+Command Line Tools) if they're missing.
+
 ### Ubuntu / Linux
 
-Docker Engine is required — if it's missing, the installer offers to install it for you.
-Then run:
+If **git** or **Docker Engine** is missing, the installer offers to install it for you
+(apt/dnf/yum/pacman/zypper/apk are detected automatically). Then run:
 
 ```bash
 curl -fsSL https://install.nexxus-tech.com/jpilot | bash

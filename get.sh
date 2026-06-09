@@ -46,6 +46,47 @@ wait_for_docker() {
   return 1
 }
 
+install_git() {
+  case "$OS" in
+    Linux)
+      [ "$(id -u)" -eq 0 ] && _sudo="" || _sudo="sudo"
+      if command -v apt-get >/dev/null 2>&1; then
+        info "Installing git via apt-get (may prompt for sudo)..."
+        $_sudo apt-get update -y >/dev/null 2>&1
+        $_sudo apt-get install -y git || return 1
+      elif command -v dnf >/dev/null 2>&1; then
+        info "Installing git via dnf (may prompt for sudo)..."
+        $_sudo dnf install -y git || return 1
+      elif command -v yum >/dev/null 2>&1; then
+        info "Installing git via yum (may prompt for sudo)..."
+        $_sudo yum install -y git || return 1
+      elif command -v pacman >/dev/null 2>&1; then
+        info "Installing git via pacman (may prompt for sudo)..."
+        $_sudo pacman -Sy --noconfirm git || return 1
+      elif command -v zypper >/dev/null 2>&1; then
+        info "Installing git via zypper (may prompt for sudo)..."
+        $_sudo zypper install -y git || return 1
+      elif command -v apk >/dev/null 2>&1; then
+        info "Installing git via apk (may prompt for sudo)..."
+        $_sudo apk add git || return 1
+      else
+        return 2
+      fi
+      return 0 ;;
+    Darwin)
+      if command -v brew >/dev/null 2>&1; then
+        info "Installing git via Homebrew..."
+        brew install git || return 1
+        return 0
+      fi
+      info "Triggering the Xcode Command Line Tools installer (includes git)..."
+      xcode-select --install >/dev/null 2>&1 || true
+      return 2 ;;
+    *)
+      return 2 ;;
+  esac
+}
+
 install_docker() {
   case "$OS" in
     Linux)
@@ -71,7 +112,31 @@ install_docker() {
 }
 
 # ---- prerequisites ---------------------------------------------------------
-command -v git >/dev/null 2>&1 || die "git is required but not installed. Install git and re-run."
+if ! command -v git >/dev/null 2>&1; then
+  warn "git is not installed (it's required to download JPilot)."
+  if ask_yes_no "  Try to install git automatically now?"; then
+    install_git
+    case "$?" in
+      0)
+        if command -v git >/dev/null 2>&1; then
+          ok "git installed"
+        else
+          die "git was installed but isn't on PATH yet. Open a new terminal and re-run this command."
+        fi ;;
+      2)
+        if [ "$OS" = "Darwin" ]; then
+          die "Finish the Xcode Command Line Tools install in the pop-up window, then re-run this command.
+     (Or install Homebrew from https://brew.sh and re-run.)"
+        else
+          die "Couldn't find a supported package manager. Install git manually, then re-run this command."
+        fi ;;
+      *)
+        die "Automatic install didn't complete. Install git manually, then re-run this command." ;;
+    esac
+  else
+    die "git is required. Install it and re-run this command."
+  fi
+fi
 
 if ! command -v docker >/dev/null 2>&1; then
   warn "Docker is not installed (it's required to run JPilot)."
