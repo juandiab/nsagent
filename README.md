@@ -14,47 +14,25 @@ Bump the root [`VERSION`](VERSION) file when tagging a release so in-app update 
 
 ## Install
 
-One command downloads JPilot, generates its secrets and TLS certificate, writes `.env`,
-launches the Docker stack, and opens it in your browser. Pick your platform:
-
-### 🪟 Windows
-
-In **PowerShell**, run:
-
-```powershell
-irm https://install.nexxus-tech.com/jpilot/ps1 | iex
-```
-
-Offers to install **Git for Windows** and **Docker Desktop** via `winget` if they're missing
-(or install them yourself:
-[Git](https://git-scm.com/download/win) ·
-[Docker Desktop](https://docs.docker.com/desktop/install/windows-install/)).
-
-### 🍎 macOS
-
-In **Terminal**, run:
+One command downloads JPilot, generates its secrets and TLS certificate, launches the
+Docker stack, and opens it in your browser:
 
 ```bash
 curl -fsSL https://install.nexxus-tech.com/jpilot | bash
 ```
 
-Offers to install **git** and **Docker Desktop** for you (via Homebrew / Xcode Command Line
-Tools) if they're missing.
+- 🍎 **macOS** — run it in **Terminal**. Offers to install **git** + **Docker Desktop** (Homebrew / Xcode CLT) if missing.
+- 🐧 **Linux** _(Ubuntu recommended)_ — run it in a **terminal**. Offers to install **git** + **Docker Engine** (`apt`/`dnf`/`yum`/`pacman`/`zypper`/`apk` auto-detected) if missing.
+- 🪟 **Windows** — in **PowerShell**:
 
-### 🐧 Linux (Ubuntu recommended)
+  ```powershell
+  irm https://install.nexxus-tech.com/jpilot/ps1 | iex
+  ```
 
-In a **terminal**, run:
+  Offers to install **Git for Windows** + **Docker Desktop** via `winget` if missing.
 
-```bash
-curl -fsSL https://install.nexxus-tech.com/jpilot | bash
-```
-
-Offers to install **git** and **Docker Engine** if they're missing
-(`apt`/`dnf`/`yum`/`pacman`/`zypper`/`apk` are detected automatically). Tested most on
-**Ubuntu**.
-
-> **Need help?** The installer prints its source and a support contact when it runs. If you
-> get stuck, reach us at [www.nexxus-tech.com](https://www.nexxus-tech.com) or
+> **Need help?** The installer prints its source and a support contact when it runs. Stuck?
+> Reach us at [www.nexxus-tech.com](https://www.nexxus-tech.com) or
 > [support@nexxus-tech.com](mailto:support@nexxus-tech.com).
 
 ➡️ Once it runs, [finish setup in the browser](#quick-start).
