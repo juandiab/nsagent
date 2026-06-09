@@ -8,7 +8,7 @@ Repository: [github.com/Nexxus-Tech-SAS/jpilot](https://github.com/Nexxus-Tech-S
 
 > **Disclaimer:** JPilot is an independent project and is not affiliated with, endorsed by, or sponsored by Citrix Systems, Inc. NetScaler is a trademark of Citrix Systems, Inc.
 
-**Current release:** `v0.44` — branded install URLs (`install.nexxus-tech.com`), automatic git install, and a Windows installer fix so prerequisite errors stay readable.
+**Current release:** `v0.45` — transparent installer: provenance banner, source/admin disclosure on auto-installs, and a support contact.
 
 Bump the root [`VERSION`](VERSION) file when tagging a release so in-app update checks match GitHub.
 
@@ -41,6 +41,14 @@ Bump the root [`VERSION`](VERSION) file when tagging a release so in-app update 
 - **NetScaler SDX (SSH)** — Operator and Analyst for SVM platform and VPX lifecycle with `search_sdx_cli_reference` memory gate (beta).
 - **F5 BIG-IP (SSH / TMSH)** — Operator, Analyst, and Architect (official F5 docs only); `f5_*` MCP tools and `search_f5_tmsh_reference` / `search_f5_documentation` (beta).
 - **Nexxus licensing** — Settings → **License**: enter a license code, import an offline `.lic` file, or sync with the Nexxus licensing API; installation fingerprint binding; encrypted payload validation; daily background sync and expiry enforcement; **activation gate** redirects unlicensed or expired installs to Settings → License before using the app.
+
+## What's new in v0.45
+
+| Area | Highlights |
+|------|------------|
+| **Transparent installer** | The bootstrap scripts now open with a provenance banner: publisher (Nexxus-Tech SAS), the exact source repo/branch JPilot is downloaded from, and a link to read the script before running it. |
+| **Disclosed auto-installs** | Before installing git or Docker, the prompts name the exact source (winget official packages, your distro's package manager, `get.docker.com`, or Homebrew), warn that **Administrator (UAC) / sudo** rights may be required, and link the manual install as an alternative. |
+| **Support contact** | Every run prints how to reach us — [www.nexxus-tech.com](https://www.nexxus-tech.com) or `support@nexxus-tech.com` — if you need help or hit trouble. |
 
 ## What's new in v0.44
 
@@ -478,6 +486,9 @@ starts the setup wizard. Then:
 > **Clone manually instead?** `git clone https://github.com/Nexxus-Tech-SAS/jpilot.git` then
 > `cd jpilot` and run `./install.sh` (macOS/Linux) or `.\install.ps1` (Windows). If you already
 > have a checkout, skip the one-liner and run the installer from the project root.
+
+> **Need help?** The installer prints its source and a support contact when it runs. If you get
+> stuck, reach us at [www.nexxus-tech.com](https://www.nexxus-tech.com) or `support@nexxus-tech.com`.
 
 To reconfigure an existing install (overwrites `.env`):
 
