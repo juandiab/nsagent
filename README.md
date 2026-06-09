@@ -8,7 +8,7 @@ Repository: [github.com/Nexxus-Tech-SAS/jpilot](https://github.com/Nexxus-Tech-S
 
 > **Disclaimer:** JPilot is an independent project and is not affiliated with, endorsed by, or sponsored by Citrix Systems, Inc. NetScaler is a trademark of Citrix Systems, Inc.
 
-**Current release:** `v0.43` — Chat Beta mobile UX, auto role switching, Slack notifications, and command menu scroll fix.
+**Current release:** `v0.44` — branded install URLs (`install.nexxus-tech.com`) and a Windows installer fix so prerequisite errors stay readable.
 
 Bump the root [`VERSION`](VERSION) file when tagging a release so in-app update checks match GitHub.
 
@@ -41,6 +41,13 @@ Bump the root [`VERSION`](VERSION) file when tagging a release so in-app update 
 - **NetScaler SDX (SSH)** — Operator and Analyst for SVM platform and VPX lifecycle with `search_sdx_cli_reference` memory gate (beta).
 - **F5 BIG-IP (SSH / TMSH)** — Operator, Analyst, and Architect (official F5 docs only); `f5_*` MCP tools and `search_f5_tmsh_reference` / `search_f5_documentation` (beta).
 - **Nexxus licensing** — Settings → **License**: enter a license code, import an offline `.lic` file, or sync with the Nexxus licensing API; installation fingerprint binding; encrypted payload validation; daily background sync and expiry enforcement; **activation gate** redirects unlicensed or expired installs to Settings → License before using the app.
+
+## What's new in v0.44
+
+| Area | Highlights |
+|------|------------|
+| **Branded install URLs** | One-liners now use the short, branded endpoint: `curl -fsSL https://install.nexxus-tech.com/jpilot \| bash` (macOS/Linux) and `irm https://install.nexxus-tech.com/jpilot/ps1 \| iex` (Windows), proxied to the canonical `get.sh` / `get.ps1`. |
+| **Windows installer fix** | `get.ps1` no longer closes the PowerShell window silently when a prerequisite check fails under `irm \| iex`. Errors now pause (**Press Enter to close**) when interactive so the message stays readable; automated/CI runs are unaffected. |
 
 ## What's new in v0.43
 
@@ -424,7 +431,7 @@ Install [Docker Desktop](https://docs.docker.com/desktop/install/windows-install
 [Git for Windows](https://git-scm.com/download/win)). Then, in **PowerShell**:
 
 ```powershell
-irm https://raw.githubusercontent.com/Nexxus-Tech-SAS/jpilot/main/get.ps1 | iex
+irm https://install.nexxus-tech.com/jpilot/ps1 | iex
 ```
 
 ### macOS
@@ -433,7 +440,7 @@ Install [Docker Desktop](https://docs.docker.com/desktop/install/mac-install/) (
 installer set it up via Homebrew). Then, in **Terminal**:
 
 ```bash
-curl -fsSL https://raw.githubusercontent.com/Nexxus-Tech-SAS/jpilot/main/get.sh | bash
+curl -fsSL https://install.nexxus-tech.com/jpilot | bash
 ```
 
 ### Ubuntu / Linux
@@ -442,7 +449,7 @@ Docker Engine is required — if it's missing, the installer offers to install i
 Then run:
 
 ```bash
-curl -fsSL https://raw.githubusercontent.com/Nexxus-Tech-SAS/jpilot/main/get.sh | bash
+curl -fsSL https://install.nexxus-tech.com/jpilot | bash
 ```
 
 ---

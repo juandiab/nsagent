@@ -13,9 +13,19 @@ $RepoUrl = if ($env:JPILOT_REPO) { $env:JPILOT_REPO } else { 'https://github.com
 $Ref     = if ($env:JPILOT_REF)  { $env:JPILOT_REF }  else { 'main' }
 $Target  = if ($env:JPILOT_DIR)  { $env:JPILOT_DIR }  else { Join-Path (Get-Location) 'jpilot' }
 
+# When run as `irm ... | iex`, this script executes inside the current
+# PowerShell session, so a bare `exit` terminates the host and closes the
+# window before any error can be read. Pause on failure when interactive so the
+# message stays on screen; skip the pause under automation (CI / non-interactive).
+$Interactive = [Environment]::UserInteractive -and -not $env:CI
+
 function Info($m) { Write-Host "  $m" }
 function Ok($m)   { Write-Host "  $([char]0x2713) $m" -ForegroundColor Green }
-function Die($m)  { Write-Host "  $([char]0x2717) $m" -ForegroundColor Red; exit 1 }
+function Die($m)  {
+  Write-Host "  $([char]0x2717) $m" -ForegroundColor Red
+  if ($Interactive) { Read-Host "`n  Press Enter to close" | Out-Null }
+  exit 1
+}
 
 Write-Host ""
 Write-Host "JPilot / NSAgent installer" -ForegroundColor White
