@@ -46,11 +46,21 @@ function Update-SessionPath {
 Write-Host ""
 Write-Host "JPilot / NSAgent installer" -ForegroundColor White
 Write-Host ""
+Info "Published by Nexxus-Tech SAS - https://nexxus-tech.com"
+Info "Source code: $RepoUrl (branch: $Ref)"
+Info "This script downloads JPilot from the repository above, then runs its setup wizard."
+Info "Read it first: https://raw.githubusercontent.com/Nexxus-Tech-SAS/jpilot/$Ref/get.ps1"
+Info "Need help or run into trouble? Contact us at https://www.nexxus-tech.com or support@nexxus-tech.com"
+Write-Host ""
 
 # ---- prerequisites ---------------------------------------------------------
 if (-not (Get-Command git -ErrorAction SilentlyContinue)) {
   Warn "Git is not installed (it's required to download JPilot)."
-  if (Ask-YesNo "Try to install Git for Windows automatically with winget?") {
+  Info "JPilot can install it via winget (Windows Package Manager), which fetches the"
+  Info "official 'Git.Git' package from Microsoft's catalog. Windows may show an"
+  Info "Administrator (UAC) approval prompt - accept it to continue."
+  Info "Prefer to do it yourself? Install from https://git-scm.com/download/win and re-run."
+  if (Ask-YesNo "Install Git for Windows now with winget?") {
     if (Get-Command winget -ErrorAction SilentlyContinue) {
       Info "Installing Git for Windows via winget..."
       winget install -e --id Git.Git --accept-source-agreements --accept-package-agreements
@@ -64,8 +74,8 @@ if (-not (Get-Command git -ErrorAction SilentlyContinue)) {
       }
     }
     else {
-      Die "winget was not found. Install Git for Windows manually, then re-run:
-       https://git-scm.com/download/win"
+      Die "winget was not found (it needs a recent Windows 10/11). Install Git for Windows
+     manually, then re-run: https://git-scm.com/download/win"
     }
   }
   else {
@@ -75,7 +85,12 @@ if (-not (Get-Command git -ErrorAction SilentlyContinue)) {
 }
 if (-not (Get-Command docker -ErrorAction SilentlyContinue)) {
   Warn "Docker is not installed (it's required to run JPilot)."
-  if (Ask-YesNo "Try to install Docker Desktop automatically with winget?") {
+  Info "JPilot can install it via winget (Windows Package Manager), which fetches the"
+  Info "official 'Docker.DockerDesktop' package from Microsoft's catalog. Windows may"
+  Info "show an Administrator (UAC) approval prompt - accept it to continue."
+  Info "Prefer to do it yourself? Install from"
+  Info "https://docs.docker.com/desktop/install/windows-install/ and re-run."
+  if (Ask-YesNo "Install Docker Desktop now with winget?") {
     if (Get-Command winget -ErrorAction SilentlyContinue) {
       Info "Installing Docker Desktop via winget..."
       winget install -e --id Docker.DockerDesktop --accept-source-agreements --accept-package-agreements
@@ -83,8 +98,8 @@ if (-not (Get-Command docker -ErrorAction SilentlyContinue)) {
      Start Docker Desktop, wait for it to be ready, then re-run this command."
     }
     else {
-      Die "winget was not found. Install Docker Desktop manually, then re-run:
-       https://docs.docker.com/desktop/install/windows-install/"
+      Die "winget was not found (it needs a recent Windows 10/11). Install Docker Desktop
+     manually, then re-run: https://docs.docker.com/desktop/install/windows-install/"
     }
   }
   else {

@@ -20,6 +20,12 @@ warn() { printf '%s\n' "  ${Y}!${N} $*"; }
 die()  { printf '%s\n' "  ${R}✗ $*${N}" >&2; exit 1; }
 
 printf '\n%s\n\n' "${B}JPilot / NSAgent installer${N}"
+info "Published by Nexxus-Tech SAS - https://nexxus-tech.com"
+info "Source code: ${REPO_URL} (branch: ${REF})"
+info "This script downloads JPilot from the repository above, then runs its setup wizard."
+info "Read it first: https://raw.githubusercontent.com/Nexxus-Tech-SAS/jpilot/${REF}/get.sh"
+info "Need help or run into trouble? Contact us at https://www.nexxus-tech.com or support@nexxus-tech.com"
+printf '\n'
 
 # ---- helpers ---------------------------------------------------------------
 OS="$(uname -s 2>/dev/null || echo unknown)"
@@ -114,7 +120,15 @@ install_docker() {
 # ---- prerequisites ---------------------------------------------------------
 if ! command -v git >/dev/null 2>&1; then
   warn "git is not installed (it's required to download JPilot)."
-  if ask_yes_no "  Try to install git automatically now?"; then
+  if [ "$OS" = "Linux" ]; then
+    info "JPilot can install the official 'git' package from your distribution's own"
+    info "repositories. This needs administrator rights, so it may prompt for your sudo password."
+    info "Prefer to do it yourself? Use your package manager (e.g. 'sudo apt install git') and re-run."
+  elif [ "$OS" = "Darwin" ]; then
+    info "JPilot can install git via Homebrew, or trigger Apple's Xcode Command Line Tools."
+    info "Prefer to do it yourself? See https://git-scm.com/download/mac and re-run."
+  fi
+  if ask_yes_no "  Install git now?"; then
     install_git
     case "$?" in
       0)
@@ -140,7 +154,15 @@ fi
 
 if ! command -v docker >/dev/null 2>&1; then
   warn "Docker is not installed (it's required to run JPilot)."
-  if ask_yes_no "  Try to install Docker automatically now?"; then
+  if [ "$OS" = "Linux" ]; then
+    info "JPilot can install Docker Engine using Docker's official script from https://get.docker.com."
+    info "This needs administrator rights, so it may prompt for your sudo password."
+    info "Prefer to do it yourself? See https://docs.docker.com/engine/install/ and re-run."
+  elif [ "$OS" = "Darwin" ]; then
+    info "JPilot can install Docker Desktop via Homebrew (from Docker's official cask)."
+    info "Prefer to do it yourself? See https://docs.docker.com/desktop/install/mac-install/ and re-run."
+  fi
+  if ask_yes_no "  Install Docker now?"; then
     if install_docker; then
       info "Waiting for the Docker daemon to come up..."
       if wait_for_docker; then
