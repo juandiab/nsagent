@@ -9,7 +9,7 @@
     "preview": "vite preview"
   },
   "dependencies": {
-    "@primevue/themes": "^4.0.0",
+    "@primeuix/themes": "^2.0.0",
     "@simplewebauthn/browser": "^13.3.0",
     "axios": "^1.7.0",
     "dompurify": "^3.4.7",

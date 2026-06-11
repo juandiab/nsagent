@@ -8,7 +8,7 @@
           with your own AI provider keys.
         </p>
         <div class="landing-footer-actions">
-          <RouterLink to="/login" class="landing-btn landing-btn-primary">Get access</RouterLink>
+          <RouterLink to="/login" class="landing-btn landing-btn-primary">Access</RouterLink>
           <a href="#install" class="landing-btn landing-btn-outline">View install steps</a>
         </div>
       </div>

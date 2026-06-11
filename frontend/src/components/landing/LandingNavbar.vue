@@ -22,7 +22,7 @@
         <i :class="theme === 'dark' ? 'pi pi-sun' : 'pi pi-moon'" />
       </button>
       <RouterLink to="/login" class="landing-btn landing-btn-primary landing-nav-cta">
-        Access only
+        Access
       </RouterLink>
       <button
         type="button"
@@ -54,7 +54,7 @@
         </RouterLink>
       </template>
       <RouterLink to="/login" class="landing-btn landing-btn-accent w-full" @click="mobileOpen = false">
-        Access only
+        Access
       </RouterLink>
     </div>
   </nav>

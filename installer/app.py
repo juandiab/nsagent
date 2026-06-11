@@ -295,15 +295,22 @@ def _app_base_url(domain: str) -> str:
 
 
 def app_is_ready(domain: str) -> bool:
-    base = _app_base_url(domain)
+    cleaned = domain.strip() or "localhost"
     ctx = ssl.create_default_context()
     ctx.check_hostname = False
     ctx.verify_mode = ssl.CERT_NONE
-    for path in ("/api/health", "/"):
+    paths = ("/api/health", "/")
+    probes: list[tuple[str, str | None]] = [
+        (f"https://host.docker.internal{path}", cleaned) for path in paths
+    ]
+    if cleaned not in ("localhost", "127.0.0.1", "::1") and not cleaned.startswith("127."):
+        probes.extend((f"https://{cleaned}{path}", None) for path in paths)
+    for url, host in probes:
         try:
-            with urllib.request.urlopen(
-                f"{base}{path}", context=ctx, timeout=5
-            ) as resp:
+            req = urllib.request.Request(url)
+            if host:
+                req.add_header("Host", host)
+            with urllib.request.urlopen(req, context=ctx, timeout=5) as resp:
                 if resp.status in (200, 301, 302, 304):
                     return True
         except (urllib.error.URLError, TimeoutError, OSError):

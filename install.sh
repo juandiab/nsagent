@@ -101,12 +101,62 @@ APP_URL="https://$DOMAIN"
 JPILOT_WAIT_MAX="${JPILOT_WAIT_MAX:-300}"   # attempts; 2s each (~10 min default)
 JPILOT_WAIT_INTERVAL="${JPILOT_WAIT_INTERVAL:-2}"
 
-jpilot_http_ready() {
+http_status() {
   _url="$1"
-  _code=$(curl -sk -o /dev/null -w "%{http_code}" --max-time 5 "${_url}/api/health" 2>/dev/null || echo 000)
-  case "$_code" in 200) return 0 ;; esac
-  _code=$(curl -sk -o /dev/null -w "%{http_code}" --max-time 5 "${_url}/" 2>/dev/null || echo 000)
+  _host="${2:-}"
+  if command -v curl >/dev/null 2>&1; then
+    if [ -n "$_host" ]; then
+      curl -sk -o /dev/null -w "%{http_code}" --max-time 5 -H "Host: $_host" "$_url" 2>/dev/null || echo 000
+    else
+      curl -sk -o /dev/null -w "%{http_code}" --max-time 5 "$_url" 2>/dev/null || echo 000
+    fi
+    return 0
+  fi
+  if command -v python3 >/dev/null 2>&1; then
+    python3 - "$_url" "$_host" <<'PY' 2>/dev/null || echo 000
+import ssl
+import sys
+import urllib.error
+import urllib.request
+
+url, host = sys.argv[1], sys.argv[2]
+ctx = ssl.create_default_context()
+ctx.check_hostname = False
+ctx.verify_mode = ssl.CERT_NONE
+req = urllib.request.Request(url)
+if host:
+    req.add_header("Host", host)
+try:
+    with urllib.request.urlopen(req, context=ctx, timeout=5) as resp:
+        print(resp.status)
+except urllib.error.HTTPError as exc:
+    print(exc.code)
+except (urllib.error.URLError, TimeoutError, OSError):
+    print("000")
+PY
+    return 0
+  fi
+  echo 000
+}
+
+http_ok() {
+  _code="$1"
   case "$_code" in 200|301|302|304) return 0 ;; esac
+  return 1
+}
+
+jpilot_http_ready() {
+  _domain="$1"
+  _paths="/api/health /"
+  # Prefer loopback to avoid IPv6 localhost (::1) missing Docker's published 443.
+  for _path in $_paths; do
+    _code=$(http_status "https://127.0.0.1${_path}" "$_domain")
+    http_ok "$_code" && return 0
+  done
+  for _path in $_paths; do
+    _code=$(http_status "https://${_domain}${_path}")
+    http_ok "$_code" && return 0
+  done
   return 1
 }
 
@@ -134,10 +184,10 @@ render_startup_progress() {
 }
 
 wait_for_jpilot() {
-  _url="$1"
+  _domain="$1"
   _n=0
   while [ "$_n" -lt "$JPILOT_WAIT_MAX" ]; do
-    if jpilot_http_ready "$_url"; then
+    if jpilot_http_ready "$_domain"; then
       if [ -t 1 ]; then
         printf '\r  [████████████████████████████████████████] ready!          \n'
       else
@@ -145,11 +195,18 @@ wait_for_jpilot() {
       fi
       return 0
     fi
+    if [ "$_n" -gt 0 ] && [ $((_n % 15)) -eq 0 ]; then
+      if [ -t 1 ]; then printf '\n' ; fi
+      echo "  Still waiting (${_n} checks). First install can take several minutes on small VMs."
+      echo "  Inspect containers: ./compose.sh ps"
+      echo "  View logs:          ./compose.sh logs -f nginx backend-api"
+    fi
     render_startup_progress "$_n" "$JPILOT_WAIT_MAX"
     sleep "$JPILOT_WAIT_INTERVAL"
     _n=$((_n + 1))
   done
   if [ -t 1 ]; then printf '\n' ; fi
+  echo "  JPilot did not respond in time. Check ./compose.sh ps and ./compose.sh logs nginx backend-api"
   return 1
 }
 
@@ -159,7 +216,7 @@ printf '\n  Building containers in the background (watch progress in your browse
 printf '\n  Waiting for JPilot to finish starting...\n'
 
 _ready=0
-if wait_for_jpilot "$APP_URL"; then
+if wait_for_jpilot "$DOMAIN"; then
   _ready=1
 fi
 

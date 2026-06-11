@@ -24,7 +24,7 @@
             configure, and troubleshoot with vendor-aware tools, not generic chat.
           </p>
           <div class="landing-hero-actions landing-fade-in landing-fade-in-delay-1">
-            <RouterLink to="/login" class="landing-btn landing-btn-primary">Get access</RouterLink>
+            <RouterLink to="/login" class="landing-btn landing-btn-primary">Access</RouterLink>
             <a href="#install" class="landing-btn landing-btn-outline">Install JPilot</a>
           </div>
           <div class="landing-hero-stats landing-fade-in landing-fade-in-delay-2">

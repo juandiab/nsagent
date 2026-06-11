@@ -249,6 +249,21 @@ else
        https://docs.docker.com/compose/install/"
 fi
 
+if ! command -v curl >/dev/null 2>&1; then
+  if [ "$OS" = "Linux" ]; then
+    [ "$(id -u)" -eq 0 ] && _sudo="" || _sudo="sudo"
+    if command -v apt-get >/dev/null 2>&1; then
+      info "Installing curl (needed to detect when JPilot is ready)..."
+      $_sudo apt-get update -y >/dev/null 2>&1
+      $_sudo apt-get install -y curl >/dev/null 2>&1 || true
+    elif command -v dnf >/dev/null 2>&1; then
+      $_sudo dnf install -y curl >/dev/null 2>&1 || true
+    elif command -v yum >/dev/null 2>&1; then
+      $_sudo yum install -y curl >/dev/null 2>&1 || true
+    fi
+  fi
+fi
+
 # ---- fetch the project -----------------------------------------------------
 if [ -d "$TARGET/.git" ]; then
   info "Updating existing copy in ${B}$TARGET${N}..."

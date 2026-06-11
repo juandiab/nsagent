@@ -8,7 +8,7 @@ Repository: [github.com/Nexxus-Tech-SAS/jpilot](https://github.com/Nexxus-Tech-S
 
 > **Disclaimer:** JPilot is an independent project and is not affiliated with, endorsed by, or sponsored by Citrix Systems, Inc. NetScaler is a trademark of Citrix Systems, Inc.
 
-**Current release:** `v0.49` — Linux installer fix for Docker socket permissions after a fresh Engine install.
+**Current release:** `v0.50` — installer startup detection fix, PrimeVue theme migration, and landing page CTA polish.
 
 Bump the root [`VERSION`](VERSION) file when tagging a release so in-app update checks match GitHub.
 
@@ -66,6 +66,14 @@ curl -fsSL https://install.nexxus-tech.com/jpilot | bash
 - **NetScaler SDX (SSH)** — Operator and Analyst for SVM platform and VPX lifecycle with `search_sdx_cli_reference` memory gate (beta).
 - **F5 BIG-IP (SSH / TMSH)** — Operator, Analyst, and Architect (official F5 docs only); `f5_*` MCP tools and `search_f5_tmsh_reference` / `search_f5_documentation` (beta).
 - **Nexxus licensing** — Settings → **License**: enter a license code, import an offline `.lic` file, or sync with the Nexxus licensing API; installation fingerprint binding; encrypted payload validation; daily background sync and expiry enforcement; **activation gate** redirects unlicensed or expired installs to Settings → License before using the app.
+
+## What's new in v0.50
+
+| Area | Highlights |
+|------|------------|
+| **Installer startup** | `install.sh` and the setup wizard no longer hang on “Starting JPilot services…” when the stack is up but health checks hit `localhost` over IPv6 or a hostname that does not resolve from the host; probes use `127.0.0.1` / `host.docker.internal` with the configured `Host` header. `get.sh` installs `curl` on Linux when missing. |
+| **Frontend themes** | Migrated from deprecated `@primevue/themes` to `@primeuix/themes` (removes npm deprecation warnings during Docker builds). |
+| **Public home page** | Landing CTAs unified to **Access** (navbar, hero, footer). |
 
 ## What's new in v0.49
 
