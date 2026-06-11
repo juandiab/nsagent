@@ -8,22 +8,23 @@ Repository: [github.com/Nexxus-Tech-SAS/jpilot](https://github.com/Nexxus-Tech-S
 
 > **Disclaimer:** JPilot is an independent project and is not affiliated with, endorsed by, or sponsored by Citrix Systems, Inc. NetScaler is a trademark of Citrix Systems, Inc.
 
-**Current release:** `v0.50` — installer startup detection fix, PrimeVue theme migration, and landing page CTA polish.
+**Current release:** `v0.51` — one-line installer always downloads to a writable home-folder path (`~/jpilot` / `%USERPROFILE%\jpilot`).
 
 Bump the root [`VERSION`](VERSION) file when tagging a release so in-app update checks match GitHub.
 
 ## Install
 
-One command downloads JPilot, generates its secrets and TLS certificate, launches the
-Docker stack, and opens it in your browser:
+One command downloads JPilot into **`~/jpilot`** (Linux/macOS) or **`%USERPROFILE%\jpilot`** (Windows),
+generates its secrets and TLS certificate, launches the Docker stack, and opens it in your browser.
+You can run it from any directory — no extra flags required:
 
 ```bash
 curl -fsSL https://install.nexxus-tech.com/jpilot | bash
 ```
 
-- 🍎 **macOS** — run it in **Terminal**. Offers to install **git** + **Docker Desktop** (Homebrew / Xcode CLT) if missing.
-- 🐧 **Linux** _(Ubuntu recommended)_ — run it in a **terminal**. Offers to install **git** + **Docker Engine** (`apt`/`dnf`/`yum`/`pacman`/`zypper`/`apk` auto-detected) if missing. After Docker Engine is installed, the bootstrap script activates the `docker` group in the same session (no logout required).
-- 🪟 **Windows** — in **PowerShell**:
+- 🍎 **macOS** — run it in **Terminal**. Installs to `~/jpilot`. Offers to install **git** + **Docker Desktop** (Homebrew / Xcode CLT) if missing.
+- 🐧 **Linux** _(Ubuntu recommended)_ — run it in a **terminal**. Installs to `~/jpilot`. Offers to install **git** + **Docker Engine** (`apt`/`dnf`/`yum`/`pacman`/`zypper`/`apk` auto-detected) if missing. After Docker Engine is installed, the bootstrap script activates the `docker` group in the same session (no logout required).
+- 🪟 **Windows** — in **PowerShell**. Installs to `%USERPROFILE%\jpilot`:
 
   ```powershell
   irm https://install.nexxus-tech.com/jpilot/ps1 | iex
@@ -66,6 +67,12 @@ curl -fsSL https://install.nexxus-tech.com/jpilot | bash
 - **NetScaler SDX (SSH)** — Operator and Analyst for SVM platform and VPX lifecycle with `search_sdx_cli_reference` memory gate (beta).
 - **F5 BIG-IP (SSH / TMSH)** — Operator, Analyst, and Architect (official F5 docs only); `f5_*` MCP tools and `search_f5_tmsh_reference` / `search_f5_documentation` (beta).
 - **Nexxus licensing** — Settings → **License**: enter a license code, import an offline `.lic` file, or sync with the Nexxus licensing API; installation fingerprint binding; encrypted payload validation; daily background sync and expiry enforcement; **activation gate** redirects unlicensed or expired installs to Settings → License before using the app.
+
+## What's new in v0.51
+
+| Area | Highlights |
+|------|------------|
+| **One-line installer** | Linux/macOS and Windows installers always download to a writable home-folder path (`~/jpilot` / `%USERPROFILE%\jpilot`) instead of the current working directory — so running from `/opt`, `C:\Program Files`, or another protected folder no longer fails with a cryptic clone error. |
 
 ## What's new in v0.50
 

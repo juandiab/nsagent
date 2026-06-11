@@ -3,15 +3,21 @@
 
       irm https://raw.githubusercontent.com/Nexxus-Tech-SAS/jpilot/main/get.ps1 | iex
 
-  Checks prerequisites, downloads the project, and launches the setup wizard.
-  Override defaults with environment variables before running, e.g.:
-      $env:JPILOT_DIR = "C:\apps\jpilot"; $env:JPILOT_REF = "main"
+  Checks prerequisites, downloads JPilot to the user profile folder, and launches the setup wizard.
 #>
 $ErrorActionPreference = 'Stop'
 
 $RepoUrl = if ($env:JPILOT_REPO) { $env:JPILOT_REPO } else { 'https://github.com/Nexxus-Tech-SAS/jpilot.git' }
 $Ref     = if ($env:JPILOT_REF)  { $env:JPILOT_REF }  else { 'main' }
-$Target  = if ($env:JPILOT_DIR)  { $env:JPILOT_DIR }  else { Join-Path (Get-Location) 'jpilot' }
+if ($env:JPILOT_DIR) {
+  $Target = $env:JPILOT_DIR
+}
+elseif ($env:USERPROFILE) {
+  $Target = Join-Path $env:USERPROFILE 'jpilot'
+}
+else {
+  $Target = Join-Path (Get-Location) 'jpilot'
+}
 
 # When run as `irm ... | iex`, this script executes inside the current
 # PowerShell session, so a bare `exit` terminates the host and closes the
@@ -128,12 +134,12 @@ if (Test-Path (Join-Path $Target '.git')) {
   Ok "Updated to latest $Ref"
 }
 elseif (Test-Path $Target) {
-  Die "$Target already exists and is not a JPilot checkout. Remove it or set `$env:JPILOT_DIR to another path."
+  Die "$Target already exists and is not a JPilot checkout. Remove that folder and re-run this installer."
 }
 else {
   Info "Downloading JPilot into $Target..."
-  git clone --depth 1 --branch $Ref $RepoUrl $Target *> $null
-  if ($LASTEXITCODE -ne 0) { Die "Clone failed. Check the repo URL/branch and your network." }
+  git clone --depth 1 --branch $Ref $RepoUrl $Target 2>&1 | Out-Null
+  if ($LASTEXITCODE -ne 0) { Die "Clone failed. Check your network and try again." }
   Ok "Downloaded"
 }
 

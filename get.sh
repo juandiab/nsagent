@@ -3,14 +3,18 @@
 #
 #   curl -fsSL https://raw.githubusercontent.com/Nexxus-Tech-SAS/jpilot/main/get.sh | bash
 #
-# It checks prerequisites, downloads the project, and launches the setup wizard.
-# Override defaults with environment variables, e.g.:
-#   curl -fsSL .../get.sh | JPILOT_DIR=~/apps/jpilot JPILOT_REF=main bash
+# It checks prerequisites, downloads JPilot to ~/jpilot, and launches the setup wizard.
 set -eu
 
 REPO_URL="${JPILOT_REPO:-https://github.com/Nexxus-Tech-SAS/jpilot.git}"
 REF="${JPILOT_REF:-main}"
-TARGET="${JPILOT_DIR:-$(pwd)/jpilot}"
+if [ -n "${JPILOT_DIR:-}" ]; then
+  TARGET="$JPILOT_DIR"
+elif [ -n "${HOME:-}" ]; then
+  TARGET="${HOME}/jpilot"
+else
+  TARGET="$(pwd)/jpilot"
+fi
 
 # ---- pretty output ---------------------------------------------------------
 if [ -t 1 ]; then B="$(printf '\033[1m')"; G="$(printf '\033[32m')"; Y="$(printf '\033[33m')"; R="$(printf '\033[31m')"; N="$(printf '\033[0m')"; else B=""; G=""; Y=""; R=""; N=""; fi
@@ -273,11 +277,22 @@ if [ -d "$TARGET/.git" ]; then
   ok "Updated to latest $REF"
 elif [ -e "$TARGET" ]; then
   die "$TARGET already exists and is not a JPilot checkout.
-     Remove it or set a different location: JPILOT_DIR=/path/to/dir"
+     Remove that folder and re-run this installer."
 else
   info "Downloading JPilot into ${B}$TARGET${N}..."
-  git clone --depth 1 --branch "$REF" "$REPO_URL" "$TARGET" >/dev/null 2>&1 \
-    || die "Clone failed. Check the repo URL/branch and your network."
+  _clone_err="/tmp/jpilot-clone-$$.err"
+  if git clone --depth 1 --branch "$REF" "$REPO_URL" "$TARGET" >/dev/null 2>"$_clone_err"; then
+    rm -f "$_clone_err"
+  else
+    _clone_hint=""
+    if grep -qiE 'Could not resolve host|Failed to connect|Connection timed out|Network is unreachable' "$_clone_err" 2>/dev/null; then
+      _clone_hint="
+     Could not reach GitHub — check DNS, firewall, and outbound HTTPS."
+    fi
+    rm -f "$_clone_err"
+    die "Clone failed.${_clone_hint}
+     Check your network and try again."
+  fi
   ok "Downloaded"
 fi
 
