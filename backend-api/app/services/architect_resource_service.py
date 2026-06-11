@@ -11,6 +11,7 @@ from app.services.memory_paths import architect_dir
 ARCHITECT_FILES = (
     "jpilot_architect_design_outline.md",
     "jpilot_architect_citrix_integration_refs.md",
+    "jpilot_change_control_outline.md",
 )
 
 

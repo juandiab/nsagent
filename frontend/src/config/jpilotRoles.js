@@ -4,7 +4,7 @@ export const JPILOT_ROLES = [
   {
     id: 'architect',
     label: 'Architect',
-    description: 'Plan deployments and designs without a connected appliance.',
+    description: 'Plan deployments, designs, and change control windows without a connected appliance.',
     requiresAppliance: false,
     suggestedPaneLabel: 'Plan',
     handoffTarget: 'operator',

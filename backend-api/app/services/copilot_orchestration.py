@@ -5,6 +5,7 @@ from __future__ import annotations
 from dataclasses import dataclass
 
 from app.schemas.copilot import DeploymentContinuation, DeploymentSubtask, ToolCallTrace
+from app.services.copilot_architect_discovery import extract_planning_intent
 from app.services.copilot_roles import JPilotRole, normalize_role
 
 DEFAULT_MAX_TOOL_ITERATIONS = 20
@@ -18,6 +19,15 @@ MEMORY_SEARCH_TOOLS = frozenset(
         "search_cisco_cli_reference",
         "search_sdx_cli_reference",
         "search_f5_tmsh_reference",
+    }
+)
+
+ARCHITECT_REFERENCE_TOOLS = MEMORY_SEARCH_TOOLS | frozenset(
+    {
+        "search_jpilot_architect_resources",
+        "search_f5_documentation",
+        "jpilot_check_doc_connectivity",
+        "netscaler_list_inventory",
     }
 )
 
@@ -55,6 +65,52 @@ LONG_TASK_CONSENT_MESSAGE = (
     "This deployment may take longer than usual (multiple tool rounds). "
     "Progress so far is shown below. **Would you like me to continue?**"
 )
+
+ARCHITECT_PROGRESS_PROFILES: dict[str, dict[str, object]] = {
+    "new_deployment": {
+        "title": "Solution design in progress",
+        "steps": (
+            ("reference", "Review reference architecture & standards"),
+            ("discover", "Confirm requirements & constraints"),
+            ("deliver", "Prepare design deliverable"),
+        ),
+    },
+    "new_functionality": {
+        "title": "Functional change design in progress",
+        "steps": (
+            ("reference", "Assess existing environment"),
+            ("discover", "Define change scope & impact"),
+            ("deliver", "Prepare change design deliverable"),
+        ),
+    },
+    "change_control": {
+        "title": "Change control preparation in progress",
+        "steps": (
+            ("reference", "Document change scope & justification"),
+            ("discover", "Assess risk & maintenance window"),
+            ("deliver", "Prepare change control record"),
+        ),
+    },
+    "default": {
+        "title": "Planning in progress",
+        "steps": (
+            ("reference", "Clarify planning scope"),
+            ("discover", "Gather requirements & inputs"),
+            ("deliver", "Prepare planning deliverable"),
+        ),
+    },
+}
+
+_DESIGN_DELIVERABLE_MARKERS = (
+    "<!-- jpilot-design-document -->",
+    "<!-- jpilot-change-control-document -->",
+)
+
+
+@dataclass(frozen=True)
+class ProgressSubtasksBundle:
+    title: str
+    subtasks: list[DeploymentSubtask]
 
 
 @dataclass
@@ -132,7 +188,74 @@ def build_orchestration_runtime(
     return runtime
 
 
-def build_deployment_subtasks(tool_traces: list[ToolCallTrace]) -> list[DeploymentSubtask]:
+def build_deployment_subtasks(
+    tool_traces: list[ToolCallTrace],
+    *,
+    role: str | None = None,
+    conversation_text: str = "",
+    deliverable_ready: bool = False,
+) -> list[DeploymentSubtask]:
+    return build_progress_subtasks(
+        tool_traces,
+        role=role,
+        conversation_text=conversation_text,
+        deliverable_ready=deliverable_ready,
+    ).subtasks
+
+
+def build_progress_subtasks(
+    tool_traces: list[ToolCallTrace],
+    *,
+    role: str | None = None,
+    conversation_text: str = "",
+    deliverable_ready: bool = False,
+) -> ProgressSubtasksBundle:
+    if normalize_role(role) == JPilotRole.ARCHITECT:
+        return _build_architect_progress_subtasks(
+            tool_traces,
+            conversation_text=conversation_text,
+            deliverable_ready=deliverable_ready,
+        )
+    return _build_operator_progress_subtasks(tool_traces)
+
+
+def _architect_profile(conversation_text: str) -> dict[str, object]:
+    intent = extract_planning_intent(conversation_text) or "default"
+    return ARCHITECT_PROGRESS_PROFILES.get(intent, ARCHITECT_PROGRESS_PROFILES["default"])
+
+
+def _build_architect_progress_subtasks(
+    tool_traces: list[ToolCallTrace],
+    *,
+    conversation_text: str = "",
+    deliverable_ready: bool = False,
+) -> ProgressSubtasksBundle:
+    profile = _architect_profile(conversation_text)
+    steps: tuple[tuple[str, str], ...] = profile["steps"]  # type: ignore[assignment]
+    title = str(profile["title"])
+
+    reference_count = sum(1 for trace in tool_traces if trace.name in ARCHITECT_REFERENCE_TOOLS)
+    research_done = reference_count > 0
+
+    if deliverable_ready:
+        statuses = ["completed", "completed", "completed"]
+    elif research_done:
+        statuses = [
+            "completed",
+            "completed" if reference_count >= 2 else "in_progress",
+            "in_progress" if reference_count >= 2 else "pending",
+        ]
+    else:
+        statuses = ["pending", "pending", "pending"]
+
+    subtasks = [
+        DeploymentSubtask(id=step_id, label=label, status=statuses[index])  # type: ignore[arg-type]
+        for index, (step_id, label) in enumerate(steps)
+    ]
+    return ProgressSubtasksBundle(title=title, subtasks=subtasks)
+
+
+def _build_operator_progress_subtasks(tool_traces: list[ToolCallTrace]) -> ProgressSubtasksBundle:
     reference_done = any(trace.name in MEMORY_SEARCH_TOOLS for trace in tool_traces)
     write_started = any(trace.name in WRITE_EXEC_TOOL_NAMES for trace in tool_traces)
     saved = _classic_config_saved(tool_traces)
@@ -146,11 +269,19 @@ def build_deployment_subtasks(tool_traces: list[ToolCallTrace]) -> list[Deployme
 
     save_status = "completed" if saved else ("in_progress" if write_started else "pending")
 
-    return [
-        DeploymentSubtask(id="reference", label="Review documentation", status=reference_status),
-        DeploymentSubtask(id="execute", label="Apply configuration", status=execute_status),
-        DeploymentSubtask(id="save", label="Save configuration", status=save_status),
-    ]
+    return ProgressSubtasksBundle(
+        title="Deployment progress",
+        subtasks=[
+            DeploymentSubtask(id="reference", label="Review documentation", status=reference_status),
+            DeploymentSubtask(id="execute", label="Apply configuration", status=execute_status),
+            DeploymentSubtask(id="save", label="Save configuration", status=save_status),
+        ],
+    )
+
+
+def deliverable_ready_from_content(content: str) -> bool:
+    text = content or ""
+    return any(marker in text for marker in _DESIGN_DELIVERABLE_MARKERS)
 
 
 def _trace_includes_save_ns_config(trace: ToolCallTrace) -> bool:

@@ -211,10 +211,11 @@
                       <ChatMarkdown compact :content="assistantView(msg).content" />
                     </span>
                     <div
-                      v-if="session.role === 'architect' && canDownloadDesignDoc(assistantView(msg).content)"
+                      v-if="session.role === 'architect' && canDownloadArchitectDeliverable(assistantView(msg).content)"
                       class="design-doc-download"
                     >
                       <Button
+                        v-if="canSendDeliverableToOperator(assistantView(msg).content)"
                         label="Send to Operator"
                         icon="pi pi-arrow-right"
                         size="small"
@@ -222,12 +223,12 @@
                         @click="sendDesignToOperator(assistantView(msg).content)"
                       />
                       <Button
-                        label="Download design document"
+                        :label="architectDeliverableDownloadLabel(assistantView(msg).content)"
                         icon="pi pi-download"
                         size="small"
                         outlined
                         :disabled="isGenerating"
-                        @click="downloadDesignDocMessage(assistantView(msg).content)"
+                        @click="downloadArchitectDeliverableMessage(assistantView(msg).content)"
                       />
                     </div>
                   </div>
@@ -268,6 +269,7 @@
                   />
                   <ChatDeploymentSubtasks
                     :subtasks="msg.deploymentSubtasks || msg.deploymentContinuation?.subtasks"
+                    :title="msg.progressTitle || (session.role === 'architect' ? 'Planning in progress' : 'Deployment progress')"
                   />
                   <div
                     v-if="msg.deploymentContinuation?.required && !isGenerating"
@@ -283,6 +285,13 @@
                   </div>
                   <ChatToolTrace v-if="msg.toolCalls?.length" :tools="msg.toolCalls" />
                   <p class="beta-message-time">
+                    <span
+                      v-if="formatMessageGenerationStats(msg.generationStats)"
+                      class="beta-message-meta"
+                    >
+                      {{ formatMessageGenerationStats(msg.generationStats) }}
+                      <span class="beta-message-meta-sep" aria-hidden="true">·</span>
+                    </span>
                     {{ formatMessageTime(msg) }}
                     <i class="pi pi-check beta-check-icon" />
                   </p>
@@ -318,7 +327,11 @@
                     <span class="generation-label">{{ generationStatus.label }}</span>
                     <span class="generation-meta">{{ generationStatusMeta(generationStatus) }}</span>
                   </div>
-                  <ChatDeploymentSubtasks v-if="liveDeploymentSubtasks.length" :subtasks="liveDeploymentSubtasks" />
+                  <ChatDeploymentSubtasks
+                    v-if="liveDeploymentSubtasks.length"
+                    :subtasks="liveDeploymentSubtasks"
+                    :title="liveProgressTitle"
+                  />
                 </div>
               </div>
             </div>
@@ -627,10 +640,11 @@
             <div v-if="assistantView(msg).content && msg.role === 'assistant'" :class="{ 'chat-error-block': msg.isError }">
               <ChatMarkdown :content="assistantView(msg).content" />
               <div
-                v-if="session.role === 'architect' && canDownloadDesignDoc(assistantView(msg).content)"
+                v-if="session.role === 'architect' && canDownloadArchitectDeliverable(assistantView(msg).content)"
                 class="design-doc-download"
               >
                 <Button
+                  v-if="canSendDeliverableToOperator(assistantView(msg).content)"
                   label="Send to Operator"
                   icon="pi pi-arrow-right"
                   size="small"
@@ -638,12 +652,12 @@
                   @click="sendDesignToOperator(assistantView(msg).content)"
                 />
                 <Button
-                  label="Download design document"
+                  :label="architectDeliverableDownloadLabel(assistantView(msg).content)"
                   icon="pi pi-download"
                   size="small"
                   outlined
                   :disabled="isGenerating"
-                  @click="downloadDesignDocMessage(assistantView(msg).content)"
+                  @click="downloadArchitectDeliverableMessage(assistantView(msg).content)"
                 />
               </div>
             </div>
@@ -687,6 +701,7 @@
             />
             <ChatDeploymentSubtasks
               :subtasks="msg.deploymentSubtasks || msg.deploymentContinuation?.subtasks"
+              :title="msg.progressTitle || (session.role === 'architect' ? 'Planning in progress' : 'Deployment progress')"
             />
             <div
               v-if="msg.deploymentContinuation?.required && !isGenerating"
@@ -701,6 +716,12 @@
               />
             </div>
             <ChatToolTrace v-if="msg.toolCalls?.length" :tools="msg.toolCalls" />
+            <p
+              v-if="msg.role === 'assistant' && formatMessageGenerationStats(msg.generationStats)"
+              class="generation-stats-footer"
+            >
+              {{ formatMessageGenerationStats(msg.generationStats) }}
+            </p>
           </div>
         </div>
         </template>
@@ -712,7 +733,11 @@
               <span class="generation-label">{{ generationStatus.label }}</span>
               <span class="generation-meta">{{ generationStatusMeta(generationStatus) }}</span>
             </div>
-            <ChatDeploymentSubtasks v-if="liveDeploymentSubtasks.length" :subtasks="liveDeploymentSubtasks" />
+            <ChatDeploymentSubtasks
+              v-if="liveDeploymentSubtasks.length"
+              :subtasks="liveDeploymentSubtasks"
+              :title="liveProgressTitle"
+            />
             <Button
               label="Stop"
               icon="pi pi-stop"
@@ -794,7 +819,7 @@ import ChatDeploymentSubtasks from './ChatDeploymentSubtasks.vue'
 import { isDeploymentContinueMessage, messageNeedsDeploymentContinuation } from '../utils/deploymentContinuation'
 import { streamCopilotChat } from '../services/copilotStream'
 import { formatCopilotError, isChatAbortError, isProviderQuotaError } from '../utils/chatErrors'
-import { generationStatusMeta } from '../utils/generationStatus'
+import { generationStatusMeta, formatMessageGenerationStats } from '../utils/generationStatus'
 import {
   CONFIG_ACCEPT,
   attachmentPreviewUrl,
@@ -805,7 +830,13 @@ import {
 } from '../services/copilot'
 import { parseInputFormFromContent, resolveAssistantMessage } from '../utils/copilotForm'
 import { estimateSessionContextUsage } from '../utils/contextUsage'
-import { downloadDesignDocument, createDesignDocumentAttachment, isDesignDocumentMessage } from '../utils/designDocument'
+import {
+  downloadArchitectDeliverable,
+  createArchitectDeliverableAttachment,
+  isArchitectDeliverableMessage,
+  canSendDeliverableToOperator,
+  architectDeliverableDownloadLabel
+} from '../utils/architectDeliverable'
 import { resolveBetaHandoffTargetSessionId } from '../stores/betaChatConversations'
 import {
   ARCHITECT_SESSION_ID,
@@ -887,6 +918,7 @@ const generationStatus = ref({
   round: 0
 })
 const liveDeploymentSubtasks = ref([])
+const liveProgressTitle = ref('Deployment progress')
 let generationStartedAt = 0
 let generationElapsedTimer = null
 let lastGenerationStats = null
@@ -900,6 +932,7 @@ function resetGenerationStatus() {
     round: 0
   }
   liveDeploymentSubtasks.value = []
+  liveProgressTitle.value = session.role === 'architect' ? 'Planning in progress' : 'Deployment progress'
   lastGenerationStats = null
 }
 
@@ -924,6 +957,9 @@ function stopGenerationTimer() {
 function onGenerationEvent(event) {
   if (event.type === 'subtasks') {
     liveDeploymentSubtasks.value = event.subtasks || []
+    if (event.title) {
+      liveProgressTitle.value = event.title
+    }
   }
   if (event.type === 'llm_stats') {
     lastGenerationStats = {
@@ -952,7 +988,7 @@ const activeRole = computed(() => getRoleById(session.role))
 const roleNeedsAppliance = computed(() => roleRequiresAppliance(session.role))
 const rolePlaceholder = computed(() => {
   if (activeRole.value.id === 'architect') {
-    return 'Plan a deployment, HA design, migration, or ask NetScaler architecture questions…'
+    return 'Plan a deployment, change control window, new functionality, or ask architecture questions…'
   }
   if (activeRole.value.id === 'analyst') {
     return 'Describe the issue; attach logs or screenshots; connect an appliance for live checks…'
@@ -1171,15 +1207,16 @@ function clearBetaConversation() {
   closeBetaOptions()
 }
 
-function canDownloadDesignDoc(content) {
-  return isDesignDocumentMessage(content)
+function canDownloadArchitectDeliverable(content) {
+  return isArchitectDeliverableMessage(content)
 }
 
-function downloadDesignDocMessage(content) {
-  const filename = downloadDesignDocument(content)
+function downloadArchitectDeliverableMessage(content) {
+  const filename = downloadArchitectDeliverable(content)
+  const isChangeControl = architectDeliverableDownloadLabel(content).includes('change control')
   toast.add({
     severity: 'success',
-    summary: 'Design document downloaded',
+    summary: isChangeControl ? 'Change control record downloaded' : 'Design document downloaded',
     detail: filename,
     life: 3000
   })
@@ -1203,7 +1240,7 @@ function sendDesignToOperator(content) {
     return
   }
   try {
-    const attachment = createDesignDocumentAttachment(content)
+    const attachment = createArchitectDeliverableAttachment(content)
     const targetSessionId =
       props.uiVariant === 'beta' || props.sessionId.startsWith('beta-')
         ? resolveBetaHandoffTargetSessionId()
@@ -1537,7 +1574,8 @@ async function runChat(content, attachments, runOptions = {}) {
       inputForm: data.inputForm || parsed.inputForm,
       generationStats: lastGenerationStats,
       deploymentContinuation: data.deploymentContinuation || null,
-      deploymentSubtasks: data.deploymentContinuation?.subtasks || liveDeploymentSubtasks.value
+      deploymentSubtasks: data.deploymentContinuation?.subtasks || liveDeploymentSubtasks.value,
+      progressTitle: liveProgressTitle.value
     })
   } catch (error) {
     if (isChatAbortError(error)) {
@@ -2138,6 +2176,21 @@ onUnmounted(() => {
   font-size: 0.75rem;
   color: var(--glass-muted);
   font-variant-numeric: tabular-nums;
+}
+
+.generation-stats-footer,
+.beta-message-meta {
+  font-size: 0.75rem;
+  color: var(--glass-muted);
+  font-variant-numeric: tabular-nums;
+}
+
+.generation-stats-footer {
+  margin-top: 0.5rem;
+}
+
+.beta-message-meta-sep {
+  margin: 0 0.35rem;
 }
 
 .chat-role {

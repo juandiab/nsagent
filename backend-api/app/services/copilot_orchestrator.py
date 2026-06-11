@@ -81,7 +81,9 @@ from app.services.copilot_orchestration import (
     OrchestrationSettings,
     build_deployment_subtasks,
     build_orchestration_runtime,
+    build_progress_subtasks,
     continuation_for_tool_limit,
+    deliverable_ready_from_content,
     orchestration_settings_from_document,
     should_offer_long_task_consent,
 )
@@ -274,8 +276,20 @@ def _architect_discovery_retry_nudge(
     user_message: str,
     role: str | None,
     vendor: str | None,
+    history: list[dict] | None = None,
 ) -> str | None:
-    return architect_discovery_should_retry(content, user_message, role, vendor)
+    conversation_parts = [user_message]
+    for item in history or []:
+        if item.get("role") == "user":
+            conversation_parts.append(item.get("content") or "")
+    conversation_text = "\n".join(conversation_parts)
+    return architect_discovery_should_retry(
+        content,
+        user_message,
+        role,
+        vendor,
+        conversation_text=conversation_text,
+    )
 
 
 def _should_force_tool_execution(
@@ -459,14 +473,34 @@ def _finalize_chat_response(
     )
 
 
-async def _emit_deployment_subtasks(
+async def _emit_progress_subtasks(
     progress: QueueChatProgressReporter | None,
     tool_traces: list[ToolCallTrace],
+    *,
+    role: str | None = None,
+    conversation_text: str = "",
+    deliverable_ready: bool = False,
 ) -> None:
     if progress is None:
         return
-    subtasks = build_deployment_subtasks(tool_traces)
-    await progress.subtasks_updated([item.model_dump() for item in subtasks])
+    bundle = build_progress_subtasks(
+        tool_traces,
+        role=role,
+        conversation_text=conversation_text,
+        deliverable_ready=deliverable_ready,
+    )
+    await progress.subtasks_updated(
+        [item.model_dump() for item in bundle.subtasks],
+        title=bundle.title,
+    )
+
+
+def _conversation_text(history: list[dict], user_message: str) -> str:
+    parts = [user_message]
+    for item in history:
+        if item.get("role") == "user":
+            parts.append(item.get("content") or "")
+    return "\n".join(parts)
 
 
 def _maybe_pause_for_long_task(
@@ -831,6 +865,15 @@ async def run_copilot_chat(
     if orchestration.pause is not None:
         content = orchestration.pause.message
 
+    if progress is not None and normalize_role(chat_role) == JPilotRole.ARCHITECT:
+        await _emit_progress_subtasks(
+            progress,
+            tool_traces,
+            role=chat_role.value,
+            conversation_text=_conversation_text(history, user_message),
+            deliverable_ready=deliverable_ready_from_content(content),
+        )
+
     return _finalize_chat_response(
         content,
         provider_name=provider["providerName"],
@@ -937,7 +980,7 @@ async def _run_openai_loop(
             if not tool_calls:
                 content = sanitize_architect_reply(choice.get("content") or "")
                 architect_nudge = _architect_discovery_retry_nudge(
-                    content, user_message, jpilot_role, chat_vendor
+                    content, user_message, jpilot_role, chat_vendor, history
                 )
                 if architect_nudge:
                     logger.warning("architect_discovery_nudge — checklist or missing jpilot-form")
@@ -1003,7 +1046,12 @@ async def _run_openai_loop(
             if retry_hints:
                 messages.append({"role": "system", "content": "\n\n".join(retry_hints)})
 
-            await _emit_deployment_subtasks(progress, tool_traces)
+            await _emit_progress_subtasks(
+                progress,
+                tool_traces,
+                role=jpilot_role,
+                conversation_text=_conversation_text(history, user_message),
+            )
             if _maybe_pause_for_long_task(
                 runtime,
                 role=jpilot_role,
@@ -1115,7 +1163,7 @@ async def _run_gemini_loop(
             if not function_calls:
                 content = sanitize_architect_reply("\n".join(text_parts).strip())
                 architect_nudge = _architect_discovery_retry_nudge(
-                    content, user_message, jpilot_role, chat_vendor
+                    content, user_message, jpilot_role, chat_vendor, history
                 )
                 if architect_nudge:
                     logger.warning("architect_discovery_nudge — checklist or missing jpilot-form")
@@ -1171,7 +1219,12 @@ async def _run_gemini_loop(
 
             contents.append({"role": "user", "parts": response_parts})
 
-            await _emit_deployment_subtasks(progress, tool_traces)
+            await _emit_progress_subtasks(
+                progress,
+                tool_traces,
+                role=jpilot_role,
+                conversation_text=_conversation_text(history, user_message),
+            )
             if _maybe_pause_for_long_task(
                 runtime,
                 role=jpilot_role,
@@ -1280,7 +1333,7 @@ async def _run_anthropic_loop(
             if stop_reason != "tool_use" and not tool_uses:
                 content = sanitize_architect_reply("\n".join(text_blocks).strip())
                 architect_nudge = _architect_discovery_retry_nudge(
-                    content, user_message, jpilot_role, chat_vendor
+                    content, user_message, jpilot_role, chat_vendor, history
                 )
                 if architect_nudge:
                     logger.warning("architect_discovery_nudge — checklist or missing jpilot-form")
@@ -1334,7 +1387,12 @@ async def _run_anthropic_loop(
 
             messages.append({"role": "user", "content": tool_results})
 
-            await _emit_deployment_subtasks(progress, tool_traces)
+            await _emit_progress_subtasks(
+                progress,
+                tool_traces,
+                role=jpilot_role,
+                conversation_text=_conversation_text(history, user_message),
+            )
             if _maybe_pause_for_long_task(
                 runtime,
                 role=jpilot_role,

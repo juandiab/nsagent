@@ -8,7 +8,7 @@ Repository: [github.com/Nexxus-Tech-SAS/jpilot](https://github.com/Nexxus-Tech-S
 
 > **Disclaimer:** JPilot is an independent project and is not affiliated with, endorsed by, or sponsored by Citrix Systems, Inc. NetScaler is a trademark of Citrix Systems, Inc.
 
-**Current release:** `v0.54` — custom install paths use `sudo git clone` directly (no empty-folder conflict).
+**Current release:** `v0.55` — Architect intent routing (design, change control, functional change), role-aware planning progress, and persisted chat generation stats.
 
 Bump the root [`VERSION`](VERSION) file when tagging a release so in-app update checks match GitHub.
 
@@ -67,6 +67,15 @@ curl -fsSL https://install.nexxus-tech.com/jpilot | bash
 - **NetScaler SDX (SSH)** — Operator and Analyst for SVM platform and VPX lifecycle with `search_sdx_cli_reference` memory gate (beta).
 - **F5 BIG-IP (SSH / TMSH)** — Operator, Analyst, and Architect (official F5 docs only); `f5_*` MCP tools and `search_f5_tmsh_reference` / `search_f5_documentation` (beta).
 - **Nexxus licensing** — Settings → **License**: enter a license code, import an offline `.lic` file, or sync with the Nexxus licensing API; installation fingerprint binding; encrypted payload validation; daily background sync and expiry enforcement; **activation gate** redirects unlicensed or expired installs to Settings → License before using the app.
+
+## What's new in v0.55
+
+| Area | Highlights |
+|------|------------|
+| **Architect intent routing** | First turn asks whether you are planning a **greenfield deployment**, **new functionality on an existing deployment**, or a **change control / maintenance window** — each branch has its own discovery flow and deliverable. |
+| **Change control records** | ITIL / ServiceNow-style change documents with vendor-specific pre-change checklists; download via **Download change control record**; optional **Handoff for Operator** when execution on-appliance is in scope. |
+| **Architect progress UI** | Live progress title and steps match the planning mode (e.g. *Solution design in progress*, *Change control preparation in progress*) instead of Operator deployment labels. |
+| **Chat generation stats** | Model speed (**tok/s**) and round duration persist on completed assistant messages, not only in the loading spinner. |
 
 ## What's new in v0.54
 

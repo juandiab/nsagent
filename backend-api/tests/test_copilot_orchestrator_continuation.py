@@ -6,6 +6,7 @@ from app.services.copilot_orchestration import (
     OrchestrationRuntime,
     OrchestrationSettings,
     build_deployment_subtasks,
+    build_progress_subtasks,
     build_orchestration_runtime,
     continuation_for_tool_limit,
     is_deployment_resume_message,
@@ -26,6 +27,35 @@ def test_deployment_subtasks_reflect_progress():
     subtasks = build_deployment_subtasks(traces)
     assert subtasks[0].status == "completed"
     assert subtasks[1].status == "pending"
+
+
+def test_architect_change_control_progress_labels():
+    traces = [
+        ToolCallTrace(name="search_jpilot_architect_resources", arguments={}, result="{}"),
+    ]
+    conversation = "Planning inputs for: What are you planning?\n- Planning intent: change_control"
+    bundle = build_progress_subtasks(
+        traces,
+        role="architect",
+        conversation_text=conversation,
+    )
+    assert bundle.title == "Change control preparation in progress"
+    assert bundle.subtasks[0].label == "Document change scope & justification"
+    assert bundle.subtasks[2].label == "Prepare change control record"
+
+
+def test_architect_deliverable_marks_all_steps_complete():
+    traces = [
+        ToolCallTrace(name="search_jpilot_architect_resources", arguments={}, result="{}"),
+    ]
+    bundle = build_progress_subtasks(
+        traces,
+        role="architect",
+        conversation_text="- Planning intent: new_deployment",
+        deliverable_ready=True,
+    )
+    assert bundle.title == "Solution design in progress"
+    assert all(task.status == "completed" for task in bundle.subtasks)
 
 
 def test_long_task_consent_when_threshold_hit():

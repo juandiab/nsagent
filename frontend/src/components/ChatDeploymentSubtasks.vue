@@ -1,6 +1,6 @@
 <template>
   <div v-if="subtasks?.length" class="deployment-subtasks">
-    <div class="deployment-subtasks-title">Deployment progress</div>
+    <div class="deployment-subtasks-title">{{ title }}</div>
     <ul class="deployment-subtasks-list">
       <li
         v-for="task in subtasks"
@@ -20,6 +20,10 @@ defineProps({
   subtasks: {
     type: Array,
     default: () => []
+  },
+  title: {
+    type: String,
+    default: 'Deployment progress'
   }
 })
 

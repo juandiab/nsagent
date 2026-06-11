@@ -102,11 +102,17 @@ class QueueChatProgressReporter:
             }
         )
 
-    async def subtasks_updated(self, subtasks: list[dict[str, str]]) -> None:
-        await self.emit(
-            {
-                "type": "subtasks",
-                "subtasks": subtasks,
-                "elapsedMs": self._elapsed_ms(),
-            }
-        )
+    async def subtasks_updated(
+        self,
+        subtasks: list[dict[str, str]],
+        *,
+        title: str | None = None,
+    ) -> None:
+        event: dict[str, Any] = {
+            "type": "subtasks",
+            "subtasks": subtasks,
+            "elapsedMs": self._elapsed_ms(),
+        }
+        if title:
+            event["title"] = title
+        await self.emit(event)

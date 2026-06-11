@@ -23,3 +23,17 @@ export function generationStatusMeta(status) {
   }
   return parts.join(' · ')
 }
+
+/** Stats captured after the last model round (persisted on assistant messages). */
+export function formatMessageGenerationStats(stats) {
+  if (!stats) return null
+  const parts = []
+  if (stats.durationMs != null && stats.durationMs > 0) {
+    parts.push(formatElapsedMs(stats.durationMs))
+  }
+  const speed = formatTokensPerSec(stats.tokensPerSec)
+  if (speed) {
+    parts.push(speed)
+  }
+  return parts.length ? parts.join(' · ') : null
+}
