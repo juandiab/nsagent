@@ -18,7 +18,7 @@ if not logger.handlers:
     logger.addHandler(_handler)
     logger.propagate = False
 
-from app.schemas.copilot import ChatResponse, ChatAttachment, CopilotSettings, ToolCallTrace
+from app.schemas.copilot import ChatResponse, ChatAttachment, CopilotSettings, DeploymentContinuation, ToolCallTrace
 from app.services.copilot_attachment_service import (
     build_anthropic_user_content,
     build_gemini_user_parts,
@@ -76,9 +76,47 @@ from app.services.vendor_registry import resolve_chat_vendor
 from app.services.encryption_service import decrypt_value
 
 from app.services.context_limits import ContextLimits, resolve_context_limits
+from app.services.copilot_orchestration import (
+    OrchestrationRuntime,
+    OrchestrationSettings,
+    build_deployment_subtasks,
+    build_orchestration_runtime,
+    continuation_for_tool_limit,
+    orchestration_settings_from_document,
+    should_offer_long_task_consent,
+)
 from app.services.copilot_progress import QueueChatProgressReporter
 
 MAX_TOOL_ITERATIONS = 20
+MAX_TOOL_CONTINUATION_PHASES = 3
+
+TOOL_ITERATION_LIMIT_MESSAGE = "I reached the maximum number of tool calls. Please try a simpler request."
+
+CONTINUATION_NUDGE = (
+    "TOOL ITERATION LIMIT — continue this deployment in the same turn. "
+    "Do NOT ask the user to retry or confirm again. "
+    "Review successful and failed tool results above, then finish remaining work. "
+    "Prefer netscaler_run_cli_commands (one call with all remaining CLI + save ns config) "
+    "or the vendor batch write tool. Reply briefly when complete."
+)
+
+_USER_CONFIRM_WORDS = (
+    "proceed",
+    "procede",
+    "proceda",
+    "yes",
+    "confirm",
+    "confirmed",
+    "go ahead",
+    "do it",
+    "apply",
+    "execute",
+    "sí",
+    "si",
+    "dale",
+    "continua",
+    "continúa",
+)
 
 
 class ChatCancelledError(Exception):
@@ -276,6 +314,68 @@ def _should_force_tool_execution(
     return False
 
 
+def _user_confirmed_execution(user_message: str) -> bool:
+    lowered = user_message.lower()
+    return any(word in lowered for word in _USER_CONFIRM_WORDS)
+
+
+def _trace_includes_save_ns_config(trace: ToolCallTrace) -> bool:
+    arguments = trace.arguments or {}
+    if trace.name == "netscaler_run_cli_command":
+        return "save ns config" in str(arguments.get("command", "")).lower()
+    if trace.name == "netscaler_run_cli_commands":
+        commands = arguments.get("commands") or []
+        return any("save ns config" in str(command).lower() for command in commands)
+    return False
+
+
+def _classic_config_saved(tool_traces: list[ToolCallTrace]) -> bool:
+    for trace in tool_traces:
+        if trace.name not in {"netscaler_run_cli_command", "netscaler_run_cli_commands"}:
+            continue
+        if not _trace_includes_save_ns_config(trace):
+            continue
+        try:
+            payload = json.loads(trace.result)
+        except (json.JSONDecodeError, TypeError):
+            return True
+        if isinstance(payload, dict) and payload.get("success") is False:
+            continue
+        return True
+    return False
+
+
+def _deployment_may_be_incomplete(
+    tool_traces: list[ToolCallTrace],
+    user_message: str,
+    role: str | None,
+) -> bool:
+    if normalize_role(role) != JPilotRole.OPERATOR:
+        return False
+    if not (_user_requests_config_change(user_message) or _user_confirmed_execution(user_message)):
+        return False
+    if not tool_traces:
+        return True
+    if not _had_successful_action(tool_traces):
+        return True
+    if _classic_config_saved(tool_traces):
+        return False
+    for trace in tool_traces:
+        if trace.name in WRITE_EXEC_TOOL_NAMES:
+            return True
+    return False
+
+
+def _inject_continuation_nudge(messages: list[dict[str, Any]], *, provider: str) -> None:
+    if provider == "anthropic":
+        messages.append({"role": "user", "content": [{"type": "text", "text": CONTINUATION_NUDGE}]})
+        return
+    if provider == "gemini":
+        messages.append({"role": "user", "parts": [{"text": CONTINUATION_NUDGE}]})
+        return
+    messages.append({"role": "system", "content": CONTINUATION_NUDGE})
+
+
 def _had_successful_action(tool_traces: list[ToolCallTrace]) -> bool:
     """True if at least one state-changing tool actually executed successfully this turn."""
     for trace in tool_traces:
@@ -340,6 +440,7 @@ def _finalize_chat_response(
     tool_traces: list[ToolCallTrace],
     user_message: str = "",
     role: str | None = None,
+    deployment_continuation: DeploymentContinuation | None = None,
 ) -> ChatResponse:
     if normalize_role(role) == JPilotRole.ARCHITECT:
         content = sanitize_architect_reply(content)
@@ -354,7 +455,60 @@ def _finalize_chat_response(
         model=model,
         toolCalls=tool_traces,
         inputForm=to_response_input_form(input_form),
+        deploymentContinuation=deployment_continuation,
     )
+
+
+async def _emit_deployment_subtasks(
+    progress: QueueChatProgressReporter | None,
+    tool_traces: list[ToolCallTrace],
+) -> None:
+    if progress is None:
+        return
+    subtasks = build_deployment_subtasks(tool_traces)
+    await progress.subtasks_updated([item.model_dump() for item in subtasks])
+
+
+def _maybe_pause_for_long_task(
+    orchestration: OrchestrationRuntime,
+    *,
+    role: str | None,
+    user_message: str,
+    tool_traces: list[ToolCallTrace],
+    continuation_phase: int,
+) -> bool:
+    deployment_incomplete = _deployment_may_be_incomplete(tool_traces, user_message, role)
+    if not should_offer_long_task_consent(
+        orchestration,
+        role=role,
+        user_message=user_message,
+        tool_traces=tool_traces,
+        deployment_incomplete=deployment_incomplete,
+        continuation_phase=continuation_phase,
+    ):
+        return False
+    orchestration.request_pause(
+        reason="long_task",
+        subtasks=build_deployment_subtasks(tool_traces),
+    )
+    return True
+
+
+def _handle_tool_iteration_limit(
+    orchestration: OrchestrationRuntime,
+    tool_traces: list[ToolCallTrace],
+    user_message: str,
+    role: str | None,
+) -> str:
+    deployment_incomplete = _deployment_may_be_incomplete(tool_traces, user_message, role)
+    continuation = continuation_for_tool_limit(
+        tool_traces,
+        deployment_incomplete=deployment_incomplete,
+    )
+    if continuation is not None:
+        orchestration.pause = continuation
+        return continuation.message
+    return TOOL_ITERATION_LIMIT_MESSAGE
 
 
 async def _execute_tool_with_memory_gate(
@@ -454,6 +608,8 @@ async def run_copilot_chat(
     role: str | None = None,
     request: Request | None = None,
     progress: QueueChatProgressReporter | None = None,
+    deployment_continuation: bool = False,
+    long_task_approved: bool = False,
 ) -> ChatResponse:
     from app.services.copilot_service import set_web_search_allowed
 
@@ -510,6 +666,18 @@ async def run_copilot_chat(
             "Connect a supported appliance or use Architect role for planning."
         )
     system_prompt = build_system_prompt(chat_role, appliance_name, vendor=chat_vendor)
+    from app.services.copilot_platform_service import ensure_default_settings
+
+    await ensure_default_settings(db)
+    platform_doc = await db.copilotPlatformSettings.find_one({"_id": "default"}) or {}
+    orchestration = build_orchestration_runtime(
+        settings=orchestration_settings_from_document(platform_doc),
+        user_message=user_message,
+        deployment_continuation=deployment_continuation,
+        long_task_approved=long_task_approved,
+    )
+    if orchestration.long_task_approved and chat_role == JPilotRole.OPERATOR:
+        system_prompt += f"\n\n{CONTINUATION_NUDGE}"
     attachment_names = [a.name for a in attachment_list]
     if (
         chat_role == JPilotRole.OPERATOR
@@ -575,6 +743,7 @@ async def run_copilot_chat(
             request=request,
             context_limits=ctx_limits,
             progress=progress,
+            orchestration=orchestration,
         )
     elif provider_type == "Gemini":
         content = await _run_gemini_loop(
@@ -596,6 +765,7 @@ async def run_copilot_chat(
             request=request,
             context_limits=ctx_limits,
             progress=progress,
+            orchestration=orchestration,
         )
     elif provider_type in OPENAI_COMPAT_CHAT_PROVIDER_TYPES:
         if provider_type == "LM Studio":
@@ -633,6 +803,7 @@ async def run_copilot_chat(
             endpoint=endpoint,
             context_limits=ctx_limits,
             progress=progress,
+            orchestration=orchestration,
         )
     else:
         raise ValueError(f"Unsupported provider type: {provider_type}")
@@ -657,6 +828,8 @@ async def run_copilot_chat(
         )
 
     content = guard_fabricated_execution(content, tool_traces, role=chat_role.value)
+    if orchestration.pause is not None:
+        content = orchestration.pause.message
 
     return _finalize_chat_response(
         content,
@@ -666,6 +839,7 @@ async def run_copilot_chat(
         tool_traces=tool_traces,
         user_message=user_message,
         role=chat_role.value,
+        deployment_continuation=orchestration.pause,
     )
 
 
@@ -691,8 +865,12 @@ async def _run_openai_loop(
     endpoint: str = "",
     context_limits: ContextLimits | None = None,
     progress: QueueChatProgressReporter | None = None,
+    orchestration: OrchestrationRuntime | None = None,
 ) -> str:
     limits = context_limits or resolve_context_limits(model, provider_type)
+    runtime = orchestration or OrchestrationRuntime(
+        settings=orchestration_settings_from_document({}),
+    )
     messages: list[dict[str, Any]] = [{"role": "system", "content": system_prompt}]
     for item in history:
         messages.append({"role": item["role"], "content": item["content"]})
@@ -709,104 +887,141 @@ async def _run_openai_loop(
     nextgen_memory_reviewed = False
     cli_memory_reviewed = False
 
-    for _ in range(MAX_TOOL_ITERATIONS):
-        await raise_if_chat_cancelled(request)
-        if progress is not None:
-            await progress.llm_started()
-        llm_started_at = time.perf_counter()
-        data, active_base_url = await chat_openai_compatible(
-            base_url=active_base_url,
-            api_key=api_key,
-            model=model,
-            messages=messages,
-            tools=tools,
-            base_url_candidates=fallback_candidates,
-            provider_type=provider_type,
-            provider_name=provider_name,
-            endpoint=endpoint,
-        )
-        if progress is not None:
-            await progress.llm_finished(
-                duration_ms=int((time.perf_counter() - llm_started_at) * 1000),
+    for continuation_phase in range(runtime.max_continuation_phases + 1):
+        if continuation_phase > 0:
+            if _maybe_pause_for_long_task(
+                runtime,
+                role=jpilot_role,
+                user_message=user_message,
+                tool_traces=tool_traces,
+                continuation_phase=continuation_phase,
+            ):
+                break
+            logger.info(
+                "tool_continuation phase=%d toolCalls=%d",
+                continuation_phase,
+                len(tool_traces),
+            )
+            _inject_continuation_nudge(messages, provider="openai")
+
+        paused = False
+        for _ in range(runtime.max_tool_iterations):
+            runtime.tool_rounds += 1
+            await raise_if_chat_cancelled(request)
+            if progress is not None:
+                await progress.llm_started()
+            llm_started_at = time.perf_counter()
+            data, active_base_url = await chat_openai_compatible(
+                base_url=active_base_url,
+                api_key=api_key,
+                model=model,
+                messages=messages,
+                tools=tools,
+                base_url_candidates=fallback_candidates,
                 provider_type=provider_type,
-                data=data,
+                provider_name=provider_name,
+                endpoint=endpoint,
             )
-        fallback_candidates = None
-        if usage_accumulator is not None:
-            usage_accumulator.add_llm_response(provider_type, data)
-        choice = data["choices"][0]["message"]
-        tool_calls = choice.get("tool_calls") or []
-
-        if not tool_calls:
-            content = sanitize_architect_reply(choice.get("content") or "")
-            architect_nudge = _architect_discovery_retry_nudge(
-                content, user_message, jpilot_role, chat_vendor
-            )
-            if architect_nudge:
-                logger.warning("architect_discovery_nudge — checklist or missing jpilot-form")
-                if content.strip():
-                    messages.append({"role": "assistant", "content": content})
-                messages.append({"role": "system", "content": architect_nudge})
-                continue
-            if _should_force_tool_execution(user_message, tool_traces, content, role=jpilot_role):
-                logger.warning(
-                    "execution_nudge — model replied without running write tools; forcing another iteration"
+            if progress is not None:
+                await progress.llm_finished(
+                    duration_ms=int((time.perf_counter() - llm_started_at) * 1000),
+                    provider_type=provider_type,
+                    data=data,
                 )
-                if content.strip():
-                    messages.append({"role": "assistant", "content": content})
-                messages.append({"role": "system", "content": FORCE_TOOL_EXECUTION_MESSAGE})
-                continue
-            return content or "I couldn't generate a response."
+            fallback_candidates = None
+            if usage_accumulator is not None:
+                usage_accumulator.add_llm_response(provider_type, data)
+            choice = data["choices"][0]["message"]
+            tool_calls = choice.get("tool_calls") or []
 
-        messages.append(choice)
-
-        retry_hints: list[str] = []
-        for tool_call in tool_calls:
-            fn = tool_call.get("function") or {}
-            name = fn.get("name") or ""
-            raw_arguments = fn.get("arguments") or "{}"
-            try:
-                arguments = json.loads(raw_arguments) if isinstance(raw_arguments, str) else dict(raw_arguments)
-            except (json.JSONDecodeError, TypeError):
-                arguments = {}
-            try:
-                if progress is not None:
-                    await progress.tool_started(name)
-                result, nextgen_memory_reviewed, cli_memory_reviewed = await _execute_tool_with_memory_gate(
-                    db,
-                    name,
-                    arguments,
-                    appliance_name,
-                    nextgen_memory_reviewed,
-                    cli_memory_reviewed,
-                    role=jpilot_role,
-                    vendor=chat_vendor,
+            if not tool_calls:
+                content = sanitize_architect_reply(choice.get("content") or "")
+                architect_nudge = _architect_discovery_retry_nudge(
+                    content, user_message, jpilot_role, chat_vendor
                 )
-                if progress is not None:
-                    await progress.tool_finished(name)
-            except Exception as exc:
-                logger.exception("tool_call name=%s failed", name)
-                result = json.dumps({"success": False, "errorMessage": str(exc)})
+                if architect_nudge:
+                    logger.warning("architect_discovery_nudge — checklist or missing jpilot-form")
+                    if content.strip():
+                        messages.append({"role": "assistant", "content": content})
+                    messages.append({"role": "system", "content": architect_nudge})
+                    continue
+                if _should_force_tool_execution(user_message, tool_traces, content, role=jpilot_role):
+                    logger.warning(
+                        "execution_nudge — model replied without running write tools; forcing another iteration"
+                    )
+                    if content.strip():
+                        messages.append({"role": "assistant", "content": content})
+                    messages.append({"role": "system", "content": FORCE_TOOL_EXECUTION_MESSAGE})
+                    continue
+                return content or "I couldn't generate a response."
 
-            tool_traces.append(ToolCallTrace(name=name, arguments=arguments, result=result))
-            tool_call_id = tool_call.get("id") or f"call_{len(tool_traces)}"
-            messages.append(
-                {
-                    "role": "tool",
-                    "tool_call_id": tool_call_id,
-                    "content": _truncate_tool_result(result, limits.max_tool_result_chars),
-                }
-            )
-            retry_hint = build_tool_retry_hint(
-                name, result, user_message, [a.name for a in attachments]
-            )
-            if retry_hint:
-                retry_hints.append(retry_hint)
+            messages.append(choice)
 
-        if retry_hints:
-            messages.append({"role": "system", "content": "\n\n".join(retry_hints)})
+            retry_hints: list[str] = []
+            for tool_call in tool_calls:
+                fn = tool_call.get("function") or {}
+                name = fn.get("name") or ""
+                raw_arguments = fn.get("arguments") or "{}"
+                try:
+                    arguments = json.loads(raw_arguments) if isinstance(raw_arguments, str) else dict(raw_arguments)
+                except (json.JSONDecodeError, TypeError):
+                    arguments = {}
+                try:
+                    if progress is not None:
+                        await progress.tool_started(name)
+                    result, nextgen_memory_reviewed, cli_memory_reviewed = await _execute_tool_with_memory_gate(
+                        db,
+                        name,
+                        arguments,
+                        appliance_name,
+                        nextgen_memory_reviewed,
+                        cli_memory_reviewed,
+                        role=jpilot_role,
+                        vendor=chat_vendor,
+                    )
+                    if progress is not None:
+                        await progress.tool_finished(name)
+                except Exception as exc:
+                    logger.exception("tool_call name=%s failed", name)
+                    result = json.dumps({"success": False, "errorMessage": str(exc)})
 
-    return "I reached the maximum number of tool calls. Please try a simpler request."
+                tool_traces.append(ToolCallTrace(name=name, arguments=arguments, result=result))
+                tool_call_id = tool_call.get("id") or f"call_{len(tool_traces)}"
+                messages.append(
+                    {
+                        "role": "tool",
+                        "tool_call_id": tool_call_id,
+                        "content": _truncate_tool_result(result, limits.max_tool_result_chars),
+                    }
+                )
+                retry_hint = build_tool_retry_hint(
+                    name, result, user_message, [a.name for a in attachments]
+                )
+                if retry_hint:
+                    retry_hints.append(retry_hint)
+
+            if retry_hints:
+                messages.append({"role": "system", "content": "\n\n".join(retry_hints)})
+
+            await _emit_deployment_subtasks(progress, tool_traces)
+            if _maybe_pause_for_long_task(
+                runtime,
+                role=jpilot_role,
+                user_message=user_message,
+                tool_traces=tool_traces,
+                continuation_phase=continuation_phase,
+            ):
+                paused = True
+                break
+
+        if paused or runtime.pause is not None:
+            break
+        if continuation_phase >= runtime.max_continuation_phases:
+            break
+        if not _deployment_may_be_incomplete(tool_traces, user_message, jpilot_role):
+            break
+
+    return _handle_tool_iteration_limit(runtime, tool_traces, user_message, jpilot_role)
 
 
 async def _run_gemini_loop(
@@ -828,8 +1043,12 @@ async def _run_gemini_loop(
     request: Request | None = None,
     context_limits: ContextLimits | None = None,
     progress: QueueChatProgressReporter | None = None,
+    orchestration: OrchestrationRuntime | None = None,
 ) -> str:
     limits = context_limits or resolve_context_limits(model, provider_type)
+    runtime = orchestration or OrchestrationRuntime(
+        settings=orchestration_settings_from_document({}),
+    )
     contents: list[dict[str, Any]] = []
     for item in history:
         gemini_role = "model" if item["role"] == "assistant" else "user"
@@ -845,95 +1064,132 @@ async def _run_gemini_loop(
     nextgen_memory_reviewed = False
     cli_memory_reviewed = False
 
-    for _ in range(MAX_TOOL_ITERATIONS):
-        await raise_if_chat_cancelled(request)
-        if progress is not None:
-            await progress.llm_started()
-        llm_started_at = time.perf_counter()
-        data = await chat_gemini(
-            api_key=api_key,
-            model=model,
-            system=system_prompt,
-            contents=contents,
-            tools=tools,
-            provider_name=provider_name,
-        )
-        if progress is not None:
-            await progress.llm_finished(
-                duration_ms=int((time.perf_counter() - llm_started_at) * 1000),
-                provider_type=provider_type,
-                data=data,
-            )
-        if usage_accumulator is not None:
-            usage_accumulator.add_llm_response(provider_type, data)
-
-        candidate = (data.get("candidates") or [{}])[0]
-        content = candidate.get("content", {})
-        parts = content.get("parts", [])
-
-        function_calls = [part["functionCall"] for part in parts if part.get("functionCall")]
-        text_parts = [part.get("text", "") for part in parts if part.get("text")]
-
-        if not function_calls:
-            content = sanitize_architect_reply("\n".join(text_parts).strip())
-            architect_nudge = _architect_discovery_retry_nudge(
-                content, user_message, jpilot_role, chat_vendor
-            )
-            if architect_nudge:
-                logger.warning("architect_discovery_nudge — checklist or missing jpilot-form")
-                if content:
-                    contents.append({"role": "model", "parts": [{"text": content}]})
-                contents.append({"role": "user", "parts": [{"text": architect_nudge}]})
-                continue
-            if _should_force_tool_execution(user_message, tool_traces, content, role=jpilot_role):
-                logger.warning(
-                    "execution_nudge — model replied without running write tools; forcing another iteration"
-                )
-                if content:
-                    contents.append({"role": "model", "parts": [{"text": content}]})
-                contents.append({"role": "user", "parts": [{"text": FORCE_TOOL_EXECUTION_MESSAGE}]})
-                continue
-            return content or "I couldn't generate a response."
-
-        contents.append({"role": "model", "parts": parts})
-
-        response_parts = []
-        for function_call in function_calls:
-            name = function_call["name"]
-            arguments = function_call.get("args", {})
-            if progress is not None:
-                await progress.tool_started(name)
-            result, nextgen_memory_reviewed, cli_memory_reviewed = await _execute_tool_with_memory_gate(
-                db,
-                name,
-                arguments,
-                appliance_name,
-                nextgen_memory_reviewed,
-                cli_memory_reviewed,
+    for continuation_phase in range(runtime.max_continuation_phases + 1):
+        if continuation_phase > 0:
+            if _maybe_pause_for_long_task(
+                runtime,
                 role=jpilot_role,
-                vendor=chat_vendor,
+                user_message=user_message,
+                tool_traces=tool_traces,
+                continuation_phase=continuation_phase,
+            ):
+                break
+            logger.info(
+                "tool_continuation phase=%d toolCalls=%d",
+                continuation_phase,
+                len(tool_traces),
+            )
+            _inject_continuation_nudge(contents, provider="gemini")
+
+        paused = False
+        for _ in range(runtime.max_tool_iterations):
+            runtime.tool_rounds += 1
+            await raise_if_chat_cancelled(request)
+            if progress is not None:
+                await progress.llm_started()
+            llm_started_at = time.perf_counter()
+            data = await chat_gemini(
+                api_key=api_key,
+                model=model,
+                system=system_prompt,
+                contents=contents,
+                tools=tools,
+                provider_name=provider_name,
             )
             if progress is not None:
-                await progress.tool_finished(name)
-            tool_traces.append(ToolCallTrace(name=name, arguments=arguments, result=result))
-            truncated = _truncate_tool_result(result, limits.max_tool_result_chars)
-            response_parts.append(
-                {
-                    "functionResponse": {
-                        "name": name,
-                        "response": {"result": truncated},
+                await progress.llm_finished(
+                    duration_ms=int((time.perf_counter() - llm_started_at) * 1000),
+                    provider_type=provider_type,
+                    data=data,
+                )
+            if usage_accumulator is not None:
+                usage_accumulator.add_llm_response(provider_type, data)
+
+            candidate = (data.get("candidates") or [{}])[0]
+            content = candidate.get("content", {})
+            parts = content.get("parts", [])
+
+            function_calls = [part["functionCall"] for part in parts if part.get("functionCall")]
+            text_parts = [part.get("text", "") for part in parts if part.get("text")]
+
+            if not function_calls:
+                content = sanitize_architect_reply("\n".join(text_parts).strip())
+                architect_nudge = _architect_discovery_retry_nudge(
+                    content, user_message, jpilot_role, chat_vendor
+                )
+                if architect_nudge:
+                    logger.warning("architect_discovery_nudge — checklist or missing jpilot-form")
+                    if content:
+                        contents.append({"role": "model", "parts": [{"text": content}]})
+                    contents.append({"role": "user", "parts": [{"text": architect_nudge}]})
+                    continue
+                if _should_force_tool_execution(user_message, tool_traces, content, role=jpilot_role):
+                    logger.warning(
+                        "execution_nudge — model replied without running write tools; forcing another iteration"
+                    )
+                    if content:
+                        contents.append({"role": "model", "parts": [{"text": content}]})
+                    contents.append({"role": "user", "parts": [{"text": FORCE_TOOL_EXECUTION_MESSAGE}]})
+                    continue
+                return content or "I couldn't generate a response."
+
+            contents.append({"role": "model", "parts": parts})
+
+            response_parts = []
+            for function_call in function_calls:
+                name = function_call["name"]
+                arguments = function_call.get("args", {})
+                if progress is not None:
+                    await progress.tool_started(name)
+                result, nextgen_memory_reviewed, cli_memory_reviewed = await _execute_tool_with_memory_gate(
+                    db,
+                    name,
+                    arguments,
+                    appliance_name,
+                    nextgen_memory_reviewed,
+                    cli_memory_reviewed,
+                    role=jpilot_role,
+                    vendor=chat_vendor,
+                )
+                if progress is not None:
+                    await progress.tool_finished(name)
+                tool_traces.append(ToolCallTrace(name=name, arguments=arguments, result=result))
+                truncated = _truncate_tool_result(result, limits.max_tool_result_chars)
+                response_parts.append(
+                    {
+                        "functionResponse": {
+                            "name": name,
+                            "response": {"result": truncated},
+                        }
                     }
-                }
-            )
-            retry_hint = build_tool_retry_hint(
-                name, result, user_message, [a.name for a in attachments]
-            )
-            if retry_hint:
-                response_parts.append({"text": retry_hint})
+                )
+                retry_hint = build_tool_retry_hint(
+                    name, result, user_message, [a.name for a in attachments]
+                )
+                if retry_hint:
+                    response_parts.append({"text": retry_hint})
 
-        contents.append({"role": "user", "parts": response_parts})
+            contents.append({"role": "user", "parts": response_parts})
 
-    return "I reached the maximum number of tool calls. Please try a simpler request."
+            await _emit_deployment_subtasks(progress, tool_traces)
+            if _maybe_pause_for_long_task(
+                runtime,
+                role=jpilot_role,
+                user_message=user_message,
+                tool_traces=tool_traces,
+                continuation_phase=continuation_phase,
+            ):
+                paused = True
+                break
+
+        if paused or runtime.pause is not None:
+            break
+        if continuation_phase >= runtime.max_continuation_phases:
+            break
+        if not _deployment_may_be_incomplete(tool_traces, user_message, jpilot_role):
+            break
+
+    return _handle_tool_iteration_limit(runtime, tool_traces, user_message, jpilot_role)
 
 
 async def _run_anthropic_loop(
@@ -955,8 +1211,12 @@ async def _run_anthropic_loop(
     request: Request | None = None,
     context_limits: ContextLimits | None = None,
     progress: QueueChatProgressReporter | None = None,
+    orchestration: OrchestrationRuntime | None = None,
 ) -> str:
     limits = context_limits or resolve_context_limits(model, provider_type)
+    runtime = orchestration or OrchestrationRuntime(
+        settings=orchestration_settings_from_document({}),
+    )
     messages: list[dict[str, Any]] = []
     for item in history:
         messages.append({"role": item["role"], "content": item["content"]})
@@ -971,88 +1231,125 @@ async def _run_anthropic_loop(
     nextgen_memory_reviewed = False
     cli_memory_reviewed = False
 
-    for _ in range(MAX_TOOL_ITERATIONS):
-        await raise_if_chat_cancelled(request)
-        if progress is not None:
-            await progress.llm_started()
-        llm_started_at = time.perf_counter()
-        data = await chat_anthropic(
-            api_key=api_key,
-            model=model,
-            system=system_prompt,
-            messages=messages,
-            tools=tools,
-            provider_name=provider_name,
-        )
-        if progress is not None:
-            await progress.llm_finished(
-                duration_ms=int((time.perf_counter() - llm_started_at) * 1000),
-                provider_type=provider_type,
-                data=data,
-            )
-        if usage_accumulator is not None:
-            usage_accumulator.add_llm_response(provider_type, data)
-
-        content_blocks = data.get("content", [])
-        tool_uses = [block for block in content_blocks if block.get("type") == "tool_use"]
-        text_blocks = [block.get("text", "") for block in content_blocks if block.get("type") == "text"]
-        stop_reason = data.get("stop_reason")
-
-        if stop_reason != "tool_use" and not tool_uses:
-            content = sanitize_architect_reply("\n".join(text_blocks).strip())
-            architect_nudge = _architect_discovery_retry_nudge(
-                content, user_message, jpilot_role, chat_vendor
-            )
-            if architect_nudge:
-                logger.warning("architect_discovery_nudge — checklist or missing jpilot-form")
-                if content:
-                    messages.append({"role": "assistant", "content": content})
-                messages.append({"role": "user", "content": [{"type": "text", "text": architect_nudge}]})
-                continue
-            if _should_force_tool_execution(user_message, tool_traces, content, role=jpilot_role):
-                logger.warning(
-                    "execution_nudge — model replied without running write tools; forcing another iteration"
-                )
-                if content_blocks:
-                    messages.append({"role": "assistant", "content": content_blocks})
-                messages.append({"role": "user", "content": [{"type": "text", "text": FORCE_TOOL_EXECUTION_MESSAGE}]})
-                continue
-            return content or "I couldn't generate a response."
-
-        messages.append({"role": "assistant", "content": content_blocks})
-
-        tool_results = []
-        for tool_use in tool_uses:
-            name = tool_use["name"]
-            arguments = tool_use.get("input", {})
-            if progress is not None:
-                await progress.tool_started(name)
-            result, nextgen_memory_reviewed, cli_memory_reviewed = await _execute_tool_with_memory_gate(
-                db,
-                name,
-                arguments,
-                appliance_name,
-                nextgen_memory_reviewed,
-                cli_memory_reviewed,
+    for continuation_phase in range(runtime.max_continuation_phases + 1):
+        if continuation_phase > 0:
+            if _maybe_pause_for_long_task(
+                runtime,
                 role=jpilot_role,
-                vendor=chat_vendor,
+                user_message=user_message,
+                tool_traces=tool_traces,
+                continuation_phase=continuation_phase,
+            ):
+                break
+            logger.info(
+                "tool_continuation phase=%d toolCalls=%d",
+                continuation_phase,
+                len(tool_traces),
+            )
+            _inject_continuation_nudge(messages, provider="anthropic")
+
+        paused = False
+        for _ in range(runtime.max_tool_iterations):
+            runtime.tool_rounds += 1
+            await raise_if_chat_cancelled(request)
+            if progress is not None:
+                await progress.llm_started()
+            llm_started_at = time.perf_counter()
+            data = await chat_anthropic(
+                api_key=api_key,
+                model=model,
+                system=system_prompt,
+                messages=messages,
+                tools=tools,
+                provider_name=provider_name,
             )
             if progress is not None:
-                await progress.tool_finished(name)
-            tool_traces.append(ToolCallTrace(name=name, arguments=arguments, result=result))
-            tool_results.append(
-                {
-                    "type": "tool_result",
-                    "tool_use_id": tool_use["id"],
-                    "content": _truncate_tool_result(result, limits.max_tool_result_chars),
-                }
-            )
-            retry_hint = build_tool_retry_hint(
-                name, result, user_message, [a.name for a in attachments]
-            )
-            if retry_hint:
-                tool_results.append({"type": "text", "text": retry_hint})
+                await progress.llm_finished(
+                    duration_ms=int((time.perf_counter() - llm_started_at) * 1000),
+                    provider_type=provider_type,
+                    data=data,
+                )
+            if usage_accumulator is not None:
+                usage_accumulator.add_llm_response(provider_type, data)
 
-        messages.append({"role": "user", "content": tool_results})
+            content_blocks = data.get("content", [])
+            tool_uses = [block for block in content_blocks if block.get("type") == "tool_use"]
+            text_blocks = [block.get("text", "") for block in content_blocks if block.get("type") == "text"]
+            stop_reason = data.get("stop_reason")
 
-    return "I reached the maximum number of tool calls. Please try a simpler request."
+            if stop_reason != "tool_use" and not tool_uses:
+                content = sanitize_architect_reply("\n".join(text_blocks).strip())
+                architect_nudge = _architect_discovery_retry_nudge(
+                    content, user_message, jpilot_role, chat_vendor
+                )
+                if architect_nudge:
+                    logger.warning("architect_discovery_nudge — checklist or missing jpilot-form")
+                    if content:
+                        messages.append({"role": "assistant", "content": content})
+                    messages.append({"role": "user", "content": [{"type": "text", "text": architect_nudge}]})
+                    continue
+                if _should_force_tool_execution(user_message, tool_traces, content, role=jpilot_role):
+                    logger.warning(
+                        "execution_nudge — model replied without running write tools; forcing another iteration"
+                    )
+                    if content_blocks:
+                        messages.append({"role": "assistant", "content": content_blocks})
+                    messages.append({"role": "user", "content": [{"type": "text", "text": FORCE_TOOL_EXECUTION_MESSAGE}]})
+                    continue
+                return content or "I couldn't generate a response."
+
+            messages.append({"role": "assistant", "content": content_blocks})
+
+            tool_results = []
+            for tool_use in tool_uses:
+                name = tool_use["name"]
+                arguments = tool_use.get("input", {})
+                if progress is not None:
+                    await progress.tool_started(name)
+                result, nextgen_memory_reviewed, cli_memory_reviewed = await _execute_tool_with_memory_gate(
+                    db,
+                    name,
+                    arguments,
+                    appliance_name,
+                    nextgen_memory_reviewed,
+                    cli_memory_reviewed,
+                    role=jpilot_role,
+                    vendor=chat_vendor,
+                )
+                if progress is not None:
+                    await progress.tool_finished(name)
+                tool_traces.append(ToolCallTrace(name=name, arguments=arguments, result=result))
+                tool_results.append(
+                    {
+                        "type": "tool_result",
+                        "tool_use_id": tool_use["id"],
+                        "content": _truncate_tool_result(result, limits.max_tool_result_chars),
+                    }
+                )
+                retry_hint = build_tool_retry_hint(
+                    name, result, user_message, [a.name for a in attachments]
+                )
+                if retry_hint:
+                    tool_results.append({"type": "text", "text": retry_hint})
+
+            messages.append({"role": "user", "content": tool_results})
+
+            await _emit_deployment_subtasks(progress, tool_traces)
+            if _maybe_pause_for_long_task(
+                runtime,
+                role=jpilot_role,
+                user_message=user_message,
+                tool_traces=tool_traces,
+                continuation_phase=continuation_phase,
+            ):
+                paused = True
+                break
+
+        if paused or runtime.pause is not None:
+            break
+        if continuation_phase >= runtime.max_continuation_phases:
+            break
+        if not _deployment_may_be_incomplete(tool_traces, user_message, jpilot_role):
+            break
+
+    return _handle_tool_iteration_limit(runtime, tool_traces, user_message, jpilot_role)

@@ -34,6 +34,19 @@ class CopilotRoleResponse(BaseModel):
     handoffTarget: str | None = None
 
 
+class DeploymentSubtask(BaseModel):
+    id: str
+    label: str
+    status: Literal["pending", "in_progress", "completed", "failed"] = "pending"
+
+
+class DeploymentContinuation(BaseModel):
+    required: bool = False
+    reason: Literal["long_task", "tool_limit"] = "long_task"
+    message: str = ""
+    subtasks: list[DeploymentSubtask] = []
+
+
 class ChatRequest(BaseModel):
     message: str
     history: list[ChatMessage] = []
@@ -43,6 +56,8 @@ class ChatRequest(BaseModel):
     applianceName: str | None = None
     providerId: str | None = None
     webSearch: bool = True
+    deploymentContinuation: bool = False
+    longTaskApproved: bool = False
 
 
 class CopilotApplianceItem(BaseModel):
@@ -103,6 +118,7 @@ class ChatResponse(BaseModel):
     model: str
     toolCalls: list[ToolCallTrace] = []
     inputForm: InputForm | None = None
+    deploymentContinuation: DeploymentContinuation | None = None
 
 
 class CopilotStatusResponse(BaseModel):

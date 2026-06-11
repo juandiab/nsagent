@@ -44,5 +44,8 @@ frontend/.vite/
 .coverage
 htmlcov/
 
+# Local scratch / reference material (not part of the product)
+temp/
+
 # Docker volumes (local data)
 mongodb_data/

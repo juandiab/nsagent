@@ -102,7 +102,7 @@ async def save_platform_settings(
     payload: CopilotPlatformSettingsUpdate,
     db: AsyncIOMotorDatabase = Depends(get_db),
 ) -> CopilotPlatformSettingsResponse:
-    if payload.allowWebSearch and payload.braveSearchApiKey is None:
+    if payload.allowWebSearch is True and payload.braveSearchApiKey is None:
         existing = await get_platform_settings(db)
         if not existing.hasBraveSearchApiKey:
             raise HTTPException(
@@ -215,6 +215,8 @@ async def copilot_chat(
             web_search=payload.webSearch,
             role=chat_role.value,
             request=request,
+            deployment_continuation=payload.deploymentContinuation,
+            long_task_approved=payload.longTaskApproved,
         )
     except ChatCancelledError as exc:
         raise HTTPException(

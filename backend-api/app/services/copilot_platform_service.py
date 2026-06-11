@@ -18,9 +18,13 @@ _DOMAIN_RE = re.compile(r"^[a-z0-9.-]+\.[a-z]{2,}$")
 
 
 class CopilotPlatformSettingsUpdate(BaseModel):
-    allowWebSearch: bool = False
+    allowWebSearch: bool | None = None
     braveSearchApiKey: str | None = None
     extraDomains: list[str] | None = None
+    maxToolIterations: int | None = None
+    maxToolContinuationPhases: int | None = None
+    longTaskToolThreshold: int | None = None
+    promptBeforeLongTasks: bool | None = None
 
 
 class CopilotPlatformSettingsResponse(BaseModel):
@@ -29,6 +33,10 @@ class CopilotPlatformSettingsResponse(BaseModel):
     lockedDomains: list[str] = []
     vendorLockedDomains: dict[str, list[str]] = {}
     extraDomains: list[str] = []
+    maxToolIterations: int = 20
+    maxToolContinuationPhases: int = 3
+    longTaskToolThreshold: int = 8
+    promptBeforeLongTasks: bool = True
 
 
 def utc_now() -> datetime:
@@ -41,6 +49,10 @@ def default_document() -> dict:
         "allowWebSearch": False,
         "encryptedBraveSearchApiKey": encrypt_value(""),
         "extraDomains": [],
+        "maxToolIterations": 20,
+        "maxToolContinuationPhases": 3,
+        "longTaskToolThreshold": 8,
+        "promptBeforeLongTasks": True,
         "updatedAt": utc_now(),
     }
 
@@ -76,6 +88,10 @@ async def get_platform_settings(db: AsyncIOMotorDatabase) -> CopilotPlatformSett
         lockedDomains=list(LOCKED_DOMAINS),
         vendorLockedDomains=all_locked_domain_groups(),
         extraDomains=list(document.get("extraDomains", [])),
+        maxToolIterations=int(document.get("maxToolIterations", 20)),
+        maxToolContinuationPhases=int(document.get("maxToolContinuationPhases", 3)),
+        longTaskToolThreshold=int(document.get("longTaskToolThreshold", 8)),
+        promptBeforeLongTasks=bool(document.get("promptBeforeLongTasks", True)),
     )
 
 
@@ -115,15 +131,26 @@ async def update_platform_settings(
 ) -> CopilotPlatformSettingsResponse:
     await ensure_default_settings(db)
     update_data: dict = {
-        "allowWebSearch": payload.allowWebSearch,
         "updatedAt": utc_now(),
     }
+
+    if payload.allowWebSearch is not None:
+        update_data["allowWebSearch"] = payload.allowWebSearch
 
     if payload.braveSearchApiKey is not None and payload.braveSearchApiKey.strip():
         update_data["encryptedBraveSearchApiKey"] = encrypt_value(payload.braveSearchApiKey.strip())
 
     if payload.extraDomains is not None:
         update_data["extraDomains"] = _sanitize_domains(payload.extraDomains)
+
+    if payload.maxToolIterations is not None:
+        update_data["maxToolIterations"] = max(5, min(int(payload.maxToolIterations), 60))
+    if payload.maxToolContinuationPhases is not None:
+        update_data["maxToolContinuationPhases"] = max(0, min(int(payload.maxToolContinuationPhases), 8))
+    if payload.longTaskToolThreshold is not None:
+        update_data["longTaskToolThreshold"] = max(3, min(int(payload.longTaskToolThreshold), 40))
+    if payload.promptBeforeLongTasks is not None:
+        update_data["promptBeforeLongTasks"] = bool(payload.promptBeforeLongTasks)
 
     await db.copilotPlatformSettings.update_one({"_id": SETTINGS_ID}, {"$set": update_data}, upsert=True)
     return await get_platform_settings(db)

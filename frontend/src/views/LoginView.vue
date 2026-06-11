@@ -1,22 +1,25 @@
 <template>
   <div class="login-page flex align-items-center justify-content-center min-h-screen">
-    <!-- Animated background orbs -->
     <div class="login-bg" aria-hidden="true">
-      <div class="login-bg-orb orb-1"></div>
-      <div class="login-bg-orb orb-2"></div>
-      <div class="login-bg-orb orb-3"></div>
+      <ConstellationCanvas />
+      <div class="login-bg-overlay"></div>
     </div>
 
     <div
       class="login-panel"
       v-animateonscroll="{ enterClass: 'anim-panel-in' }"
     >
+      <div v-if="serverVersion" class="login-panel-tags">
+        <span class="login-meta-tag login-meta-version">{{ serverVersion }}</span>
+      </div>
+
       <div
         class="login-brand flex flex-column align-items-center mb-5"
         v-animateonscroll="{ enterClass: 'anim-rise anim-delay-1' }"
       >
         <JPilot :size="73" />
         <h1 class="login-title m-0 mt-3">JPilot</h1>
+        <span class="login-meta-tag login-meta-edition mt-2">Early Access</span>
         <p class="login-subtitle m-0 mt-2">
           {{ status?.passkeyRequired ? 'Sign in with your passkey' : 'Sign in to manage your platform' }}
         </p>
@@ -222,9 +225,11 @@ import Checkbox from 'primevue/checkbox'
 import InputText from 'primevue/inputtext'
 import Message from 'primevue/message'
 import Password from 'primevue/password'
+import ConstellationCanvas from '../components/ConstellationCanvas.vue'
 import JPilot from '../components/JPilot.vue'
 import api from '../services/api'
 import { setAuth } from '../services/auth'
+import { getSystemVersion } from '../services/system'
 import {
   fetchPasskeyStatus,
   loginWithPasskey,
@@ -245,6 +250,7 @@ const crossDeviceActive = ref(false)
 const crossDeviceAutoStarted = ref(false)
 const errorMessage = ref('')
 const status = ref(null)
+const serverVersion = ref('')
 let statusTimer = null
 
 const qrPattern = [
@@ -290,9 +296,15 @@ watch([agreed, () => status.value?.passkeyRequired], ([isAgreed, passkeyRequired
   }
 })
 
-onMounted(() => {
+onMounted(async () => {
   if (username.value.trim()) {
     refreshStatus()
+  }
+  try {
+    const info = await getSystemVersion()
+    serverVersion.value = info.display_version
+  } catch {
+    serverVersion.value = ''
   }
 })
 
@@ -352,7 +364,6 @@ async function handlePasskeyLogin(preferCrossDevice = false) {
   background: var(--p-surface-ground);
 }
 
-/* Background orb layer — no filter:blur to avoid WebKit compositing bugs */
 .login-bg {
   position: absolute;
   inset: 0;
@@ -361,67 +372,20 @@ async function handlePasskeyLogin(preferCrossDevice = false) {
   overflow: hidden;
 }
 
-.login-bg-orb {
+.login-bg-overlay {
   position: absolute;
-  border-radius: 50%;
+  inset: 0;
+  background:
+    radial-gradient(ellipse at 60% 50%, rgba(0, 123, 167, 0.1) 0%, transparent 65%),
+    linear-gradient(180deg, transparent 70%, var(--p-surface-ground) 100%);
+  pointer-events: none;
 }
 
-/* Soft edge achieved via gradient stopping early, no filter needed */
-.orb-1 {
-  width: 70vmax;
-  height: 70vmax;
-  top: -30vmax;
-  right: -20vmax;
-  background: radial-gradient(circle, color-mix(in srgb, var(--p-primary-color) 18%, transparent) 0%, transparent 55%);
-  animation: orb-drift-1 18s ease-in-out infinite;
+:global(.app-dark) .login-bg-overlay {
+  background:
+    radial-gradient(ellipse at 60% 50%, rgba(0, 123, 167, 0.12) 0%, transparent 65%),
+    linear-gradient(180deg, transparent 70%, var(--p-surface-ground) 100%);
 }
-
-.orb-2 {
-  width: 60vmax;
-  height: 60vmax;
-  bottom: -25vmax;
-  left: -15vmax;
-  background: radial-gradient(circle, color-mix(in srgb, var(--p-primary-color) 14%, transparent) 0%, transparent 55%);
-  animation: orb-drift-2 22s ease-in-out infinite;
-}
-
-.orb-3 {
-  width: 40vmax;
-  height: 40vmax;
-  top: 30%;
-  left: 30%;
-  background: radial-gradient(circle, color-mix(in srgb, var(--p-primary-color) 10%, transparent) 0%, transparent 55%);
-  animation: orb-drift-3 15s ease-in-out infinite;
-}
-
-@keyframes orb-drift-1 {
-  0%, 100% { transform: translate(0, 0) scale(1); }
-  33%       { transform: translate(-5%, 7%) scale(1.06); }
-  66%       { transform: translate(4%, -4%) scale(0.96); }
-}
-
-@keyframes orb-drift-2 {
-  0%, 100% { transform: translate(0, 0) scale(1); }
-  40%       { transform: translate(7%, -8%) scale(1.08); }
-  75%       { transform: translate(-3%, 5%) scale(0.94); }
-}
-
-@keyframes orb-drift-3 {
-  0%, 100% { transform: translate(0, 0) scale(1); }
-  50%       { transform: translate(-8%, 6%) scale(1.1); }
-}
-
-/* Dark mode: richer orbs since background is dark */
-:global(.app-dark) .orb-1 {
-  background: radial-gradient(circle, color-mix(in srgb, var(--p-primary-color) 32%, transparent) 0%, transparent 55%);
-}
-:global(.app-dark) .orb-2 {
-  background: radial-gradient(circle, color-mix(in srgb, var(--p-primary-color) 26%, transparent) 0%, transparent 55%);
-}
-:global(.app-dark) .orb-3 {
-  background: radial-gradient(circle, color-mix(in srgb, var(--p-primary-color) 20%, transparent) 0%, transparent 55%);
-}
-
 
 /* Entrance animations (PrimeVue AnimateOnScroll enterClass targets) */
 .anim-panel-in {
@@ -459,7 +423,6 @@ async function handlePasskeyLogin(preferCrossDevice = false) {
 }
 
 @media (prefers-reduced-motion: reduce) {
-  .login-bg-orb,
   .anim-panel-in,
   .anim-rise {
     animation: none;
@@ -527,6 +490,38 @@ async function handlePasskeyLogin(preferCrossDevice = false) {
   font-size: 1.375rem;
   font-weight: 700;
   letter-spacing: -0.02em;
+}
+
+.login-panel-tags {
+  position: absolute;
+  top: 0.875rem;
+  right: 0.875rem;
+  display: flex;
+  align-items: center;
+  justify-content: flex-end;
+  gap: 0.375rem;
+  flex-wrap: wrap;
+  max-width: calc(100% - 1.75rem);
+}
+
+.login-meta-tag {
+  font-size: 0.72rem;
+  font-weight: 700;
+  padding: 0.2rem 0.65rem;
+  border-radius: 100px;
+  letter-spacing: 0.04em;
+  background: transparent;
+}
+
+.login-meta-edition {
+  border: 1px solid color-mix(in srgb, var(--p-primary-color) 45%, transparent);
+  color: var(--p-primary-color);
+}
+
+.login-meta-version {
+  border: 1px solid color-mix(in srgb, var(--p-text-muted-color) 40%, transparent);
+  color: var(--p-text-muted-color);
+  font-weight: 600;
 }
 
 .login-subtitle {

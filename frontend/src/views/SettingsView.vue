@@ -263,6 +263,38 @@
           <section v-if="activeSection === 'jpilot'" class="grid">
             <div class="col-12 lg:col-8 flex flex-column gap-4">
               <div class="content-panel content-panel-padded">
+                <h2 class="section-title">Public portal</h2>
+                <p class="section-copy">
+                  Control what unauthenticated visitors see when they open your JPilot URL.
+                </p>
+
+                <div class="flex flex-column gap-4 mt-4">
+                  <div class="flex align-items-center justify-content-between gap-3 setting-row">
+                    <div>
+                      <div class="setting-label">Display home page</div>
+                      <div class="setting-hint">
+                        When enabled, visitors are sent to <code>/home</code>. When disabled, only the login page is shown.
+                      </div>
+                    </div>
+                    <ToggleSwitch
+                      v-model="jpilotPortalSettings.displayHomePage"
+                      :disabled="jpilotPortalSaving"
+                      @update:model-value="saveJpilotPortalSettingsAction"
+                    />
+                  </div>
+                </div>
+
+                <Message
+                  v-if="jpilotPortalMessage"
+                  class="mt-3"
+                  :severity="jpilotPortalMessageSeverity"
+                  :closable="false"
+                >
+                  {{ jpilotPortalMessage }}
+                </Message>
+              </div>
+
+              <div class="content-panel content-panel-padded">
                 <h2 class="section-title">Attachments</h2>
                 <p class="section-copy">Control what can be attached to JPilot chat messages.</p>
   
@@ -324,10 +356,100 @@
                   </div>
                 </div>
               </div>
+
+              <div class="content-panel content-panel-padded">
+                <h2 class="section-title">Agent orchestration</h2>
+                <p class="section-copy">
+                  Control how JPilot runs multi-step deployments: tool round limits, automatic continuation phases,
+                  and when to ask the user before long-running operator tasks.
+                </p>
+
+                <div class="flex flex-column gap-4 mt-4">
+                  <div class="flex align-items-center justify-content-between gap-3 setting-row">
+                    <div>
+                      <div class="setting-label">Prompt before long deployments</div>
+                      <div class="setting-hint">
+                        After several tool rounds, pause and ask the user to continue with a deployment checklist.
+                      </div>
+                    </div>
+                    <ToggleSwitch
+                      v-model="orchestrationSettings.promptBeforeLongTasks"
+                      :disabled="orchestrationSaving"
+                      @update:model-value="saveOrchestrationSettingsAction"
+                    />
+                  </div>
+
+                  <div class="flex flex-column gap-2 setting-row">
+                    <label for="longTaskToolThreshold" class="setting-label">Long-task threshold (tool rounds)</label>
+                    <InputNumber
+                      id="longTaskToolThreshold"
+                      v-model="orchestrationSettings.longTaskToolThreshold"
+                      :min="3"
+                      :max="40"
+                      :disabled="orchestrationSaving"
+                      class="max-select"
+                      @blur="saveOrchestrationSettingsAction"
+                    />
+                  </div>
+
+                  <div class="flex flex-column gap-2 setting-row">
+                    <label for="maxToolIterations" class="setting-label">Max tool rounds per phase</label>
+                    <InputNumber
+                      id="maxToolIterations"
+                      v-model="orchestrationSettings.maxToolIterations"
+                      :min="5"
+                      :max="60"
+                      :disabled="orchestrationSaving"
+                      class="max-select"
+                      @blur="saveOrchestrationSettingsAction"
+                    />
+                  </div>
+
+                  <div class="flex flex-column gap-2 setting-row">
+                    <label for="maxToolContinuationPhases" class="setting-label">Continuation phases</label>
+                    <InputNumber
+                      id="maxToolContinuationPhases"
+                      v-model="orchestrationSettings.maxToolContinuationPhases"
+                      :min="0"
+                      :max="8"
+                      :disabled="orchestrationSaving"
+                      class="max-select"
+                      @blur="saveOrchestrationSettingsAction"
+                    />
+                  </div>
+                </div>
+
+                <Message
+                  v-if="orchestrationMessage"
+                  class="mt-3"
+                  :severity="orchestrationMessageSeverity"
+                  :closable="false"
+                >
+                  {{ orchestrationMessage }}
+                </Message>
+              </div>
             </div>
   
             <div class="col-12 lg:col-4">
+              <div class="content-panel content-panel-padded info-panel mb-4">
+                <h3 class="info-title">Public portal</h3>
+                <ul class="info-list m-0 pl-3">
+                  <li>Enabled: <code>your-host/</code> opens the marketing home page at <code>/home</code>.</li>
+                  <li>Disabled: visitors only see <code>/login</code>; direct <code>/home</code> links redirect to login.</li>
+                  <li>Signed-in users always land on the dashboard at <code>/</code>.</li>
+                </ul>
+              </div>
+
               <div class="content-panel content-panel-padded info-panel">
+                <h3 class="info-title">Agent orchestration</h3>
+                <ul class="info-list m-0 pl-3">
+                  <li>Each phase allows up to the configured tool rounds (model ↔ tool loops).</li>
+                  <li>Continuation phases resume incomplete operator deployments automatically after approval.</li>
+                  <li>Users can also type <code>continue</code> or click the in-chat button to resume.</li>
+                </ul>
+              </div>
+
+              <div class="content-panel content-panel-padded info-panel mt-4">
                 <h3 class="info-title">Attachment tips</h3>
                 <ul class="info-list m-0 pl-3">
                   <li>Attach NetScaler configs for analysis or troubleshooting.</li>
@@ -577,6 +699,8 @@ import {
   saveSecuritySettings
 } from '../services/security'
 import api from '../services/api'
+import { getJpilotSettings, saveJpilotSettings } from '../services/portal'
+import { getCopilotPlatformSettings, saveCopilotPlatformSettings } from '../services/copilotPlatform'
 import { getStoredUser } from '../services/auth'
 import { fetchPasskeyStatus, passkeyErrorMessage, registerPasskey } from '../services/webauthn'
 
@@ -698,6 +822,10 @@ watch(() => route.query.section, applySectionFromQuery)
 const loadedSections = ref(new Set())
 
 async function ensureSectionLoaded(section) {
+  if (section === 'jpilot' && !loadedSections.value.has('jpilot')) {
+    await Promise.all([loadJpilotPortalSettings(), loadOrchestrationSettings()])
+    loadedSections.value.add('jpilot')
+  }
   if (section === 'mcp' && !loadedSections.value.has('mcp')) {
     await Promise.all([loadMcpConfig(), loadSmtpSettings()])
     loadedSections.value.add('mcp')
@@ -726,6 +854,96 @@ applySectionFromQuery()
 
 const maxAttachmentOptions = [1, 2, 3, 4, 5, 6, 7, 8, 9, 10]
 const copilotSettings = reactive(getCopilotSettings())
+
+const jpilotPortalSettings = reactive({
+  displayHomePage: true
+})
+const jpilotPortalSaving = ref(false)
+const jpilotPortalMessage = ref('')
+const jpilotPortalMessageSeverity = ref('info')
+
+const orchestrationSettings = reactive({
+  maxToolIterations: 20,
+  maxToolContinuationPhases: 3,
+  longTaskToolThreshold: 8,
+  promptBeforeLongTasks: true
+})
+const orchestrationSaving = ref(false)
+const orchestrationMessage = ref('')
+const orchestrationMessageSeverity = ref('info')
+
+async function loadJpilotPortalSettings() {
+  if (!isAdmin.value) return
+  try {
+    const data = await getJpilotSettings()
+    jpilotPortalSettings.displayHomePage = Boolean(data.displayHomePage)
+  } catch {
+    jpilotPortalSettings.displayHomePage = true
+  }
+}
+
+async function saveJpilotPortalSettingsAction() {
+  jpilotPortalSaving.value = true
+  jpilotPortalMessage.value = ''
+  try {
+    const data = await saveJpilotSettings({
+      displayHomePage: jpilotPortalSettings.displayHomePage
+    })
+    jpilotPortalSettings.displayHomePage = Boolean(data.displayHomePage)
+    jpilotPortalMessage.value = 'Public portal settings saved.'
+    jpilotPortalMessageSeverity.value = 'success'
+  } catch (error) {
+    jpilotPortalMessage.value =
+      error.response?.data?.detail || error.message || 'Failed to save public portal settings.'
+    jpilotPortalMessageSeverity.value = 'error'
+    await loadJpilotPortalSettings()
+  } finally {
+    jpilotPortalSaving.value = false
+  }
+}
+
+async function loadOrchestrationSettings() {
+  if (!isAdmin.value) return
+  try {
+    const data = await getCopilotPlatformSettings()
+    orchestrationSettings.maxToolIterations = Number(data.maxToolIterations ?? 20)
+    orchestrationSettings.maxToolContinuationPhases = Number(data.maxToolContinuationPhases ?? 3)
+    orchestrationSettings.longTaskToolThreshold = Number(data.longTaskToolThreshold ?? 8)
+    orchestrationSettings.promptBeforeLongTasks = Boolean(data.promptBeforeLongTasks ?? true)
+  } catch {
+    orchestrationSettings.maxToolIterations = 20
+    orchestrationSettings.maxToolContinuationPhases = 3
+    orchestrationSettings.longTaskToolThreshold = 8
+    orchestrationSettings.promptBeforeLongTasks = true
+  }
+}
+
+async function saveOrchestrationSettingsAction() {
+  if (!isAdmin.value) return
+  orchestrationSaving.value = true
+  orchestrationMessage.value = ''
+  try {
+    const data = await saveCopilotPlatformSettings({
+      maxToolIterations: orchestrationSettings.maxToolIterations,
+      maxToolContinuationPhases: orchestrationSettings.maxToolContinuationPhases,
+      longTaskToolThreshold: orchestrationSettings.longTaskToolThreshold,
+      promptBeforeLongTasks: orchestrationSettings.promptBeforeLongTasks
+    })
+    orchestrationSettings.maxToolIterations = Number(data.maxToolIterations ?? 20)
+    orchestrationSettings.maxToolContinuationPhases = Number(data.maxToolContinuationPhases ?? 3)
+    orchestrationSettings.longTaskToolThreshold = Number(data.longTaskToolThreshold ?? 8)
+    orchestrationSettings.promptBeforeLongTasks = Boolean(data.promptBeforeLongTasks ?? true)
+    orchestrationMessage.value = 'Agent orchestration settings saved.'
+    orchestrationMessageSeverity.value = 'success'
+  } catch (error) {
+    orchestrationMessage.value =
+      error.response?.data?.detail || error.message || 'Failed to save agent orchestration settings.'
+    orchestrationMessageSeverity.value = 'error'
+    await loadOrchestrationSettings()
+  } finally {
+    orchestrationSaving.value = false
+  }
+}
 
 const mcpLoading = ref(true)
 const mcpSaving = ref(false)

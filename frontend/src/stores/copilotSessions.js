@@ -16,7 +16,8 @@ function blankSession() {
     providerId: '',
     webSearch: true,
     pendingMessage: null,
-    pendingAttachmentsSnapshot: []
+    pendingAttachmentsSnapshot: [],
+    pendingRoleSwitch: null
   }
 }
 
@@ -84,6 +85,7 @@ export function clearSession(id) {
   session.input = ''
   session.pendingMessage = null
   session.pendingAttachmentsSnapshot = []
+  session.pendingRoleSwitch = null
   // Intentionally keep connectedAppliance, applianceChoice, and providerId.
 }
 

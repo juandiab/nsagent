@@ -3,8 +3,13 @@
 const KEY = 'jpilot_theme'
 const DARK_CLASS = 'app-dark'
 
+function systemTheme() {
+  if (typeof window === 'undefined' || !window.matchMedia) return 'dark'
+  return window.matchMedia('(prefers-color-scheme: dark)').matches ? 'dark' : 'light'
+}
+
 export function getTheme() {
-  return localStorage.getItem(KEY) || 'dark'
+  return localStorage.getItem(KEY) || systemTheme()
 }
 
 export function applyTheme(theme) {

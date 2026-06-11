@@ -59,7 +59,18 @@ export function inferChatRoleFromMessage(text, opts = {}) {
   if (lowered.length < 4) return null
 
   if (isFormSubmission(text)) {
-    return { role: 'operator', reason: 'form submissions are handled by Operator', confidence: 20 }
+    const stripped = (text || '').trim()
+    const currentRole = normalizeRoleId(opts.currentRole)
+    if (stripped.startsWith('Planning inputs for:')) {
+      if (currentRole !== 'architect') {
+        return { role: 'architect', reason: 'planning forms are handled by Architect', confidence: 20 }
+      }
+      return null
+    }
+    if (currentRole !== 'operator') {
+      return { role: 'operator', reason: 'configuration inputs are applied by Operator', confidence: 20 }
+    }
+    return null
   }
 
   if (requestsDesignImplementation(text, attachmentNames)) {
@@ -270,5 +281,45 @@ export function buildRoleSwitchNotice(toRoleId, reason) {
     label: role.label,
     icon: role.icon,
     reason: detail
+  }
+}
+
+/**
+ * Build a user-facing prompt before switching JPilot roles.
+ *
+ * @param {string} suggestedRoleId
+ * @param {string} reason
+ * @param {string} currentRoleId
+ */
+export function buildRoleSwitchPrompt(suggestedRoleId, reason, currentRoleId) {
+  const suggested = getRoleById(suggestedRoleId)
+  const current = getRoleById(currentRoleId)
+  const detail = reason || ROLE_REASONS[normalizeRoleId(suggestedRoleId)]
+  return {
+    suggestedRole: normalizeRoleId(suggestedRoleId),
+    suggestedLabel: suggested.label,
+    suggestedIcon: suggested.icon,
+    currentRole: normalizeRoleId(currentRoleId),
+    currentLabel: current.label,
+    reason: detail,
+    message:
+      `This request looks like a job for ${suggested.label} (${detail}), but you're in ${current.label}. ` +
+      'Would you like to switch roles, or stay here to finish your current design or thread?'
+  }
+}
+
+/**
+ * Returns a role-switch prompt payload when inference suggests a different role.
+ *
+ * @param {string} text
+ * @param {{ attachmentNames?: string[], currentRole?: string }} [opts]
+ * @returns {{ inference: object, prompt: object } | null}
+ */
+export function getRoleSwitchPrompt(text, opts = {}) {
+  const inference = inferChatRoleFromMessage(text, opts)
+  if (!inference) return null
+  return {
+    inference,
+    prompt: buildRoleSwitchPrompt(inference.role, inference.reason, opts.currentRole)
   }
 }

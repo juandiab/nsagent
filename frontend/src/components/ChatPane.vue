@@ -189,8 +189,7 @@
                 <i :class="msg.roleSwitchNotice.icon" aria-hidden="true" />
                 <span>
                   Switched to <strong>{{ msg.roleSwitchNotice.label }}</strong>
-                  to handle this request — {{ msg.roleSwitchNotice.reason }}.
-                  You can change role anytime in chat settings.
+                  — you chose to handle this request there.
                 </span>
               </div>
 
@@ -260,6 +259,28 @@
                     :submitting="isGenerating && submittingFormIndex === index"
                     @submit="(values) => submitConfigForm(values, index)"
                   />
+                  <ChatRoleSwitchPrompt
+                    v-if="msg.roleSwitchPrompt"
+                    :prompt="msg.roleSwitchPrompt"
+                    :disabled="isGenerating"
+                    @stay="stayInCurrentRole"
+                    @switch="acceptRoleSwitch"
+                  />
+                  <ChatDeploymentSubtasks
+                    :subtasks="msg.deploymentSubtasks || msg.deploymentContinuation?.subtasks"
+                  />
+                  <div
+                    v-if="msg.deploymentContinuation?.required && !isGenerating"
+                    class="deployment-continue-actions"
+                  >
+                    <Button
+                      label="Continue deployment"
+                      icon="pi pi-play"
+                      size="small"
+                      :disabled="isGenerating"
+                      @click="resumeDeployment"
+                    />
+                  </div>
                   <ChatToolTrace v-if="msg.toolCalls?.length" :tools="msg.toolCalls" />
                   <p class="beta-message-time">
                     {{ formatMessageTime(msg) }}
@@ -297,6 +318,7 @@
                     <span class="generation-label">{{ generationStatus.label }}</span>
                     <span class="generation-meta">{{ generationStatusMeta(generationStatus) }}</span>
                   </div>
+                  <ChatDeploymentSubtasks v-if="liveDeploymentSubtasks.length" :subtasks="liveDeploymentSubtasks" />
                 </div>
               </div>
             </div>
@@ -308,7 +330,7 @@
             :headless="session.messages.length > 0"
             :active-role="session.role"
             :appliance-vendor="commandMenuVendor"
-            :disabled="isGenerating || !ready"
+            :disabled="chatInputDisabled"
             @pick="onCommandPick"
           />
 
@@ -344,7 +366,7 @@
             type="text"
             class="beta-input flex-1 w-full"
             :placeholder="rolePlaceholder"
-            :disabled="isGenerating || !ready"
+            :disabled="chatInputDisabled"
             @keydown.enter="sendMessage()"
           />
           <div class="beta-footer-actions">
@@ -354,7 +376,7 @@
               severity="secondary"
               outlined
               class="beta-footer-browse"
-              :disabled="isGenerating || !ready"
+              :disabled="chatInputDisabled"
               @click="openCommandMenu"
             />
             <Button
@@ -363,7 +385,7 @@
               severity="secondary"
               outlined
               class="beta-footer-attach"
-              :disabled="isGenerating || !ready"
+              :disabled="chatInputDisabled"
               @click="toggleAttachMenu"
             />
             <Button
@@ -524,13 +546,13 @@
             type="text"
             class="glass-input-field"
             :placeholder="rolePlaceholder"
-            :disabled="isGenerating || !ready"
+            :disabled="chatInputDisabled"
             @keydown.enter.prevent="sendMessage()"
           />
           <button
             class="glass-attach"
             type="button"
-            :disabled="isGenerating || !ready"
+            :disabled="chatInputDisabled"
             @click="toggleAttachMenu"
           >
             <i class="pi pi-paperclip" />
@@ -584,8 +606,7 @@
             <i :class="msg.roleSwitchNotice.icon" aria-hidden="true" />
             <span>
               Switched to <strong>{{ msg.roleSwitchNotice.label }}</strong>
-              to handle this request — {{ msg.roleSwitchNotice.reason }}.
-              You can change role anytime in the toolbar.
+              — you chose to handle this request there.
             </span>
           </div>
 
@@ -657,6 +678,28 @@
               :submitting="isGenerating && submittingFormIndex === index"
               @submit="(values) => submitConfigForm(values, index)"
             />
+            <ChatRoleSwitchPrompt
+              v-if="msg.roleSwitchPrompt"
+              :prompt="msg.roleSwitchPrompt"
+              :disabled="isGenerating"
+              @stay="stayInCurrentRole"
+              @switch="acceptRoleSwitch"
+            />
+            <ChatDeploymentSubtasks
+              :subtasks="msg.deploymentSubtasks || msg.deploymentContinuation?.subtasks"
+            />
+            <div
+              v-if="msg.deploymentContinuation?.required && !isGenerating"
+              class="deployment-continue-actions"
+            >
+              <Button
+                label="Continue deployment"
+                icon="pi pi-play"
+                size="small"
+                :disabled="isGenerating"
+                @click="resumeDeployment"
+              />
+            </div>
             <ChatToolTrace v-if="msg.toolCalls?.length" :tools="msg.toolCalls" />
           </div>
         </div>
@@ -669,6 +712,7 @@
               <span class="generation-label">{{ generationStatus.label }}</span>
               <span class="generation-meta">{{ generationStatusMeta(generationStatus) }}</span>
             </div>
+            <ChatDeploymentSubtasks v-if="liveDeploymentSubtasks.length" :subtasks="liveDeploymentSubtasks" />
             <Button
               label="Stop"
               icon="pi pi-stop"
@@ -746,6 +790,8 @@ import ChatConfigForm from './ChatConfigForm.vue'
 import AskJpilotCommandMenu from './AskJpilotCommandMenu.vue'
 import ChatMarkdown from './ChatMarkdown.vue'
 import ChatToolTrace from './ChatToolTrace.vue'
+import ChatDeploymentSubtasks from './ChatDeploymentSubtasks.vue'
+import { isDeploymentContinueMessage, messageNeedsDeploymentContinuation } from '../utils/deploymentContinuation'
 import { streamCopilotChat } from '../services/copilotStream'
 import { formatCopilotError, isChatAbortError, isProviderQuotaError } from '../utils/chatErrors'
 import { generationStatusMeta } from '../utils/generationStatus'
@@ -791,7 +837,8 @@ import {
 } from '../config/jpilotApplianceAccess'
 import { isNetScalerVendor } from '../config/applianceVendors'
 import { resolveCommandFilterVendor } from '../config/jpilotRecommendedActions'
-import { buildRoleSwitchNotice, inferChatRoleFromMessage } from '../config/jpilotRoleInference'
+import ChatRoleSwitchPrompt from './ChatRoleSwitchPrompt.vue'
+import { buildRoleSwitchNotice, getRoleSwitchPrompt } from '../config/jpilotRoleInference'
 
 const props = defineProps({
   sessionId: { type: String, required: true },
@@ -817,6 +864,8 @@ const session = getSession(props.sessionId, props.initialRole)
 // Transient UI state — fine to reset on remount.
 const connecting = ref(false)
 const isGenerating = computed(() => isSessionLoading(props.sessionId))
+const hasPendingRoleSwitch = computed(() => Boolean(session.pendingRoleSwitch))
+const chatInputDisabled = computed(() => isGenerating.value || connecting.value || !ready.value || hasPendingRoleSwitch.value)
 
 function markPaneFocused() {
   setFocusedChatSession(props.sessionId)
@@ -837,6 +886,7 @@ const generationStatus = ref({
   tokensPerSec: null,
   round: 0
 })
+const liveDeploymentSubtasks = ref([])
 let generationStartedAt = 0
 let generationElapsedTimer = null
 let lastGenerationStats = null
@@ -849,6 +899,7 @@ function resetGenerationStatus() {
     tokensPerSec: null,
     round: 0
   }
+  liveDeploymentSubtasks.value = []
   lastGenerationStats = null
 }
 
@@ -871,6 +922,9 @@ function stopGenerationTimer() {
 }
 
 function onGenerationEvent(event) {
+  if (event.type === 'subtasks') {
+    liveDeploymentSubtasks.value = event.subtasks || []
+  }
   if (event.type === 'llm_stats') {
     lastGenerationStats = {
       tokensPerSec: event.tokensPerSec,
@@ -1222,20 +1276,50 @@ function applyRoleForCommand(cmd) {
   }
 }
 
-function maybeSwitchRoleForMessage(content, attachmentNames, options = {}) {
-  if (options.skipRoleInference) return
-  const inference = inferChatRoleFromMessage(content, {
-    attachmentNames,
-    currentRole: session.role
-  })
-  if (!inference) return
-  session.role = normalizeRoleId(inference.role)
-  session.messages.push({
-    role: 'assistant',
-    content: '',
-    roleSwitchNotice: buildRoleSwitchNotice(inference.role, inference.reason),
-    createdAt: Date.now()
-  })
+function resolvePendingRoleSwitchPrompt() {
+  return [...session.messages].reverse().find((msg) => msg.roleSwitchPrompt && !msg.roleSwitchPrompt.resolved)
+}
+
+async function executePendingRoleSwitchChat(pending) {
+  if (roleNeedsAppliance.value && !isApplianceConnected()) {
+    session.pendingMessage = pending.content
+    session.pendingAttachmentsSnapshot = pending.attachments
+    await showAppliancePicker()
+    return
+  }
+  await runChat(pending.content, pending.attachments, { skipRoleInference: true })
+}
+
+async function stayInCurrentRole() {
+  if (!session.pendingRoleSwitch || isGenerating.value) return
+  const pending = session.pendingRoleSwitch
+  const promptMsg = resolvePendingRoleSwitchPrompt()
+  if (promptMsg?.roleSwitchPrompt) {
+    promptMsg.roleSwitchPrompt.resolved = true
+  }
+  session.pendingRoleSwitch = null
+  await executePendingRoleSwitchChat(pending)
+}
+
+async function acceptRoleSwitch() {
+  if (!session.pendingRoleSwitch || isGenerating.value) return
+  const pending = session.pendingRoleSwitch
+  const promptMsg = resolvePendingRoleSwitchPrompt()
+  if (promptMsg?.roleSwitchPrompt) {
+    promptMsg.roleSwitchPrompt.resolved = true
+    const newRole = promptMsg.roleSwitchPrompt.suggestedRole
+    if (newRole && newRole !== session.role) {
+      session.role = newRole
+      session.messages.push({
+        role: 'assistant',
+        content: '',
+        roleSwitchNotice: buildRoleSwitchNotice(newRole, promptMsg.roleSwitchPrompt.reason),
+        createdAt: Date.now()
+      })
+    }
+  }
+  session.pendingRoleSwitch = null
+  await executePendingRoleSwitchChat(pending)
 }
 
 function onCommandPick(cmd) {
@@ -1389,7 +1473,9 @@ async function connectAppliance(appliance) {
     const queuedAttachments = session.pendingAttachmentsSnapshot
     session.pendingMessage = null
     session.pendingAttachmentsSnapshot = []
-    if (queued || queuedAttachments.length) await runChat(queued, queuedAttachments)
+    if (queued || queuedAttachments.length) {
+      await runChat(queued, queuedAttachments, { skipRoleInference: true })
+    }
   } catch (error) {
     session.connectedAppliance = ''
     session.messages.push({
@@ -1402,7 +1488,7 @@ async function connectAppliance(appliance) {
   }
 }
 
-async function runChat(content, attachments) {
+async function runChat(content, attachments, runOptions = {}) {
   stopChatRun(props.sessionId)
   const controller = new AbortController()
   beginChatRun(props.sessionId, controller)
@@ -1432,7 +1518,9 @@ async function runChat(content, attachments) {
         role: session.role || DEFAULT_JPILOT_ROLE,
         applianceName: chatApplianceName() || undefined,
         providerId: session.providerId || undefined,
-        webSearch: session.webSearch !== false
+        webSearch: session.webSearch !== false,
+        deploymentContinuation: Boolean(runOptions.deploymentContinuation),
+        longTaskApproved: Boolean(runOptions.longTaskApproved)
       },
       {
         signal: controller.signal,
@@ -1447,7 +1535,9 @@ async function runChat(content, attachments) {
       toolCalls: data.toolCalls,
       webSources: extractWebSources(data.toolCalls),
       inputForm: data.inputForm || parsed.inputForm,
-      generationStats: lastGenerationStats
+      generationStats: lastGenerationStats,
+      deploymentContinuation: data.deploymentContinuation || null,
+      deploymentSubtasks: data.deploymentContinuation?.subtasks || liveDeploymentSubtasks.value
     })
   } catch (error) {
     if (isChatAbortError(error)) {
@@ -1516,6 +1606,22 @@ async function submitConfigForm(values, messageIndex) {
   }
 }
 
+async function resumeDeployment() {
+  if (isGenerating.value) return
+  const lastAssistant = [...session.messages].reverse().find((msg) => msg.role === 'assistant')
+  if (lastAssistant?.deploymentContinuation) {
+    lastAssistant.deploymentContinuation = {
+      ...lastAssistant.deploymentContinuation,
+      required: false
+    }
+  }
+  await sendMessage('continue', null, {
+    deploymentContinuation: true,
+    longTaskApproved: true,
+    skipRoleInference: true
+  })
+}
+
 async function sendMessage(text, externalAttachments = null, options = {}) {
   const content = (text || session.input).trim()
   const sourceAttachments = externalAttachments ?? pendingAttachments.value
@@ -1527,12 +1633,25 @@ async function sendMessage(text, externalAttachments = null, options = {}) {
   }))
   if ((!content && !attachments.length) || isGenerating.value) return
 
-  maybeSwitchRoleForMessage(
-    content,
-    attachments.map((item) => item.name),
-    options
-  )
+  if (session.pendingRoleSwitch && !options.skipRoleInference) {
+    toast.add({
+      severity: 'warn',
+      summary: 'Choose a role first',
+      detail: 'Stay in your current role or switch before sending another message.',
+      life: 3500
+    })
+    return
+  }
+
   if (!ready.value) return
+
+  const attachmentNames = attachments.map((item) => item.name)
+  const roleSwitch = options.skipRoleInference
+    ? null
+    : getRoleSwitchPrompt(content, {
+        attachmentNames,
+        currentRole: session.role
+      })
 
   session.messages.push({
     role: 'user',
@@ -1546,13 +1665,44 @@ async function sendMessage(text, externalAttachments = null, options = {}) {
   }
   await scrollToBottom()
 
+  if (roleSwitch) {
+    session.messages.push({
+      role: 'assistant',
+      content: roleSwitch.prompt.message,
+      roleSwitchPrompt: { ...roleSwitch.prompt, resolved: false },
+      createdAt: Date.now()
+    })
+    session.pendingRoleSwitch = {
+      content,
+      attachments
+    }
+    await scrollToBottom()
+    return
+  }
+
+  const lastAssistant = [...session.messages].reverse().find((msg) => msg.role === 'assistant')
+  const runOptions = { ...options }
+  if (
+    !runOptions.deploymentContinuation &&
+    lastAssistant &&
+    messageNeedsDeploymentContinuation(lastAssistant) &&
+    isDeploymentContinueMessage(content)
+  ) {
+    runOptions.deploymentContinuation = true
+    runOptions.longTaskApproved = true
+    lastAssistant.deploymentContinuation = {
+      ...lastAssistant.deploymentContinuation,
+      required: false
+    }
+  }
+
   if (roleNeedsAppliance.value && !isApplianceConnected()) {
     session.pendingMessage = content
     session.pendingAttachmentsSnapshot = attachments
     await showAppliancePicker()
     return
   }
-  await runChat(content, attachments)
+  await runChat(content, attachments, runOptions)
 }
 
 watch(
@@ -2596,5 +2746,9 @@ onUnmounted(() => {
   max-width: 42rem;
   margin-left: auto;
   margin-right: auto;
+}
+
+.deployment-continue-actions {
+  margin-top: 0.75rem;
 }
 </style>

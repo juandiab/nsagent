@@ -8,7 +8,7 @@ Repository: [github.com/Nexxus-Tech-SAS/jpilot](https://github.com/Nexxus-Tech-S
 
 > **Disclaimer:** JPilot is an independent project and is not affiliated with, endorsed by, or sponsored by Citrix Systems, Inc. NetScaler is a trademark of Citrix Systems, Inc.
 
-**Current release:** `v0.47` — command-first Install section styled after the leading CLI landing pages (one hero command + compact per-platform lines).
+**Current release:** `v0.48` — public marketing home page, agent orchestration for long deployments, and role-switch confirmation before leaving Architect.
 
 Bump the root [`VERSION`](VERSION) file when tagging a release so in-app update checks match GitHub.
 
@@ -66,6 +66,15 @@ curl -fsSL https://install.nexxus-tech.com/jpilot | bash
 - **NetScaler SDX (SSH)** — Operator and Analyst for SVM platform and VPX lifecycle with `search_sdx_cli_reference` memory gate (beta).
 - **F5 BIG-IP (SSH / TMSH)** — Operator, Analyst, and Architect (official F5 docs only); `f5_*` MCP tools and `search_f5_tmsh_reference` / `search_f5_documentation` (beta).
 - **Nexxus licensing** — Settings → **License**: enter a license code, import an offline `.lic` file, or sync with the Nexxus licensing API; installation fingerprint binding; encrypted payload validation; daily background sync and expiry enforcement; **activation gate** redirects unlicensed or expired installs to Settings → License before using the app.
+
+## What's new in v0.48
+
+| Area | Highlights |
+|------|------------|
+| **Public home page** | Optional marketing landing at `/home` with hero, features, solutions, and install CTA; admin toggle under Settings → JPilot → Public portal; unauthenticated visitors can be sent to `/home` or login-only. |
+| **Agent orchestration** | Multi-phase tool loops with continuation when deployments hit limits; live **deployment progress** checklist in chat; pause to ask **“Would you like to continue?”** on long Operator tasks; configurable limits under Settings → JPilot → Agent orchestration. |
+| **Role switch confirmation** | JPilot no longer auto-switches Architect ↔ Operator ↔ Analyst — it asks first so you can finish a design document before implementing or troubleshooting. |
+| **Operator efficiency** | Operator prompt prefers one `netscaler_run_cli_commands` batch after confirmation instead of burning tool rounds one command at a time. |
 
 ## What's new in v0.47
 

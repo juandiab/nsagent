@@ -16,6 +16,7 @@ from app.services.password_reset_service import ensure_password_reset_indexes
 from app.services.license_scheduler import periodic_license_sync, run_startup_license_sync
 from app.services.license_service import ensure_license_collection
 from app.services.user_service import ensure_default_admin
+from app.services.jpilot_settings_service import ensure_jpilot_settings
 from app.services.security_settings_service import ensure_security_settings
 from app.services.slack_settings_service import ensure_slack_settings
 from app.services.webauthn_service import ensure_webauthn_indexes
@@ -27,6 +28,7 @@ async def lifespan(app: FastAPI):
     db = get_database()
     await ensure_default_admin(db)
     await ensure_security_settings(db)
+    await ensure_jpilot_settings(db)
     await ensure_license_collection(db)
     await ensure_webauthn_indexes(db)
     await ensure_auth_lockout_indexes(db)
@@ -75,4 +77,4 @@ app.include_router(appliance_ops.router, dependencies=protected)
 app.include_router(appliances.router, dependencies=protected)
 app.include_router(ssl_csr.router, dependencies=protected)
 app.include_router(ai_providers.router, dependencies=protected)
-app.include_router(system.router, dependencies=protected)
+app.include_router(system.router)

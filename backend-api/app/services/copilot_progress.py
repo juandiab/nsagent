@@ -101,3 +101,12 @@ class QueueChatProgressReporter:
                 "tokensPerSec": self._last_tokens_per_sec,
             }
         )
+
+    async def subtasks_updated(self, subtasks: list[dict[str, str]]) -> None:
+        await self.emit(
+            {
+                "type": "subtasks",
+                "subtasks": subtasks,
+                "elapsedMs": self._elapsed_ms(),
+            }
+        )

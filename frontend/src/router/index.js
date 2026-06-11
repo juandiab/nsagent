@@ -6,6 +6,7 @@ import {
   isLicenseActivationRoute,
   licenseActivationRequired
 } from '../services/licenseGate'
+import { getPortalConfig } from '../services/portal'
 import CopilotView from '../views/CopilotView.vue'
 import CopilotBetaView from '../views/CopilotBetaView.vue'
 import DashboardView from '../views/DashboardView.vue'
@@ -15,10 +16,17 @@ import AccountRecoveryView from '../views/AccountRecoveryView.vue'
 import OtherAppliancesView from '../views/OtherAppliancesView.vue'
 import SettingsView from '../views/SettingsView.vue'
 import PricingView from '../views/PricingView.vue'
+import HomeView from '../views/HomeView.vue'
 
 const router = createRouter({
   history: createWebHistory(),
   routes: [
+    {
+      path: '/home',
+      name: 'home',
+      component: HomeView,
+      meta: { public: true, allowAuthenticated: true }
+    },
     {
       path: '/login',
       name: 'login',
@@ -69,7 +77,17 @@ router.beforeEach(async (to) => {
   const requiresAuth = to.matched.some((record) => record.meta.requiresAuth)
   const requiresAdmin = to.matched.some((record) => record.meta.requiresAdmin)
 
-  if (to.meta.public && authenticated) {
+  if (!authenticated && (to.path === '/' || to.path === '/home')) {
+    const portalConfig = await getPortalConfig()
+    if (to.path === '/' && portalConfig.displayHomePage) {
+      return { path: '/home' }
+    }
+    if (to.path === '/home' && !portalConfig.displayHomePage) {
+      return { path: '/login' }
+    }
+  }
+
+  if (to.meta.public && authenticated && !to.meta.allowAuthenticated) {
     return { path: '/' }
   }
 
