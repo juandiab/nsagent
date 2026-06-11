@@ -4,8 +4,15 @@ from __future__ import annotations
 
 import re
 
-from app.services.copilot_form import parse_input_form
+from app.services.copilot_form import is_form_submission, parse_input_form
 from app.services.copilot_roles import JPilotRole, normalize_role
+
+ARCHITECT_SEARCH_TOOL_NAMES = frozenset(
+    {
+        "search_jpilot_architect_resources",
+        "search_f5_documentation",
+    }
+)
 
 _BAD_DISCOVERY_RE = re.compile(
     r"(✅|❌|still missing|discovery checklist|let me ask turn|"
@@ -29,6 +36,33 @@ _DESIGN_NOW_PHRASES = (
     "ready to generate",
     "let's generate",
     "lets generate",
+)
+
+_DELIVERABLE_MARKERS = (
+    "<!-- jpilot-design-document -->",
+    "<!-- jpilot-change-control-document -->",
+)
+
+_REVISION_PHRASES = (
+    "fill in the tbd",
+    "fill the tbd",
+    "fill in tbd",
+    "include the tbd",
+    "include tbd",
+    "ask me for the tbd",
+    "ask me for tbd",
+    "update the design",
+    "revise the design",
+    "edit the design",
+    "update the document",
+    "revise the document",
+    "edit the document",
+    "update design document",
+    "revise design document",
+    "something missing",
+    "missing from the design",
+    "fill in missing",
+    "complete the tbd",
 )
 
 _CHANGE_CONTROL_NOW_PHRASES = (
@@ -68,6 +102,25 @@ def user_wants_change_control_now(user_message: str) -> bool:
 
 def user_wants_deliverable_now(user_message: str) -> bool:
     return user_wants_design_now(user_message) or user_wants_change_control_now(user_message)
+
+
+def conversation_has_deliverable(conversation_text: str) -> bool:
+    text = conversation_text or ""
+    return any(marker in text for marker in _DELIVERABLE_MARKERS)
+
+
+def user_wants_deliverable_revision(user_message: str) -> bool:
+    text = (user_message or "").strip()
+    if not text or is_form_submission(text):
+        return False
+    lowered = text.lower()
+    return any(phrase in lowered for phrase in _REVISION_PHRASES)
+
+
+JPILOT_FORM_NOT_A_TOOL_HINT = (
+    "jpilot-form is NOT an MCP tool. Never call jpilot-form, inputForm, or similar as tool_calls. "
+    "Embed exactly one ```jpilot-form``` JSON fence in your assistant markdown reply instead."
+)
 
 
 def extract_planning_intent(*texts: str) -> str | None:
@@ -112,6 +165,37 @@ def sanitize_architect_reply(content: str) -> str:
     return "\n".join(lines).strip()
 
 
+def _revision_form_nudge() -> str:
+    return (
+        "A design or change-control deliverable already exists in this conversation. "
+        "The user wants to fill in **TBD** fields or revise the document. "
+        f"{JPILOT_FORM_NOT_A_TOOL_HINT} "
+        "Do NOT call search_* or other tools. "
+        "Review the latest deliverable, identify fields still marked TBD (prioritize network/VLAN/IPs, "
+        "licensing, firmware build, VIP address, and HA NSIPs), then output a short intro (≤2 sentences) "
+        "and exactly one ```jpilot-form``` with up to 6 fields for those TBD values. "
+        'Use submitLabel "Update design". No prose after the closing fence.'
+    )
+
+
+def _revision_apply_nudge(*, planning_intent: str | None) -> str:
+    marker = (
+        "<!-- jpilot-change-control-document -->"
+        if planning_intent == "change_control"
+        else "<!-- jpilot-design-document -->"
+    )
+    doc_label = "Change control record" if planning_intent == "change_control" else "Design document"
+    return (
+        "The user submitted values to update an existing deliverable. "
+        f"{JPILOT_FORM_NOT_A_TOOL_HINT} "
+        "Do NOT call any tools. "
+        f"Re-output the COMPLETE revised {doc_label} in one markdown reply: first line {marker}, "
+        "apply the new values everywhere relevant, keep remaining unknowns as TBD, "
+        "preserve structure/tables, and keep **Handoff for Operator** if it was present. "
+        "Do not ask more questions."
+    )
+
+
 def _design_now_nudge(*, doc_tool: str, planning_intent: str | None, vendor_id: str) -> str:
     if planning_intent == "change_control":
         outline_hint = (
@@ -145,6 +229,139 @@ def _design_now_nudge(*, doc_tool: str, planning_intent: str | None, vendor_id: 
     )
 
 
+def count_planning_form_submissions(text: str) -> int:
+    return len(re.findall(r"planning inputs for:", text or "", re.IGNORECASE))
+
+
+def architect_discovery_ready_for_deliverable(
+    conversation_text: str,
+    planning_intent: str | None,
+) -> bool:
+    """Heuristic: enough discovery forms collected to write the deliverable."""
+    count = count_planning_form_submissions(conversation_text)
+    if planning_intent == "new_functionality":
+        return count >= 5
+    if planning_intent == "change_control":
+        return count >= 8
+    if planning_intent == "new_deployment":
+        return count >= 7
+    return count >= 6
+
+
+def _deliverable_ready_nudge(*, planning_intent: str | None) -> str:
+    if planning_intent == "change_control":
+        marker = "<!-- jpilot-change-control-document -->"
+        label = "Change control record"
+    else:
+        marker = "<!-- jpilot-design-document -->"
+        label = (
+            "Functional change design"
+            if planning_intent == "new_functionality"
+            else "Design document"
+        )
+    return (
+        f"Discovery is sufficient for this request. {JPILOT_FORM_NOT_A_TOOL_HINT} "
+        "Do NOT call any tools — use conversation history only. "
+        f"Output the complete {label} in one markdown reply. "
+        f"First line: {marker}. Include configuration tables and phased implementation steps. "
+        "Mark unknowns **TBD**. End with **Handoff for Operator**. Do not ask more questions."
+    )
+
+
+def build_discovery_form_submit_nudge(
+    user_message: str,
+    *,
+    conversation_text: str = "",
+) -> str | None:
+    """Proactive nudge after a planning form submit — next jpilot-form, no search tools."""
+    if not is_form_submission(user_message):
+        return None
+    if conversation_has_deliverable(conversation_text):
+        return None
+    if user_wants_deliverable_now(user_message):
+        return None
+    planning_intent = extract_planning_intent(conversation_text, user_message)
+    if architect_discovery_ready_for_deliverable(conversation_text, planning_intent):
+        return _deliverable_ready_nudge(planning_intent=planning_intent)
+
+    intent_hint = ""
+    if planning_intent == "change_control":
+        intent_hint = " Next topics: change classification, window, rollback, validation — per change-control branch."
+    elif planning_intent == "new_functionality":
+        intent_hint = " Next topics: delta/impact, dependencies, validation — not full greenfield topology."
+    elif planning_intent == "new_deployment":
+        intent_hint = (
+            " Next topics still needed may include: authentication, Citrix Gateway/StoreFront integration, "
+            "SSL/certificates, ADM/monitoring, backups, constraints — skip any already captured in chat."
+        )
+    return (
+        "The user submitted a planning discovery form. "
+        f"{JPILOT_FORM_NOT_A_TOOL_HINT} "
+        "Do NOT call search_jpilot_architect_resources, search_* documentation tools, or any other tools. "
+        "Acknowledge their answers in 1–2 sentences, then output exactly one ```jpilot-form``` for the "
+        f"**next** unknown discovery topic only.{intent_hint} "
+        'Use submitLabel "Continue". No prose after the closing fence.'
+    )
+
+
+def block_architect_tool_during_discovery(
+    tool_name: str,
+    *,
+    role: str | None,
+    user_message: str,
+    tool_traces: list | None = None,
+    conversation_text: str = "",
+) -> str | None:
+    """Block all MCP tools during Architect discovery; allow limited search when generating deliverable."""
+    if normalize_role(role) != JPilotRole.ARCHITECT:
+        return None
+
+    traces = tool_traces or []
+    search_count = sum(1 for trace in traces if trace.name in ARCHITECT_SEARCH_TOOL_NAMES)
+
+    if user_wants_deliverable_now(user_message):
+        if tool_name in ARCHITECT_SEARCH_TOOL_NAMES and search_count >= 3:
+            return (
+                "BLOCKED: You already searched architect resources enough times. "
+                "Write the full deliverable now using conversation history and prior search results. "
+                "Do NOT call more search tools."
+            )
+        return None
+
+    if architect_discovery_ready_for_deliverable(
+        conversation_text,
+        extract_planning_intent(conversation_text, user_message),
+    ):
+        return (
+            f"BLOCKED: Discovery is complete — do not call `{tool_name}` or any other tool. "
+            "Write the full deliverable in markdown now (see system instructions)."
+        )
+
+    return (
+        f"BLOCKED: Architect discovery uses ```jpilot-form``` in chat only — do not call `{tool_name}` "
+        "or any MCP tool. Acknowledge the user's form answers, then output the next ```jpilot-form``` "
+        'or the final deliverable if enough is known (submitLabel "Continue").'
+    )
+
+
+def block_architect_search_during_discovery(
+    tool_name: str,
+    *,
+    role: str | None,
+    user_message: str,
+    tool_traces: list | None = None,
+    conversation_text: str = "",
+) -> str | None:
+    """Backward-compatible alias — blocks all architect tools during discovery."""
+    return block_architect_tool_during_discovery(
+        tool_name,
+        role=role,
+        user_message=user_message,
+        tool_traces=tool_traces,
+        conversation_text=conversation_text,
+    )
+
+
 def build_architect_discovery_nudge(
     content: str,
     user_message: str,
@@ -163,8 +380,22 @@ def build_architect_discovery_nudge(
         doc_tool = "search_cisco_cli_reference (syntax appendix only)"
 
     planning_intent = extract_planning_intent(conversation_text, user_message)
+    has_deliverable = conversation_has_deliverable(conversation_text)
 
-    if user_wants_deliverable_now(user_message):
+    if has_deliverable and is_form_submission(user_message):
+        return _revision_apply_nudge(planning_intent=planning_intent)
+
+    if has_deliverable and user_wants_deliverable_revision(user_message):
+        return _revision_form_nudge()
+
+    form_submit_nudge = build_discovery_form_submit_nudge(
+        user_message,
+        conversation_text=conversation_text,
+    )
+    if form_submit_nudge is not None:
+        return form_submit_nudge
+
+    if user_wants_deliverable_now(user_message) and not has_deliverable:
         return _design_now_nudge(
             doc_tool=doc_tool,
             planning_intent=planning_intent,

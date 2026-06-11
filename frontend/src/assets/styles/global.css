@@ -352,6 +352,159 @@ html.app-dark .chat-pane {
   --glass-field: rgba(255, 255, 255, 0.06);
 }
 
+@media (max-width: 991px) {
+  /* Mobile beta chat — true dark (PrimeVue --p-surface-0/50/100 stay light in dark mode) */
+  html.app-dark .app-shell-beta-immersive,
+  html.app-dark .app-shell-beta-immersive .main-content,
+  html.app-dark .app-shell-beta-immersive .stage,
+  html.app-dark .app-shell-beta-immersive .stage-plain,
+  html.app-dark .copilot-page .stage,
+  html.app-dark .beta-chat-layout,
+  html.app-dark .beta-chat-card,
+  html.app-dark .beta-chat-card.content-panel,
+  html.app-dark .beta-chat-pane.chat-pane-beta,
+  html.app-dark .chat-pane-beta:has(.beta-shell-compact) {
+    background-color: #000000 !important;
+    backdrop-filter: none !important;
+    -webkit-backdrop-filter: none !important;
+  }
+
+  html.app-dark .beta-shell-compact {
+    --beta-mobile-bg: #000000;
+    --beta-mobile-surface: #000000;
+    --beta-mobile-ink: #f5f5f5;
+    --beta-mobile-muted: #a3a3a3;
+    --beta-mobile-border: #262626;
+    --beta-mobile-chip-bg: #141414;
+    --beta-mobile-chip-hover: #1c1c1c;
+    --beta-mobile-composer-bg: #141414;
+    --beta-mobile-user-bubble: #1c1c1c;
+    background-color: #000000 !important;
+    color: #f5f5f5;
+  }
+
+  html.app-dark .beta-shell-compact .beta-messages.user-message-container,
+  html.app-dark .beta-shell-compact .beta-pending {
+    background-color: #000000 !important;
+    color: #f5f5f5;
+  }
+
+  html.app-dark .beta-header.beta-header-compact {
+    background-color: #000000 !important;
+    border-bottom-color: #262626 !important;
+    color: #f5f5f5;
+    backdrop-filter: none !important;
+    -webkit-backdrop-filter: none !important;
+  }
+
+  html.app-dark .beta-header-compact .beta-title-compact {
+    color: #f5f5f5;
+  }
+
+  html.app-dark .beta-header-compact .beta-subtitle-compact {
+    color: #a3a3a3;
+  }
+
+  html.app-dark .beta-header-compact .beta-header-nav,
+  html.app-dark .beta-header-compact .beta-header-actions .p-button {
+    color: #f5f5f5 !important;
+  }
+
+  html.app-dark .beta-footer-compact {
+    background-color: #000000 !important;
+    border-top-color: #262626 !important;
+  }
+
+  html.app-dark .beta-footer-compact .beta-composer {
+    background-color: #141414 !important;
+    border-color: #333333 !important;
+  }
+
+  html.app-dark .beta-footer-compact .beta-composer-icon .p-button {
+    color: #a3a3a3 !important;
+  }
+
+  html.app-dark .beta-footer-compact .beta-composer-input input {
+    color: #f5f5f5 !important;
+  }
+
+  html.app-dark .beta-footer-compact .beta-composer-input input::placeholder {
+    color: #737373 !important;
+  }
+
+  html.app-dark .beta-shell-compact .beta-bubble {
+    color: #f5f5f5 !important;
+  }
+
+  html.app-dark .beta-shell-compact .beta-bubble-user {
+    background-color: #1c1c1c !important;
+    color: #f5f5f5 !important;
+    border-color: #333333 !important;
+  }
+
+  html.app-dark .beta-shell-compact .chat-markdown,
+  html.app-dark .beta-shell-compact .chat-markdown p,
+  html.app-dark .beta-shell-compact .chat-markdown li,
+  html.app-dark .beta-shell-compact .chat-markdown strong {
+    color: inherit;
+  }
+
+  html.app-dark .beta-shell-compact .beta-message-time,
+  html.app-dark .beta-shell-compact .beta-message-meta {
+    color: #a3a3a3 !important;
+  }
+
+  html.app-dark .beta-shell-compact .generation-label {
+    color: #f5f5f5;
+  }
+
+  html.app-dark .beta-shell-compact .generation-meta,
+  html.app-dark .beta-shell-compact .generation-stats-footer {
+    color: #a3a3a3;
+  }
+
+  html.app-dark .chat-pane-beta:has(.beta-shell-compact) {
+    --glass-text: #f5f5f5;
+    --glass-muted: #a3a3a3;
+  }
+
+  html.app-dark .beta-shell-compact .config-form {
+    background-color: #141414 !important;
+    border-color: #333333 !important;
+  }
+
+  html.app-dark .beta-shell-compact .config-label {
+    color: #f5f5f5;
+  }
+
+  html.app-dark .beta-shell-compact .config-choice-btn {
+    background-color: #0a0a0a !important;
+    border-color: #333333 !important;
+    color: #f5f5f5 !important;
+  }
+
+  html.app-dark .beta-shell-compact .config-choice-btn-active {
+    border-color: var(--p-primary-color) !important;
+    background-color: color-mix(in srgb, var(--p-primary-color) 18%, #0a0a0a) !important;
+  }
+
+  html.app-dark .beta-shell-compact .config-choice-desc,
+  html.app-dark .beta-shell-compact .config-hint,
+  html.app-dark .beta-shell-compact .config-form-desc {
+    color: #a3a3a3;
+  }
+
+  html.app-dark .beta-shell-compact .deployment-subtasks {
+    background-color: #141414 !important;
+    border-color: #333333 !important;
+  }
+
+  html.app-dark .beta-shell-compact .deployment-subtasks-title,
+  html.app-dark .beta-shell-compact .deployment-subtask--pending {
+    color: #a3a3a3;
+  }
+}
+
 /* ---------------------------------------------------------------------------
    Page transitions (router-view) — used by both App.vue and MainLayout.vue.
    Must be global (not scoped) so Vue's <Transition> can apply them to the

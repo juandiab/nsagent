@@ -148,3 +148,24 @@ export function getChatBackground() {
 export function setChatBackground(url) {
   localStorage.setItem(BG_KEY, url || 'none')
 }
+
+/** Animated backgrounds for JPilot Beta chat only. */
+export const BETA_CHAT_BACKGROUNDS = [
+  { id: 'constellation', label: 'Constellation', base: 'white' },
+  { id: 'waves', label: 'Waves', base: 'white' },
+  { id: 'drift', label: 'Drift', base: 'black' },
+  { id: 'orbit', label: 'Orbit', base: 'black' }
+]
+
+const BETA_BG_KEY = 'jpilot_beta_background'
+const BETA_BG_IDS = new Set([...BETA_CHAT_BACKGROUNDS.map((bg) => bg.id), 'none'])
+
+export function getBetaChatBackground() {
+  const saved = localStorage.getItem(BETA_BG_KEY)
+  if (saved && BETA_BG_IDS.has(saved)) return saved
+  return BETA_CHAT_BACKGROUNDS[0].id
+}
+
+export function setBetaChatBackground(id) {
+  localStorage.setItem(BETA_BG_KEY, BETA_BG_IDS.has(id) ? id : 'constellation')
+}

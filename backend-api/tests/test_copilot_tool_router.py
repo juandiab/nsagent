@@ -65,6 +65,28 @@ def test_show_vserver_routes_read_only():
     assert "netscaler_run_cli_commands" not in routed_names
 
 
+def test_appliance_internet_routes_diagnostic_not_doc_check():
+    packs = classify_tool_packs("does the netscaler have internet access?", role="operator")
+    names = pack_tool_names(packs)
+    assert "netscaler_run_diagnostic" in names
+    assert "jpilot_check_doc_connectivity" not in names
+
+    routed = route_copilot_tools(
+        ALL_OPERATOR,
+        role="operator",
+        user_message="does the netscaler have internet access?",
+    )
+    routed_names = {t["name"] for t in routed}
+    assert "netscaler_run_diagnostic" in routed_names
+    assert "jpilot_check_doc_connectivity" not in routed_names
+
+
+def test_jpilot_doc_internet_routes_doc_check():
+    packs = classify_tool_packs("can you reach the documentation site?", role="operator")
+    names = pack_tool_names(packs)
+    assert "jpilot_check_doc_connectivity" in names
+
+
 def test_ambiguous_short_message_uses_full_tool_set():
     routed = route_copilot_tools(ALL_OPERATOR, role="operator", user_message="ok")
     assert len(routed) == len(ALL_OPERATOR)
@@ -81,7 +103,36 @@ def test_architect_design_adds_architect_search():
     routed = route_copilot_tools(
         tools,
         role="architect",
-        user_message="Help me plan a dual-site GSLB design with Gateway",
+        user_message="Generate the design document now",
     )
     routed_names = {t["name"] for t in routed}
     assert "search_jpilot_architect_resources" in routed_names
+
+
+def test_architect_form_submission_excludes_search_tools():
+    tools = _tools(
+        "netscaler_list_inventory",
+        "search_netscaler_cli_reference",
+        "search_jpilot_architect_resources",
+        "netscaler_run_cli_commands",
+    )
+    routed = route_copilot_tools(
+        tools,
+        role="architect",
+        user_message="Planning inputs for: Network model\n- topology: one_arm",
+    )
+    assert routed == []
+
+
+def test_architect_vlan_form_does_not_enable_cli_write():
+    tools = _tools(
+        "netscaler_list_inventory",
+        "search_netscaler_cli_reference",
+        "netscaler_run_cli_commands",
+    )
+    routed = route_copilot_tools(
+        tools,
+        role="architect",
+        user_message="Planning inputs for: VIP\n- Client-facing VLAN: 100\n- VIP: 192.168.20.55",
+    )
+    assert routed == []

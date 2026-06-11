@@ -8,10 +8,13 @@ from app.services.copilot_orchestration import (
     build_deployment_subtasks,
     build_progress_subtasks,
     build_orchestration_runtime,
+    cli_commands_are_read_only,
     continuation_for_tool_limit,
     is_deployment_resume_message,
     should_offer_long_task_consent,
+    trace_is_state_changing,
 )
+from app.services.copilot_orchestrator import _deployment_may_be_incomplete
 
 
 def test_user_confirmed_execution_detects_spanish_and_english():
@@ -24,9 +27,41 @@ def test_deployment_subtasks_reflect_progress():
     traces = [
         ToolCallTrace(name="search_netscaler_cli_reference", arguments={}, result="{}"),
     ]
-    subtasks = build_deployment_subtasks(traces)
+    subtasks = build_deployment_subtasks(
+        traces,
+        user_message="implement this design",
+        attachment_names=["jpilot-design-2026-06-04.md"],
+    )
+    assert subtasks[0].label == "Review documentation"
     assert subtasks[0].status == "completed"
     assert subtasks[1].status == "pending"
+
+
+def test_operation_subtasks_use_review_request():
+    traces = [
+        ToolCallTrace(name="netscaler_nextgen_request", arguments={}, result="{}"),
+    ]
+    bundle = build_progress_subtasks(
+        traces,
+        role="operator",
+        user_message="remove all VIPs",
+    )
+    assert bundle.title == "Operation progress"
+    assert bundle.subtasks[0].label == "Review request"
+    assert bundle.subtasks[0].status == "completed"
+
+
+def test_design_handoff_uses_documentation_review():
+    traces = []
+    conversation = "<!-- jpilot-design-document -->\n# Design\nHandoff for Operator"
+    bundle = build_progress_subtasks(
+        traces,
+        role="operator",
+        user_message="yes",
+        conversation_text=conversation,
+    )
+    assert bundle.title == "Deployment progress"
+    assert bundle.subtasks[0].label == "Review documentation"
 
 
 def test_architect_change_control_progress_labels():
@@ -89,8 +124,53 @@ def test_tool_limit_continuation_payload():
             result=json.dumps({"success": True}),
         )
     ]
-    continuation = continuation_for_tool_limit(traces, deployment_incomplete=True)
+    continuation = continuation_for_tool_limit(
+        traces,
+        deployment_incomplete=True,
+        role="operator",
+        user_message="remove all VIPs",
+    )
     assert continuation is not None
     assert continuation.required is True
     assert "continue" in continuation.message.lower()
+    assert continuation.subtasks[0].label == "Review request"
     assert LONG_TASK_CONSENT_MESSAGE not in continuation.message
+
+
+def test_show_route_is_read_only_cli():
+    assert cli_commands_are_read_only("show route")
+    assert not cli_commands_are_read_only("rm vserver web")
+
+
+def test_show_route_trace_is_not_state_changing():
+    trace = ToolCallTrace(
+        name="netscaler_run_cli_command",
+        arguments={"command": "show route", "purpose": "routes"},
+        result=json.dumps({"success": True, "output": "0.0.0.0/0"}),
+    )
+    assert not trace_is_state_changing(trace)
+
+
+def test_bare_yes_after_read_only_does_not_continue_deployment():
+    traces = [
+        ToolCallTrace(
+            name="netscaler_run_cli_command",
+            arguments={"command": "show route", "purpose": "routes"},
+            result=json.dumps({"success": True, "output": "0.0.0.0/0"}),
+        )
+    ]
+    assert _deployment_may_be_incomplete(traces, "yes", "operator") is False
+
+
+def test_read_only_operation_progress_single_step():
+    traces = [
+        ToolCallTrace(name="netscaler_run_diagnostic", arguments={}, result="{}"),
+    ]
+    bundle = build_progress_subtasks(
+        traces,
+        role="operator",
+        user_message="does the netscaler have internet access?",
+    )
+    assert bundle.title == "Operation progress"
+    assert len(bundle.subtasks) == 1
+    assert bundle.subtasks[0].label == "Review request"

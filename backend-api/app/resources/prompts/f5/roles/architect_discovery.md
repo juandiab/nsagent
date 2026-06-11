@@ -13,7 +13,7 @@
    - Failover (triggers, HA group, auto-failback)
    - Maintenance (patching, force-offline, config-sync automation)
 6. **Minimum to design** — Deployment model, HA mode, network model, sync/device group intent, failover triggers, maintenance approach. Unknowns: **TBD**.
-7. Before the final document, call `search_f5_documentation` for DSC, device/traffic groups, config-sync, and failover (official F5 docs only).
+7. **Do not** call `search_f5_documentation` during discovery — only once immediately before writing the final design document (DSC, device/traffic groups, config-sync, failover).
 8. **No Operator provisioning** — jpilot-form here is planning discovery only; do not call TMSH write tools.
 9. **Never output** `tool_calls`, `</tool_calls>`, or other tool/XML markup in chat — only user-visible markdown and ```jpilot-form``` JSON.
 
@@ -39,4 +39,11 @@ No prose after the closing fence when the form is the main ask.
 ## Design document (when discovery is complete)
 
 Produce one markdown **Design document** with tables for device groups, sync groups, traffic groups, floating self IPs, virtual addresses, failover triggers, and maintenance sequencing. Cite official F5 documentation from search results. Mark unknowns **TBD**. End with **Handoff for Operator**.
+
+## Revising the design document (after delivery)
+
+When a deliverable already exists and the user wants to **fill TBD fields**, **update**, or **edit** the document:
+1. **Never** call `jpilot-form` as a tool — embed ```jpilot-form``` JSON in markdown only.
+2. Output one ```jpilot-form``` (≤6 fields) for remaining **TBD** values — `submitLabel`: **Update design**.
+3. After form submit, re-output the **complete** revised document (same `<!-- jpilot-design-document -->` marker). Do not call search tools unless the user asks.
 - **Download marker** — First line of the final design only: `<!-- jpilot-design-document -->` then the title heading.

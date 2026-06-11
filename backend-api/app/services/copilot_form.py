@@ -263,7 +263,14 @@ def format_form_submission(
         lines.append(f"- {field.label}: {rendered}")
     lines.append("")
     if prefix.startswith("Planning"):
-        lines.append("Continue design discovery or move to the next question.")
+        title_lower = (form.title or "").lower()
+        submit_lower = (form.submitLabel or "").lower()
+        if "tbd" in title_lower or submit_lower in {"update design", "update document"}:
+            lines.append(
+                "Apply these values to the latest design document and re-issue the complete revised document."
+            )
+        else:
+            lines.append("Continue design discovery or move to the next question.")
     else:
         lines.append(
             "Proceed with the configuration on the connected appliance using these values. "

@@ -6,11 +6,33 @@ from dataclasses import dataclass
 
 from app.schemas.copilot import DeploymentContinuation, DeploymentSubtask, ToolCallTrace
 from app.services.copilot_architect_discovery import extract_planning_intent
+from app.services.copilot_form import (
+    is_design_implementation_form_submission,
+    user_requests_design_implementation,
+)
 from app.services.copilot_roles import JPilotRole, normalize_role
 
 DEFAULT_MAX_TOOL_ITERATIONS = 20
 DEFAULT_MAX_TOOL_CONTINUATION_PHASES = 3
 DEFAULT_LONG_TASK_TOOL_THRESHOLD = 8
+
+READ_ONLY_OPERATOR_TOOLS = frozenset(
+    {
+        "netscaler_get_system_info",
+        "netscaler_test_connection",
+        "netscaler_list_applications",
+        "netscaler_list_virtual_servers",
+        "netscaler_list_virtual_ips",
+        "netscaler_list_ip_addresses",
+        "netscaler_nextgen_get",
+        "netscaler_run_diagnostic",
+        "netscaler_telnet",
+        "netscaler_collect_nsconmsg",
+        "jpilot_check_doc_connectivity",
+    }
+)
+
+_READ_ONLY_CLI_PREFIXES = ("show ", "stat ", "get ", "display ")
 
 MEMORY_SEARCH_TOOLS = frozenset(
     {
@@ -46,6 +68,56 @@ WRITE_EXEC_TOOL_NAMES = frozenset(
         "f5_run_tmsh_commands",
     }
 )
+
+
+def cli_commands_are_read_only(commands: str | list[str]) -> bool:
+    items = [commands] if isinstance(commands, str) else list(commands)
+    normalized = [str(command).strip().lower() for command in items if str(command).strip()]
+    if not normalized:
+        return True
+    return all(command.startswith(_READ_ONLY_CLI_PREFIXES) for command in normalized)
+
+
+def trace_is_state_changing(trace: ToolCallTrace) -> bool:
+    name = trace.name
+    arguments = trace.arguments or {}
+    if name in READ_ONLY_OPERATOR_TOOLS:
+        return False
+    if name == "netscaler_run_cli_command":
+        return not cli_commands_are_read_only(str(arguments.get("command", "")))
+    if name == "netscaler_run_cli_commands":
+        return not cli_commands_are_read_only(arguments.get("commands") or [])
+    if name == "netscaler_nextgen_request":
+        return str(arguments.get("method", "GET")).upper() != "GET"
+    return name in WRITE_EXEC_TOOL_NAMES
+
+
+def trace_executed_successfully(trace: ToolCallTrace) -> bool:
+    import json
+
+    if trace.name not in WRITE_EXEC_TOOL_NAMES and trace.name not in READ_ONLY_OPERATOR_TOOLS:
+        if trace.name not in {"netscaler_run_cli_command", "netscaler_run_cli_commands"}:
+            return False
+    try:
+        payload = json.loads(trace.result)
+    except (json.JSONDecodeError, TypeError):
+        return True
+    if not isinstance(payload, dict):
+        return True
+    if payload.get("blocked") or payload.get("needsConfirmation") or payload.get("success") is False:
+        return False
+    if trace.name in {"netscaler_run_cli_command", "netscaler_ssh_run_command"}:
+        if payload.get("commandFailed"):
+            return False
+    return True
+
+
+def had_successful_state_change(tool_traces: list[ToolCallTrace]) -> bool:
+    return any(
+        trace_is_state_changing(trace) and trace_executed_successfully(trace)
+        for trace in tool_traces
+    )
+
 
 _RESUME_WORDS = frozenset(
     {
@@ -188,17 +260,39 @@ def build_orchestration_runtime(
     return runtime
 
 
+def operator_requires_documentation_review(
+    user_message: str,
+    *,
+    conversation_text: str = "",
+    attachment_names: list[str] | None = None,
+) -> bool:
+    """True when Operator progress should include a documentation review step."""
+    names = attachment_names or []
+    if user_requests_design_implementation(user_message, names):
+        return True
+    if is_design_implementation_form_submission(user_message):
+        return True
+    text = conversation_text or ""
+    if "<!-- jpilot-design-document -->" in text:
+        return True
+    return False
+
+
 def build_deployment_subtasks(
     tool_traces: list[ToolCallTrace],
     *,
     role: str | None = None,
+    user_message: str = "",
     conversation_text: str = "",
+    attachment_names: list[str] | None = None,
     deliverable_ready: bool = False,
 ) -> list[DeploymentSubtask]:
     return build_progress_subtasks(
         tool_traces,
         role=role,
+        user_message=user_message,
         conversation_text=conversation_text,
+        attachment_names=attachment_names,
         deliverable_ready=deliverable_ready,
     ).subtasks
 
@@ -207,7 +301,9 @@ def build_progress_subtasks(
     tool_traces: list[ToolCallTrace],
     *,
     role: str | None = None,
+    user_message: str = "",
     conversation_text: str = "",
+    attachment_names: list[str] | None = None,
     deliverable_ready: bool = False,
 ) -> ProgressSubtasksBundle:
     if normalize_role(role) == JPilotRole.ARCHITECT:
@@ -216,7 +312,12 @@ def build_progress_subtasks(
             conversation_text=conversation_text,
             deliverable_ready=deliverable_ready,
         )
-    return _build_operator_progress_subtasks(tool_traces)
+    return _build_operator_progress_subtasks(
+        tool_traces,
+        user_message=user_message,
+        conversation_text=conversation_text,
+        attachment_names=attachment_names,
+    )
 
 
 def _architect_profile(conversation_text: str) -> dict[str, object]:
@@ -255,10 +356,30 @@ def _build_architect_progress_subtasks(
     return ProgressSubtasksBundle(title=title, subtasks=subtasks)
 
 
-def _build_operator_progress_subtasks(tool_traces: list[ToolCallTrace]) -> ProgressSubtasksBundle:
-    reference_done = any(trace.name in MEMORY_SEARCH_TOOLS for trace in tool_traces)
-    write_started = any(trace.name in WRITE_EXEC_TOOL_NAMES for trace in tool_traces)
+def _build_operator_progress_subtasks(
+    tool_traces: list[ToolCallTrace],
+    *,
+    user_message: str = "",
+    conversation_text: str = "",
+    attachment_names: list[str] | None = None,
+) -> ProgressSubtasksBundle:
+    review_docs = operator_requires_documentation_review(
+        user_message,
+        conversation_text=conversation_text,
+        attachment_names=attachment_names,
+    )
+    memory_reviewed = any(trace.name in MEMORY_SEARCH_TOOLS for trace in tool_traces)
+    write_started = any(trace_is_state_changing(trace) for trace in tool_traces)
     saved = _classic_config_saved(tool_traces)
+
+    if review_docs:
+        reference_done = memory_reviewed
+        reference_label = "Review documentation"
+        title = "Deployment progress"
+    else:
+        reference_done = bool(tool_traces)
+        reference_label = "Review request"
+        title = "Operation progress"
 
     reference_status = "completed" if reference_done else "pending"
     execute_status = "pending"
@@ -269,10 +390,26 @@ def _build_operator_progress_subtasks(tool_traces: list[ToolCallTrace]) -> Progr
 
     save_status = "completed" if saved else ("in_progress" if write_started else "pending")
 
+    read_only = not review_docs and not write_started and not saved
+    if tool_traces:
+        read_only = read_only and not any(trace_is_state_changing(trace) for trace in tool_traces)
+
+    if read_only:
+        return ProgressSubtasksBundle(
+            title="Operation progress",
+            subtasks=[
+                DeploymentSubtask(
+                    id="reference",
+                    label="Review request",
+                    status="completed" if tool_traces else "pending",
+                ),
+            ],
+        )
+
     return ProgressSubtasksBundle(
-        title="Deployment progress",
+        title=title,
         subtasks=[
-            DeploymentSubtask(id="reference", label="Review documentation", status=reference_status),
+            DeploymentSubtask(id="reference", label=reference_label, status=reference_status),
             DeploymentSubtask(id="execute", label="Apply configuration", status=execute_status),
             DeploymentSubtask(id="save", label="Save configuration", status=save_status),
         ],
@@ -341,6 +478,10 @@ def continuation_for_tool_limit(
     tool_traces: list[ToolCallTrace],
     *,
     deployment_incomplete: bool,
+    role: str | None = None,
+    user_message: str = "",
+    conversation_text: str = "",
+    attachment_names: list[str] | None = None,
 ) -> DeploymentContinuation | None:
     if not deployment_incomplete:
         return None
@@ -351,5 +492,11 @@ def continuation_for_tool_limit(
             "I reached the maximum number of tool calls before the deployment finished. "
             "Reply **continue** or use the button below to resume from where it stopped."
         ),
-        subtasks=build_deployment_subtasks(tool_traces),
+        subtasks=build_deployment_subtasks(
+            tool_traces,
+            role=role,
+            user_message=user_message,
+            conversation_text=conversation_text,
+            attachment_names=attachment_names,
+        ),
     )

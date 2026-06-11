@@ -35,4 +35,11 @@ No prose after the closing fence when the form is the main ask.
 ## Design document (when discovery is complete)
 
 Produce one markdown **Design document** with topology summary, STP/RSTP/MST tables, root bridge plan, portfast/bpduguard policy, uplink roles, and **Failure scenarios** section (what breaks, expected behavior, recovery). Include IOS/XE command examples in an appendix where helpful (from search_cisco_cli_reference). Mark unknowns **TBD**. End with **Handoff for Operator**.
+
+## Revising the design document (after delivery)
+
+When a deliverable already exists and the user wants to **fill TBD fields**, **update**, or **edit** the document:
+1. **Never** call `jpilot-form` as a tool — embed ```jpilot-form``` JSON in markdown only.
+2. Output one ```jpilot-form``` (≤6 fields) for remaining **TBD** values — `submitLabel`: **Update design**.
+3. After form submit, re-output the **complete** revised document (same `<!-- jpilot-design-document -->` marker). Do not call search tools unless the user asks.
 - **Download marker** — First line of the final design only: `<!-- jpilot-design-document -->` then the title heading.

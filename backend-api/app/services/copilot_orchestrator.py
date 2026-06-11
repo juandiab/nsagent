@@ -61,6 +61,8 @@ from app.services.copilot_memory_gate import (
 )
 from app.services.copilot_architect_discovery import (
     architect_discovery_should_retry,
+    block_architect_tool_during_discovery,
+    build_discovery_form_submit_nudge,
     sanitize_architect_reply,
 )
 from app.services.copilot_retry import build_tool_retry_hint
@@ -84,8 +86,10 @@ from app.services.copilot_orchestration import (
     build_progress_subtasks,
     continuation_for_tool_limit,
     deliverable_ready_from_content,
+    had_successful_state_change,
     orchestration_settings_from_document,
     should_offer_long_task_consent,
+    trace_is_state_changing,
 )
 from app.services.copilot_progress import QueueChatProgressReporter
 
@@ -271,6 +275,57 @@ def _response_has_input_form(content: str) -> bool:
     return form is not None
 
 
+def _architect_effective_system_prompt(
+    system_prompt: str,
+    user_message: str,
+    history: list[dict],
+) -> str:
+    nudge = build_discovery_form_submit_nudge(
+        user_message,
+        conversation_text=_conversation_text(history, user_message),
+    )
+    if not nudge:
+        return system_prompt
+    return f"{system_prompt}\n\n{nudge}"
+
+
+async def _execute_chat_tool(
+    db: AsyncIOMotorDatabase,
+    name: str,
+    arguments: dict[str, Any],
+    appliance_name: str,
+    nextgen_memory_reviewed: bool,
+    cli_memory_reviewed: bool,
+    *,
+    role: str | None,
+    vendor: str | None,
+    user_message: str,
+    history: list[dict],
+    tool_traces: list[ToolCallTrace],
+) -> tuple[str, bool, bool]:
+    blocked = block_architect_tool_during_discovery(
+        name,
+        role=role,
+        user_message=user_message,
+        tool_traces=tool_traces,
+        conversation_text=_conversation_text(history, user_message),
+    )
+    if blocked:
+        logger.info("tool_call name=%s BLOCKED (architect discovery guard)", name)
+        return blocked, nextgen_memory_reviewed, cli_memory_reviewed
+
+    return await _execute_tool_with_memory_gate(
+        db,
+        name,
+        arguments,
+        appliance_name,
+        nextgen_memory_reviewed,
+        cli_memory_reviewed,
+        role=role,
+        vendor=vendor,
+    )
+
+
 def _architect_discovery_retry_nudge(
     content: str,
     user_message: str,
@@ -280,8 +335,7 @@ def _architect_discovery_retry_nudge(
 ) -> str | None:
     conversation_parts = [user_message]
     for item in history or []:
-        if item.get("role") == "user":
-            conversation_parts.append(item.get("content") or "")
+        conversation_parts.append(item.get("content") or "")
     conversation_text = "\n".join(conversation_parts)
     return architect_discovery_should_retry(
         content,
@@ -366,18 +420,22 @@ def _deployment_may_be_incomplete(
 ) -> bool:
     if normalize_role(role) != JPilotRole.OPERATOR:
         return False
-    if not (_user_requests_config_change(user_message) or _user_confirmed_execution(user_message)):
+
+    config_requested = _user_requests_config_change(user_message)
+    confirmed = _user_confirmed_execution(user_message)
+    state_changing_traces = [trace for trace in tool_traces if trace_is_state_changing(trace)]
+
+    if not config_requested and not confirmed:
+        return False
+    if confirmed and not config_requested and not state_changing_traces:
         return False
     if not tool_traces:
-        return True
-    if not _had_successful_action(tool_traces):
-        return True
+        return config_requested
+    if not had_successful_state_change(tool_traces):
+        return config_requested or bool(state_changing_traces)
     if _classic_config_saved(tool_traces):
         return False
-    for trace in tool_traces:
-        if trace.name in WRITE_EXEC_TOOL_NAMES:
-            return True
-    return False
+    return bool(state_changing_traces)
 
 
 def _inject_continuation_nudge(messages: list[dict[str, Any]], *, provider: str) -> None:
@@ -392,27 +450,7 @@ def _inject_continuation_nudge(messages: list[dict[str, Any]], *, provider: str)
 
 def _had_successful_action(tool_traces: list[ToolCallTrace]) -> bool:
     """True if at least one state-changing tool actually executed successfully this turn."""
-    for trace in tool_traces:
-        if trace.name not in WRITE_EXEC_TOOL_NAMES:
-            continue
-        try:
-            payload = json.loads(trace.result)
-        except (json.JSONDecodeError, TypeError):
-            # A write/exec tool returned non-JSON output — treat as a real attempt.
-            return True
-        if not isinstance(payload, dict):
-            return True
-        if payload.get("blocked") or payload.get("needsConfirmation") or payload.get("success") is False:
-            continue
-        if trace.name == "netscaler_nextgen_request":
-            method = str((trace.arguments or {}).get("method", "GET")).upper()
-            if method == "GET":
-                continue
-        if trace.name in {"netscaler_run_cli_command", "netscaler_ssh_run_command"}:
-            if payload.get("commandFailed"):
-                continue
-        return True
-    return False
+    return had_successful_state_change(tool_traces)
 
 
 def guard_fabricated_execution(
@@ -478,7 +516,9 @@ async def _emit_progress_subtasks(
     tool_traces: list[ToolCallTrace],
     *,
     role: str | None = None,
+    user_message: str = "",
     conversation_text: str = "",
+    attachment_names: list[str] | None = None,
     deliverable_ready: bool = False,
 ) -> None:
     if progress is None:
@@ -486,7 +526,9 @@ async def _emit_progress_subtasks(
     bundle = build_progress_subtasks(
         tool_traces,
         role=role,
+        user_message=user_message,
         conversation_text=conversation_text,
+        attachment_names=attachment_names,
         deliverable_ready=deliverable_ready,
     )
     await progress.subtasks_updated(
@@ -503,6 +545,17 @@ def _conversation_text(history: list[dict], user_message: str) -> str:
     return "\n".join(parts)
 
 
+def _progress_context(
+    history: list[dict],
+    user_message: str,
+    attachments: list[ChatAttachment],
+) -> dict[str, Any]:
+    return {
+        "conversation_text": _conversation_text(history, user_message),
+        "attachment_names": [attachment.name for attachment in attachments],
+    }
+
+
 def _maybe_pause_for_long_task(
     orchestration: OrchestrationRuntime,
     *,
@@ -510,6 +563,8 @@ def _maybe_pause_for_long_task(
     user_message: str,
     tool_traces: list[ToolCallTrace],
     continuation_phase: int,
+    conversation_text: str = "",
+    attachment_names: list[str] | None = None,
 ) -> bool:
     deployment_incomplete = _deployment_may_be_incomplete(tool_traces, user_message, role)
     if not should_offer_long_task_consent(
@@ -523,7 +578,13 @@ def _maybe_pause_for_long_task(
         return False
     orchestration.request_pause(
         reason="long_task",
-        subtasks=build_deployment_subtasks(tool_traces),
+        subtasks=build_deployment_subtasks(
+            tool_traces,
+            role=role,
+            user_message=user_message,
+            conversation_text=conversation_text,
+            attachment_names=attachment_names,
+        ),
     )
     return True
 
@@ -533,11 +594,18 @@ def _handle_tool_iteration_limit(
     tool_traces: list[ToolCallTrace],
     user_message: str,
     role: str | None,
+    *,
+    conversation_text: str = "",
+    attachment_names: list[str] | None = None,
 ) -> str:
     deployment_incomplete = _deployment_may_be_incomplete(tool_traces, user_message, role)
     continuation = continuation_for_tool_limit(
         tool_traces,
         deployment_incomplete=deployment_incomplete,
+        role=role,
+        user_message=user_message,
+        conversation_text=conversation_text,
+        attachment_names=attachment_names,
     )
     if continuation is not None:
         orchestration.pause = continuation
@@ -727,22 +795,31 @@ async def run_copilot_chat(
     if progress is not None:
         await progress.status(phase="preparing", label="Preparing request…")
 
-    from app.services.copilot_port_check import try_auto_tcp_port_check
+    from app.services.copilot_port_check import try_auto_appliance_internet_check, try_auto_tcp_port_check
 
     auto_traces: list[ToolCallTrace] = []
     auto_response = None
     if appliance_name and role_requires_appliance(chat_role):
-        auto_traces, auto_response = await try_auto_tcp_port_check(
+        auto_traces, auto_response = await try_auto_appliance_internet_check(
             db,
             user_message=user_message,
             appliance_name=appliance_name,
             enabled_tool_names=enabled_tool_names,
         )
+        if not auto_traces:
+            auto_traces, auto_response = await try_auto_tcp_port_check(
+                db,
+                user_message=user_message,
+                appliance_name=appliance_name,
+                enabled_tool_names=enabled_tool_names,
+            )
     if auto_traces:
         tool_traces.extend(auto_traces)
     if auto_response and auto_traces:
         provider_name = provider["providerName"]
-        if auto_response.startswith("**") and "Verdict:" in auto_response:
+        if auto_response.startswith("**") and (
+            "Verdict:" in auto_response or "Internet access" in auto_response
+        ):
             return _finalize_chat_response(
                 auto_response,
                 provider_name=provider_name,
@@ -914,7 +991,9 @@ async def _run_openai_loop(
     runtime = orchestration or OrchestrationRuntime(
         settings=orchestration_settings_from_document({}),
     )
-    messages: list[dict[str, Any]] = [{"role": "system", "content": system_prompt}]
+    messages: list[dict[str, Any]] = [
+        {"role": "system", "content": _architect_effective_system_prompt(system_prompt, user_message, history)}
+    ]
     for item in history:
         messages.append({"role": item["role"], "content": item["content"]})
     messages.append(
@@ -929,6 +1008,7 @@ async def _run_openai_loop(
     fallback_candidates = base_url_candidates
     nextgen_memory_reviewed = False
     cli_memory_reviewed = False
+    progress_ctx = _progress_context(history, user_message, attachments)
 
     for continuation_phase in range(runtime.max_continuation_phases + 1):
         if continuation_phase > 0:
@@ -938,6 +1018,7 @@ async def _run_openai_loop(
                 user_message=user_message,
                 tool_traces=tool_traces,
                 continuation_phase=continuation_phase,
+                **progress_ctx,
             ):
                 break
             logger.info(
@@ -1012,7 +1093,7 @@ async def _run_openai_loop(
                 try:
                     if progress is not None:
                         await progress.tool_started(name)
-                    result, nextgen_memory_reviewed, cli_memory_reviewed = await _execute_tool_with_memory_gate(
+                    result, nextgen_memory_reviewed, cli_memory_reviewed = await _execute_chat_tool(
                         db,
                         name,
                         arguments,
@@ -1021,6 +1102,9 @@ async def _run_openai_loop(
                         cli_memory_reviewed,
                         role=jpilot_role,
                         vendor=chat_vendor,
+                        user_message=user_message,
+                        history=history,
+                        tool_traces=tool_traces,
                     )
                     if progress is not None:
                         await progress.tool_finished(name)
@@ -1050,7 +1134,8 @@ async def _run_openai_loop(
                 progress,
                 tool_traces,
                 role=jpilot_role,
-                conversation_text=_conversation_text(history, user_message),
+                user_message=user_message,
+                **progress_ctx,
             )
             if _maybe_pause_for_long_task(
                 runtime,
@@ -1058,6 +1143,7 @@ async def _run_openai_loop(
                 user_message=user_message,
                 tool_traces=tool_traces,
                 continuation_phase=continuation_phase,
+                **progress_ctx,
             ):
                 paused = True
                 break
@@ -1069,7 +1155,13 @@ async def _run_openai_loop(
         if not _deployment_may_be_incomplete(tool_traces, user_message, jpilot_role):
             break
 
-    return _handle_tool_iteration_limit(runtime, tool_traces, user_message, jpilot_role)
+    return _handle_tool_iteration_limit(
+        runtime,
+        tool_traces,
+        user_message,
+        jpilot_role,
+        **progress_ctx,
+    )
 
 
 async def _run_gemini_loop(
@@ -1111,6 +1203,7 @@ async def _run_gemini_loop(
     tools = to_gemini_tools(enabled_tools)
     nextgen_memory_reviewed = False
     cli_memory_reviewed = False
+    progress_ctx = _progress_context(history, user_message, attachments)
 
     for continuation_phase in range(runtime.max_continuation_phases + 1):
         if continuation_phase > 0:
@@ -1120,6 +1213,7 @@ async def _run_gemini_loop(
                 user_message=user_message,
                 tool_traces=tool_traces,
                 continuation_phase=continuation_phase,
+                **progress_ctx,
             ):
                 break
             logger.info(
@@ -1139,7 +1233,7 @@ async def _run_gemini_loop(
             data = await chat_gemini(
                 api_key=api_key,
                 model=model,
-                system=system_prompt,
+                system=_architect_effective_system_prompt(system_prompt, user_message, history),
                 contents=contents,
                 tools=tools,
                 provider_name=provider_name,
@@ -1189,7 +1283,7 @@ async def _run_gemini_loop(
                 arguments = function_call.get("args", {})
                 if progress is not None:
                     await progress.tool_started(name)
-                result, nextgen_memory_reviewed, cli_memory_reviewed = await _execute_tool_with_memory_gate(
+                result, nextgen_memory_reviewed, cli_memory_reviewed = await _execute_chat_tool(
                     db,
                     name,
                     arguments,
@@ -1198,6 +1292,9 @@ async def _run_gemini_loop(
                     cli_memory_reviewed,
                     role=jpilot_role,
                     vendor=chat_vendor,
+                    user_message=user_message,
+                    history=history,
+                    tool_traces=tool_traces,
                 )
                 if progress is not None:
                     await progress.tool_finished(name)
@@ -1223,7 +1320,8 @@ async def _run_gemini_loop(
                 progress,
                 tool_traces,
                 role=jpilot_role,
-                conversation_text=_conversation_text(history, user_message),
+                user_message=user_message,
+                **progress_ctx,
             )
             if _maybe_pause_for_long_task(
                 runtime,
@@ -1231,6 +1329,7 @@ async def _run_gemini_loop(
                 user_message=user_message,
                 tool_traces=tool_traces,
                 continuation_phase=continuation_phase,
+                **progress_ctx,
             ):
                 paused = True
                 break
@@ -1242,7 +1341,13 @@ async def _run_gemini_loop(
         if not _deployment_may_be_incomplete(tool_traces, user_message, jpilot_role):
             break
 
-    return _handle_tool_iteration_limit(runtime, tool_traces, user_message, jpilot_role)
+    return _handle_tool_iteration_limit(
+        runtime,
+        tool_traces,
+        user_message,
+        jpilot_role,
+        **progress_ctx,
+    )
 
 
 async def _run_anthropic_loop(
@@ -1283,6 +1388,7 @@ async def _run_anthropic_loop(
     tools = to_anthropic_tools(enabled_tools)
     nextgen_memory_reviewed = False
     cli_memory_reviewed = False
+    progress_ctx = _progress_context(history, user_message, attachments)
 
     for continuation_phase in range(runtime.max_continuation_phases + 1):
         if continuation_phase > 0:
@@ -1292,6 +1398,7 @@ async def _run_anthropic_loop(
                 user_message=user_message,
                 tool_traces=tool_traces,
                 continuation_phase=continuation_phase,
+                **progress_ctx,
             ):
                 break
             logger.info(
@@ -1311,7 +1418,7 @@ async def _run_anthropic_loop(
             data = await chat_anthropic(
                 api_key=api_key,
                 model=model,
-                system=system_prompt,
+                system=_architect_effective_system_prompt(system_prompt, user_message, history),
                 messages=messages,
                 tools=tools,
                 provider_name=provider_name,
@@ -1359,7 +1466,7 @@ async def _run_anthropic_loop(
                 arguments = tool_use.get("input", {})
                 if progress is not None:
                     await progress.tool_started(name)
-                result, nextgen_memory_reviewed, cli_memory_reviewed = await _execute_tool_with_memory_gate(
+                result, nextgen_memory_reviewed, cli_memory_reviewed = await _execute_chat_tool(
                     db,
                     name,
                     arguments,
@@ -1368,6 +1475,9 @@ async def _run_anthropic_loop(
                     cli_memory_reviewed,
                     role=jpilot_role,
                     vendor=chat_vendor,
+                    user_message=user_message,
+                    history=history,
+                    tool_traces=tool_traces,
                 )
                 if progress is not None:
                     await progress.tool_finished(name)
@@ -1391,7 +1501,8 @@ async def _run_anthropic_loop(
                 progress,
                 tool_traces,
                 role=jpilot_role,
-                conversation_text=_conversation_text(history, user_message),
+                user_message=user_message,
+                **progress_ctx,
             )
             if _maybe_pause_for_long_task(
                 runtime,
@@ -1399,6 +1510,7 @@ async def _run_anthropic_loop(
                 user_message=user_message,
                 tool_traces=tool_traces,
                 continuation_phase=continuation_phase,
+                **progress_ctx,
             ):
                 paused = True
                 break
@@ -1410,4 +1522,10 @@ async def _run_anthropic_loop(
         if not _deployment_may_be_incomplete(tool_traces, user_message, jpilot_role):
             break
 
-    return _handle_tool_iteration_limit(runtime, tool_traces, user_message, jpilot_role)
+    return _handle_tool_iteration_limit(
+        runtime,
+        tool_traces,
+        user_message,
+        jpilot_role,
+        **progress_ctx,
+    )

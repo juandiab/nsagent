@@ -8,7 +8,7 @@ Repository: [github.com/Nexxus-Tech-SAS/jpilot](https://github.com/Nexxus-Tech-S
 
 > **Disclaimer:** JPilot is an independent project and is not affiliated with, endorsed by, or sponsored by Citrix Systems, Inc. NetScaler is a trademark of Citrix Systems, Inc.
 
-**Current release:** `v0.55` — Architect intent routing (design, change control, functional change), role-aware planning progress, and persisted chat generation stats.
+**Current release:** `v0.56` — Chat Beta mobile layout with true dark mode, Architect discovery that stays on forms until the deliverable, and Operator connectivity/progress fixes.
 
 Bump the root [`VERSION`](VERSION) file when tagging a release so in-app update checks match GitHub.
 
@@ -67,6 +67,16 @@ curl -fsSL https://install.nexxus-tech.com/jpilot | bash
 - **NetScaler SDX (SSH)** — Operator and Analyst for SVM platform and VPX lifecycle with `search_sdx_cli_reference` memory gate (beta).
 - **F5 BIG-IP (SSH / TMSH)** — Operator, Analyst, and Architect (official F5 docs only); `f5_*` MCP tools and `search_f5_tmsh_reference` / `search_f5_documentation` (beta).
 - **Nexxus licensing** — Settings → **License**: enter a license code, import an offline `.lic` file, or sync with the Nexxus licensing API; installation fingerprint binding; encrypted payload validation; daily background sync and expiry enforcement; **activation gate** redirects unlicensed or expired installs to Settings → License before using the app.
+
+## What's new in v0.56
+
+| Area | Highlights |
+|------|------------|
+| **Chat Beta (mobile)** | SuperGrok-style compact chat on phones: app menu, centered JPilot header, pill composer, quick prompts on empty state, and immersive full-height layout. |
+| **Chat Beta dark mode** | True black mobile theme end-to-end (header, messages, composer, forms, progress panels) — no more white surfaces with unreadable text in dark mode. |
+| **Beta backgrounds** | Optional animated canvas backgrounds (wave grid, orbit rings, drift field) on desktop Chat Beta; hidden on mobile for performance and readability. |
+| **Architect discovery reliability** | Discovery turns disable MCP tools so the model cannot burn the tool-call budget on repeated resource searches; VLAN/form keywords no longer re-enable CLI tools; after enough planning forms the assistant writes the deliverable directly (tables + phased steps). |
+| **Operator progress & connectivity** | Read-only operations show **Review request** (not documentation review); auto `show route` + ping when asked about appliance internet access; tighter tool routing and continuation logic to avoid tool-limit loops. |
 
 ## What's new in v0.55
 

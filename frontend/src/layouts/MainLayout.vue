@@ -1,6 +1,6 @@
 <template>
-  <div class="app-shell">
-    <header class="mobile-topbar">
+  <div class="app-shell" :class="{ 'app-shell-beta-immersive': isImmersiveBetaChat }">
+    <header v-if="!isImmersiveBetaChat" class="mobile-topbar">
       <div class="mobile-topbar-side mobile-topbar-start">
         <button
           type="button"
@@ -199,7 +199,7 @@
         </router-view>
       </div>
 
-      <footer class="app-legal">
+      <footer v-if="!isImmersiveBetaChat" class="app-legal">
         <span class="app-legal-copy app-legal-desktop">
           © {{ currentYear }}
           <a
@@ -230,7 +230,7 @@
 </template>
 
 <script setup>
-import { computed, onMounted, onUnmounted, ref, watch } from 'vue'
+import { computed, onMounted, onUnmounted, provide, ref, watch } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
 import Avatar from 'primevue/avatar'
 import ConfirmDialog from 'primevue/confirmdialog'
@@ -271,6 +271,8 @@ const fullscreenLabel = computed(() =>
 
 const fullscreenTooltip = computed(() => fullscreenLabel.value)
 
+const isImmersiveBetaChat = computed(() => route.name === 'jpilot-beta')
+
 const updateBannerVisible = computed(() =>
   Boolean(updateInfo.value?.update_available) && !updateBannerDismissed.value
 )
@@ -278,6 +280,12 @@ const updateBannerVisible = computed(() =>
 function closeMobileNav() {
   mobileNavOpen.value = false
 }
+
+function openMobileNav() {
+  mobileNavOpen.value = true
+}
+
+provide('openMobileNav', openMobileNav)
 
 function isUpdateDismissed(version) {
   try {
@@ -926,6 +934,21 @@ function isActive(item) {
     padding: 0.75rem;
     padding-bottom: calc(0.75rem + env(safe-area-inset-bottom, 0px));
     box-sizing: border-box;
+  }
+
+  .app-shell-beta-immersive {
+    height: 100dvh;
+    max-height: 100dvh;
+  }
+
+  .app-shell-beta-immersive .main-content {
+    padding: 0;
+    padding-bottom: 0;
+    overflow: hidden;
+    display: flex;
+    flex-direction: column;
+    flex: 1;
+    min-height: 0;
   }
 
   .app-legal {

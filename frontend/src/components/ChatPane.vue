@@ -23,60 +23,115 @@
 
     <!-- Beta chat UI (Diamond ChatBox-style) -->
     <template v-if="uiVariant === 'beta'">
-      <div class="beta-shell flex flex-column h-full">
-        <div class="beta-header">
-          <Button
-            v-if="showConversationSwitcher"
-            v-tooltip.bottom="'Chats'"
-            icon="pi pi-comments"
-            outlined
-            severity="secondary"
-            rounded
-            class="beta-header-chats"
-            aria-label="Open chats"
-            @click="$emit('open-conversations')"
-          />
-          <div class="beta-header-identity">
-            <div class="beta-avatar-wrap">
-              <img src="/jpilot-favicon.png" alt="JPilot" class="beta-avatar" />
-              <span
-                class="beta-status-dot"
-                :class="{
-                  'beta-status-active': session.connectedAppliance && isApplianceConnected(),
-                  'beta-status-busy': isGenerating,
-                  'beta-status-away': session.applianceChoice && !isApplianceConnected()
-                }"
-              />
-            </div>
-            <div class="beta-header-copy">
-              <span class="beta-title">JPilot · {{ activeRole.label }}</span>
-              <span class="beta-subtitle">{{ betaStatusLine }}</span>
+      <div class="beta-shell flex flex-column h-full" :class="{ 'beta-shell-compact': showConversationSwitcher }">
+        <div class="beta-header" :class="{ 'beta-header-compact': showConversationSwitcher }">
+          <div class="beta-header-start">
+            <Button
+              v-if="showConversationSwitcher"
+              v-tooltip.bottom="'App menu'"
+              icon="pi pi-bars"
+              text
+              rounded
+              severity="secondary"
+              class="beta-header-nav"
+              aria-label="Open app menu"
+              @click="openAppNav()"
+            />
+            <div v-if="!showConversationSwitcher" class="beta-header-identity">
+              <div class="beta-avatar-wrap">
+                <img src="/jpilot-favicon.png" alt="JPilot" class="beta-avatar" />
+                <span
+                  class="beta-status-dot"
+                  :class="{
+                    'beta-status-active': session.connectedAppliance && isApplianceConnected(),
+                    'beta-status-busy': isGenerating,
+                    'beta-status-away': session.applianceChoice && !isApplianceConnected()
+                  }"
+                />
+              </div>
+              <div class="beta-header-copy">
+                <span class="beta-title">JPilot · {{ activeRole.label }}</span>
+                <span class="beta-subtitle">{{ betaStatusLine }}</span>
+              </div>
             </div>
           </div>
+
+          <div v-if="showConversationSwitcher" class="beta-header-mobile-title">
+            <RouterLink to="/" class="beta-header-logo-link" aria-label="JPilot home">
+              <JPilot :size="34" />
+            </RouterLink>
+            <span class="beta-subtitle-compact">{{ activeRole.label }}</span>
+          </div>
+
+          <div v-if="!showConversationSwitcher" class="beta-header-center">
+            <SelectButton
+              v-model="session.role"
+              :options="roleOptions"
+              option-value="id"
+              data-key="id"
+              :allow-empty="false"
+              class="beta-role-toggle"
+              :disabled="isGenerating"
+              aria-label="JPilot role"
+            >
+              <template #option="slotProps">
+                <i
+                  :class="slotProps.option.icon"
+                  v-tooltip.bottom="roleOptionTooltip(slotProps.option)"
+                  :aria-label="slotProps.option.label"
+                />
+              </template>
+            </SelectButton>
+          </div>
+
           <div class="beta-header-actions">
             <Button
               v-if="isGenerating"
               v-tooltip.bottom="'Stop generating'"
               icon="pi pi-stop"
               severity="danger"
-              outlined
+              :text="showConversationSwitcher"
+              :outlined="!showConversationSwitcher"
               rounded
               @click="stopChat"
             />
+            <template v-if="!showConversationSwitcher">
+              <Button
+                v-if="webSearchAvailable && !isGenerating"
+                v-tooltip.bottom="session.webSearch ? 'Web search on' : 'Web search off'"
+                :icon="session.webSearch ? 'pi pi-globe' : 'pi pi-ban'"
+                outlined
+                severity="secondary"
+                rounded
+                @click="session.webSearch = !session.webSearch"
+              />
+              <Button
+                v-if="session.messages.length"
+                v-tooltip.bottom="'Clear conversation'"
+                icon="pi pi-eraser"
+                outlined
+                severity="secondary"
+                rounded
+                :disabled="isGenerating"
+                aria-label="Clear conversation"
+                @click="clearBetaConversation"
+              />
+            </template>
             <Button
-              v-if="webSearchAvailable && !isGenerating"
-              v-tooltip.bottom="session.webSearch ? 'Web search on' : 'Web search off'"
-              :icon="session.webSearch ? 'pi pi-globe' : 'pi pi-ban'"
-              outlined
-              severity="secondary"
+              v-if="showConversationSwitcher && !isGenerating"
+              v-tooltip.bottom="'Chats'"
+              icon="pi pi-comments"
+              text
               rounded
-              class="beta-header-action-spaced"
-              @click="session.webSearch = !session.webSearch"
+              severity="secondary"
+              aria-label="Open chats"
+              @click="$emit('open-conversations')"
             />
             <Button
               v-tooltip.bottom="'Chat options'"
               icon="pi pi-ellipsis-v"
-              outlined
+              :text="showConversationSwitcher"
+              :outlined="!showConversationSwitcher"
               severity="secondary"
               rounded
               @click="toggleBetaOptions"
@@ -86,7 +141,12 @@
 
         <Popover ref="betaOptionsOp" class="beta-options-popover">
           <div class="beta-options-panel">
-            <div class="beta-options-group">
+            <div class="beta-options-meta">
+              <Tag value="Beta" severity="warn" icon="pi pi-sparkles" />
+              <span class="beta-options-hint">Saved on this device until you delete them</span>
+            </div>
+
+            <div v-if="showConversationSwitcher" class="beta-options-group">
               <span class="beta-options-label">Role</span>
               <SelectButton
                 v-model="session.role"
@@ -94,19 +154,72 @@
                 option-value="id"
                 data-key="id"
                 :allow-empty="false"
-                class="beta-role-toggle"
+                class="beta-role-toggle-mobile w-full"
                 :disabled="isGenerating"
                 aria-label="JPilot role"
               >
                 <template #option="slotProps">
-                  <i
-                    :class="slotProps.option.icon"
-                    v-tooltip.bottom="roleOptionTooltip(slotProps.option)"
-                    :aria-label="slotProps.option.label"
-                  />
+                  <i :class="slotProps.option.icon" :aria-label="slotProps.option.label" />
+                  <span class="beta-role-toggle-label">{{ slotProps.option.label }}</span>
                 </template>
               </SelectButton>
             </div>
+
+            <div v-if="showConversationSwitcher && webSearchAvailable" class="beta-options-group">
+              <span class="beta-options-label">Web search</span>
+              <Button
+                :label="session.webSearch ? 'On' : 'Off'"
+                :icon="session.webSearch ? 'pi pi-globe' : 'pi pi-ban'"
+                severity="secondary"
+                outlined
+                class="w-full"
+                @click="session.webSearch = !session.webSearch"
+              />
+            </div>
+
+            <div v-if="showConversationSwitcher && session.messages.length" class="beta-options-group">
+              <Button
+                label="Clear conversation"
+                icon="pi pi-eraser"
+                severity="secondary"
+                outlined
+                class="w-full"
+                :disabled="isGenerating"
+                @click="clearBetaConversation(); closeBetaOptions()"
+              />
+            </div>
+
+            <div class="beta-options-group">
+              <span class="beta-options-label">Background</span>
+              <div class="beta-bg-picker">
+                <button
+                  v-for="bg in betaBackgrounds"
+                  :key="bg.id"
+                  type="button"
+                  class="beta-bg-thumb beta-bg-thumb-animated"
+                  :class="{
+                    'beta-bg-thumb-active': betaBackground === bg.id,
+                    'beta-bg-thumb-white': bg.base === 'white',
+                    'beta-bg-thumb-black': bg.base === 'black'
+                  }"
+                  :aria-label="`${bg.label} (${bg.base} background)`"
+                  @click="chooseBetaBackground(bg.id)"
+                >
+                  <BetaChatBackground :background-id="bg.id" preview />
+                  <span class="beta-bg-thumb-label">{{ bg.label }}</span>
+                </button>
+                <button
+                  type="button"
+                  class="beta-bg-thumb beta-bg-thumb-none"
+                  :class="{ 'beta-bg-thumb-active': betaBackground === 'none' }"
+                  aria-label="Plain background"
+                  @click="chooseBetaBackground('none')"
+                >
+                  None
+                </button>
+              </div>
+            </div>
+
             <div class="beta-options-group">
               <span class="beta-options-label">Appliance</span>
               <Select
@@ -152,16 +265,6 @@
             </div>
             <div class="beta-options-actions">
               <Button
-                v-if="session.messages.length"
-                label="Clear conversation"
-                icon="pi pi-eraser"
-                size="small"
-                severity="secondary"
-                outlined
-                :disabled="isGenerating"
-                @click="clearBetaConversation"
-              />
-              <Button
                 label="JPilot settings"
                 icon="pi pi-cog"
                 size="small"
@@ -175,8 +278,20 @@
 
         <div ref="messagesEl" class="beta-messages user-message-container">
           <div v-if="!session.messages.length" class="beta-empty">
-            <p class="beta-empty-title">Ask JPilot — {{ activeRole.label }}</p>
+            <p class="beta-empty-title">{{ showConversationSwitcher ? 'What can I help with?' : `Ask JPilot — ${activeRole.label}` }}</p>
             <p class="beta-empty-hint">{{ activeRole.description }}</p>
+            <div v-if="showConversationSwitcher" class="beta-mobile-prompts">
+              <button
+                v-for="prompt in mobileQuickPrompts"
+                :key="prompt.id"
+                type="button"
+                class="beta-mobile-prompt"
+                :disabled="chatInputDisabled"
+                @click="onMobileQuickPrompt(prompt.text)"
+              >
+                {{ prompt.label }}
+              </button>
+            </div>
           </div>
 
           <template v-else>
@@ -269,7 +384,7 @@
                   />
                   <ChatDeploymentSubtasks
                     :subtasks="msg.deploymentSubtasks || msg.deploymentContinuation?.subtasks"
-                    :title="msg.progressTitle || (session.role === 'architect' ? 'Planning in progress' : 'Deployment progress')"
+                    :title="msg.progressTitle || (session.role === 'architect' ? 'Planning in progress' : 'Operation progress')"
                   />
                   <div
                     v-if="msg.deploymentContinuation?.required && !isGenerating"
@@ -341,6 +456,8 @@
             ref="commandMenuRef"
             variant="beta"
             :headless="session.messages.length > 0"
+            :show-trigger="!showConversationSwitcher"
+            :show-inline-preview="!showConversationSwitcher"
             :active-role="session.role"
             :appliance-vendor="commandMenuVendor"
             :disabled="chatInputDisabled"
@@ -350,11 +467,11 @@
           <p v-if="!session.messages.length && !ready" class="beta-empty-note">
             No LLM assigned to {{ activeRole.label }} — configure one in Settings → AI Providers.
           </p>
-          <p v-else-if="!session.messages.length && activeProviderName" class="beta-empty-note">
+          <p v-else-if="!session.messages.length && activeProviderName && !showConversationSwitcher" class="beta-empty-note">
             <i class="pi pi-sparkles" aria-hidden="true" />
             Using <strong>{{ activeProviderName }}</strong>
           </p>
-          <p v-if="!session.messages.length" class="beta-empty-note chat-support-note">
+          <p v-if="!session.messages.length && !showConversationSwitcher" class="beta-empty-note chat-support-note">
             <i class="pi pi-life-ring" aria-hidden="true" />
             Need help? Email
             <a href="mailto:support@nexxus-tech.com">support@nexxus-tech.com</a>
@@ -372,17 +489,48 @@
           </div>
         </div>
 
-        <div class="beta-footer">
-          <InputText
-            id="beta-message"
-            v-model="session.input"
-            type="text"
-            class="beta-input flex-1 w-full"
-            :placeholder="rolePlaceholder"
-            :disabled="chatInputDisabled"
-            @keydown.enter="sendMessage()"
-          />
-          <div class="beta-footer-actions">
+        <div class="beta-footer" :class="{ 'beta-footer-compact': showConversationSwitcher }">
+          <div class="beta-composer">
+            <Button
+              v-tooltip.top="'Browse recommended actions'"
+              icon="pi pi-search"
+              severity="secondary"
+              text
+              rounded
+              class="beta-composer-icon"
+              :disabled="chatInputDisabled"
+              @click="openCommandMenu"
+            />
+            <InputText
+              id="beta-message"
+              v-model="session.input"
+              type="text"
+              class="beta-input beta-composer-input flex-1 w-full"
+              :placeholder="showConversationSwitcher ? 'Message JPilot…' : rolePlaceholder"
+              :disabled="chatInputDisabled"
+              @keydown.enter="sendMessage()"
+            />
+            <Button
+              v-tooltip.top="'Attach file'"
+              icon="pi pi-paperclip"
+              severity="secondary"
+              text
+              rounded
+              class="beta-composer-icon"
+              :disabled="chatInputDisabled"
+              @click="toggleAttachMenu"
+            />
+            <Button
+              v-if="showConversationSwitcher"
+              icon="pi pi-arrow-up"
+              rounded
+              class="beta-composer-send"
+              aria-label="Send"
+              :disabled="(!session.input.trim() && !pendingAttachments.length) || !ready || isGenerating"
+              @click="sendMessage()"
+            />
+          </div>
+          <div v-if="!showConversationSwitcher" class="beta-footer-actions">
             <Button
               v-tooltip.top="'Browse recommended actions (⌘K)'"
               icon="pi pi-search"
@@ -701,7 +849,7 @@
             />
             <ChatDeploymentSubtasks
               :subtasks="msg.deploymentSubtasks || msg.deploymentContinuation?.subtasks"
-              :title="msg.progressTitle || (session.role === 'architect' ? 'Planning in progress' : 'Deployment progress')"
+              :title="msg.progressTitle || (session.role === 'architect' ? 'Planning in progress' : 'Operation progress')"
             />
             <div
               v-if="msg.deploymentContinuation?.required && !isGenerating"
@@ -797,8 +945,8 @@
 </template>
 
 <script setup>
-import { computed, nextTick, onMounted, onUnmounted, ref, watch } from 'vue'
-import { useRouter } from 'vue-router'
+import { computed, inject, nextTick, onMounted, onUnmounted, ref, watch } from 'vue'
+import { RouterLink, useRouter } from 'vue-router'
 import { useToast } from 'primevue/usetoast'
 import Button from 'primevue/button'
 import Menu from 'primevue/menu'
@@ -816,6 +964,7 @@ import AskJpilotCommandMenu from './AskJpilotCommandMenu.vue'
 import ChatMarkdown from './ChatMarkdown.vue'
 import ChatToolTrace from './ChatToolTrace.vue'
 import ChatDeploymentSubtasks from './ChatDeploymentSubtasks.vue'
+import JPilot from './JPilot.vue'
 import { isDeploymentContinueMessage, messageNeedsDeploymentContinuation } from '../utils/deploymentContinuation'
 import { streamCopilotChat } from '../services/copilotStream'
 import { formatCopilotError, isChatAbortError, isProviderQuotaError } from '../utils/chatErrors'
@@ -869,7 +1018,9 @@ import {
 import { isNetScalerVendor } from '../config/applianceVendors'
 import { resolveCommandFilterVendor } from '../config/jpilotRecommendedActions'
 import ChatRoleSwitchPrompt from './ChatRoleSwitchPrompt.vue'
+import BetaChatBackground from './BetaChatBackground.vue'
 import { buildRoleSwitchNotice, getRoleSwitchPrompt } from '../config/jpilotRoleInference'
+import Tag from 'primevue/tag'
 
 const props = defineProps({
   sessionId: { type: String, required: true },
@@ -881,10 +1032,14 @@ const props = defineProps({
   canClose: { type: Boolean, default: false },
   uiVariant: { type: String, default: 'classic' },
   /** Mobile beta chat: show button to open conversation list in parent. */
-  showConversationSwitcher: { type: Boolean, default: false }
+  showConversationSwitcher: { type: Boolean, default: false },
+  betaBackground: { type: String, default: 'constellation' },
+  betaBackgrounds: { type: Array, default: () => [] }
 })
 
-defineEmits(['close', 'open-conversations'])
+const emit = defineEmits(['close', 'open-conversations', 'update:betaBackground'])
+
+const openAppNav = inject('openMobileNav', () => {})
 
 const router = useRouter()
 const toast = useToast()
@@ -918,7 +1073,7 @@ const generationStatus = ref({
   round: 0
 })
 const liveDeploymentSubtasks = ref([])
-const liveProgressTitle = ref('Deployment progress')
+const liveProgressTitle = ref('Operation progress')
 let generationStartedAt = 0
 let generationElapsedTimer = null
 let lastGenerationStats = null
@@ -932,7 +1087,7 @@ function resetGenerationStatus() {
     round: 0
   }
   liveDeploymentSubtasks.value = []
-  liveProgressTitle.value = session.role === 'architect' ? 'Planning in progress' : 'Deployment progress'
+  liveProgressTitle.value = session.role === 'architect' ? 'Planning in progress' : 'Operation progress'
   lastGenerationStats = null
 }
 
@@ -1066,6 +1221,33 @@ const betaStatusLine = computed(() => {
   }
   return activeRole.value.description
 })
+
+const mobileQuickPrompts = computed(() => {
+  const role = session.role
+  const byRole = {
+    operator: [
+      { id: 'ips', label: 'List IP addresses', text: 'List all IP addresses on the connected appliance with their types (NSIP, SNIP, VIP, etc.).' },
+      { id: 'internet', label: 'Check internet access', text: 'Does the NetScaler have internet access?' },
+      { id: 'vservers', label: 'List virtual servers', text: 'List all virtual servers on the connected appliance.' }
+    ],
+    analyst: [
+      { id: 'health', label: 'System health', text: 'Show system health and high-level status on the connected appliance.' },
+      { id: 'cpu', label: 'CPU & memory', text: 'Show CPU and memory utilization on the connected appliance.' },
+      { id: 'ping', label: 'Test reachability', text: 'Can the appliance ping 8.8.8.8?' }
+    ],
+    architect: [
+      { id: 'greenfield', label: 'Greenfield design', text: 'I am planning a new NetScaler deployment from scratch.' },
+      { id: 'change', label: 'Change control', text: 'I need a change control record for a maintenance window.' },
+      { id: 'gateway', label: 'Citrix Gateway', text: 'Help me plan a Citrix Gateway deployment.' }
+    ]
+  }
+  return byRole[role] || byRole.operator
+})
+
+function onMobileQuickPrompt(text) {
+  session.input = text
+  sendMessage()
+}
 
 function formatMessageTime(msg) {
   const ts = msg.createdAt || msg.timestamp
@@ -1202,9 +1384,12 @@ function closeBetaOptions() {
   betaOptionsOp.value?.hide()
 }
 
+function chooseBetaBackground(id) {
+  emit('update:betaBackground', id)
+}
+
 function clearBetaConversation() {
   clearConversation()
-  closeBetaOptions()
 }
 
 function canDownloadArchitectDeliverable(content) {
@@ -2325,7 +2510,8 @@ onUnmounted(() => {
 }
 
 .beta-header {
-  display: flex;
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto minmax(0, 1fr);
   align-items: center;
   gap: 0.65rem;
   padding: 0.65rem 0.75rem;
@@ -2333,11 +2519,23 @@ onUnmounted(() => {
   background: color-mix(in srgb, var(--p-content-background) 80%, transparent);
   backdrop-filter: blur(10px);
   -webkit-backdrop-filter: blur(10px);
-  flex-wrap: nowrap;
   flex-shrink: 0;
 }
 
+.beta-header-start {
+  display: flex;
+  align-items: center;
+  gap: 0.65rem;
+  min-width: 0;
+}
+
 .beta-header-chats {
+  flex-shrink: 0;
+}
+
+.beta-header-center {
+  display: flex;
+  justify-content: center;
   flex-shrink: 0;
 }
 
@@ -2346,7 +2544,6 @@ onUnmounted(() => {
     gap: 1rem;
     padding: 1rem 3rem;
     padding-top: 1rem;
-    flex-wrap: wrap;
   }
 }
 
@@ -2355,7 +2552,6 @@ onUnmounted(() => {
   align-items: center;
   gap: 0.85rem;
   min-width: 0;
-  flex: 1 1 auto;
 }
 
 .beta-avatar-wrap {
@@ -2413,13 +2609,10 @@ onUnmounted(() => {
 .beta-header-actions {
   display: flex;
   align-items: center;
+  justify-content: flex-end;
   gap: 0.35rem;
-  margin-left: auto;
-  flex-wrap: wrap;
-}
-
-.beta-header-action-spaced {
-  margin-right: 0.25rem;
+  flex-wrap: nowrap;
+  min-width: 0;
 }
 
 .beta-options-panel {
@@ -2428,6 +2621,88 @@ onUnmounted(() => {
   gap: 1rem;
   width: min(22rem, 80vw);
   padding: 0.25rem;
+}
+
+.beta-options-meta {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: 0.35rem;
+}
+
+.beta-options-hint {
+  font-size: 0.8125rem;
+  color: var(--p-text-muted-color);
+  line-height: 1.35;
+}
+
+.beta-bg-picker {
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  gap: 0.5rem;
+}
+
+.beta-bg-thumb {
+  width: 100%;
+  aspect-ratio: 3 / 2;
+  border-radius: 0.5rem;
+  border: 2px solid transparent;
+  background-size: cover;
+  background-position: center;
+  cursor: pointer;
+  color: var(--p-text-muted-color);
+  font-size: 0.75rem;
+}
+
+.beta-bg-thumb-animated {
+  position: relative;
+  padding: 0;
+  overflow: hidden;
+  display: flex;
+  flex-direction: column;
+  align-items: stretch;
+}
+
+.beta-bg-thumb-white {
+  box-shadow: inset 0 0 0 1px rgba(15, 23, 42, 0.12);
+}
+
+.beta-bg-thumb-black {
+  box-shadow: inset 0 0 0 1px rgba(255, 255, 255, 0.14);
+}
+
+.beta-bg-thumb-label {
+  position: absolute;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  padding: 0.2rem 0.25rem;
+  font-size: 0.625rem;
+  font-weight: 600;
+  text-align: center;
+  color: #fff;
+  background: linear-gradient(transparent, rgba(0, 0, 0, 0.72));
+  pointer-events: none;
+}
+
+.beta-bg-thumb-white .beta-bg-thumb-label {
+  color: #0f172a;
+  background: linear-gradient(transparent, rgba(255, 255, 255, 0.92));
+}
+
+.beta-bg-thumb-animated :deep(.beta-chat-bg) {
+  border-radius: inherit;
+}
+
+.beta-bg-thumb-none {
+  background: var(--p-surface-100);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.beta-bg-thumb-active {
+  border-color: var(--p-primary-color);
 }
 
 .beta-options-group {
@@ -2799,6 +3074,369 @@ onUnmounted(() => {
   max-width: 42rem;
   margin-left: auto;
   margin-right: auto;
+}
+
+/* ---------- Beta mobile (SuperGrok-style) ---------- */
+.beta-header-mobile-title {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 0.15rem;
+  min-width: 0;
+  text-align: center;
+}
+
+.beta-header-logo-link {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  text-decoration: none;
+  line-height: 0;
+}
+
+.beta-header-logo-link :deep(.jpilot-logo) {
+  display: block;
+}
+
+.beta-title-compact {
+  font-size: 1rem;
+  font-weight: 650;
+  letter-spacing: -0.02em;
+  color: var(--p-text-color);
+}
+
+.beta-subtitle-compact {
+  font-size: 0.8125rem;
+  font-weight: 500;
+  color: var(--p-text-muted-color);
+}
+
+.beta-role-toggle-mobile :deep(.p-togglebutton) {
+  flex: 1;
+  justify-content: center;
+  gap: 0.35rem;
+  padding: 0.55rem 0.65rem;
+}
+
+.beta-role-toggle-label {
+  font-size: 0.8125rem;
+  font-weight: 600;
+}
+
+.beta-mobile-prompts {
+  display: flex;
+  flex-direction: column;
+  gap: 0.5rem;
+  width: 100%;
+  max-width: 22rem;
+  margin: 0.75rem auto 0;
+}
+
+.beta-mobile-prompt {
+  width: 100%;
+  padding: 0.85rem 1rem;
+  border-radius: 1rem;
+  border: 1px solid color-mix(in srgb, var(--p-content-border-color) 80%, transparent);
+  background: color-mix(in srgb, var(--p-content-background) 88%, transparent);
+  color: var(--p-text-color);
+  font-size: 0.9375rem;
+  font-weight: 500;
+  text-align: left;
+  cursor: pointer;
+  transition: background 0.15s ease, border-color 0.15s ease;
+}
+
+.beta-mobile-prompt:hover:not(:disabled) {
+  border-color: color-mix(in srgb, var(--p-primary-color) 35%, transparent);
+  background: color-mix(in srgb, var(--p-primary-color) 8%, var(--p-content-background));
+}
+
+.beta-mobile-prompt:disabled {
+  opacity: 0.55;
+  cursor: not-allowed;
+}
+
+.beta-composer {
+  display: none;
+}
+
+.beta-footer-compact .beta-composer {
+  display: flex;
+  align-items: center;
+  gap: 0.15rem;
+  width: 100%;
+  padding: 0.35rem 0.45rem 0.35rem 0.25rem;
+  border-radius: 999px;
+  border: 1px solid var(--beta-mobile-border, var(--p-content-border-color));
+  background: var(--beta-mobile-composer-bg, var(--p-content-background));
+}
+
+.beta-composer-input :deep(input) {
+  border: 0 !important;
+  background: transparent !important;
+  box-shadow: none !important;
+  padding-left: 0.25rem;
+  padding-right: 0.25rem;
+}
+
+.beta-composer-icon {
+  flex-shrink: 0;
+  width: 2.25rem;
+  height: 2.25rem;
+}
+
+.beta-composer-send {
+  flex-shrink: 0;
+  width: 2.35rem !important;
+  height: 2.35rem !important;
+  padding: 0 !important;
+}
+
+.beta-footer-compact .beta-footer-actions {
+  display: none;
+}
+
+@media (max-width: 991px) {
+  .beta-shell-compact {
+    --beta-mobile-bg: #f8fafc;
+    --beta-mobile-surface: #ffffff;
+    --beta-mobile-ink: #0f172a;
+    --beta-mobile-muted: #64748b;
+    --beta-mobile-border: #e2e8f0;
+    --beta-mobile-chip-bg: #ffffff;
+    --beta-mobile-chip-hover: #f1f5f9;
+    --beta-mobile-composer-bg: #ffffff;
+    --beta-mobile-user-bubble: color-mix(in srgb, var(--p-primary-color) 10%, #ffffff);
+    background: var(--beta-mobile-bg);
+    color: var(--beta-mobile-ink);
+  }
+
+  :global(.app-dark) .beta-shell-compact {
+    --beta-mobile-bg: #000000;
+    --beta-mobile-surface: #000000;
+    --beta-mobile-ink: #f5f5f5;
+    --beta-mobile-muted: #a3a3a3;
+    --beta-mobile-border: #262626;
+    --beta-mobile-chip-bg: #141414;
+    --beta-mobile-chip-hover: #1c1c1c;
+    --beta-mobile-composer-bg: #141414;
+    --beta-mobile-user-bubble: #1c1c1c;
+    background: var(--beta-mobile-bg);
+    color: var(--beta-mobile-ink);
+  }
+
+  :global(.app-dark) .beta-shell-compact .chat-pane-beta {
+    background: var(--beta-mobile-bg);
+    color: var(--beta-mobile-ink);
+  }
+
+  .beta-header-compact {
+    display: grid;
+    grid-template-columns: 2.75rem minmax(0, 1fr) auto;
+    align-items: center;
+    gap: 0.35rem;
+    padding:
+      calc(0.5rem + env(safe-area-inset-top, 0px))
+      0.75rem
+      0.5rem;
+    border-bottom: 1px solid var(--beta-mobile-border);
+    background: var(--beta-mobile-surface) !important;
+    backdrop-filter: none !important;
+    -webkit-backdrop-filter: none !important;
+    color: var(--beta-mobile-ink);
+  }
+
+  .beta-header-compact .beta-title-compact {
+    color: var(--beta-mobile-ink);
+  }
+
+  .beta-header-compact .beta-subtitle-compact {
+    color: var(--beta-mobile-muted);
+  }
+
+  .beta-header-compact .beta-header-start {
+    grid-column: 1;
+    min-width: 0;
+  }
+
+  .beta-header-compact .beta-header-mobile-title {
+    grid-column: 2;
+    justify-self: center;
+  }
+
+  .beta-header-compact .beta-header-actions {
+    grid-column: 3;
+    justify-self: end;
+    display: inline-flex;
+    align-items: center;
+    gap: 0.1rem;
+  }
+
+  .beta-header-compact .beta-header-nav,
+  .beta-header-compact .beta-header-actions :deep(.p-button) {
+    color: var(--beta-mobile-ink);
+  }
+
+  .beta-messages.user-message-container {
+    padding: 0.5rem 0.85rem 0.25rem;
+    background: var(--beta-mobile-bg) !important;
+    color: var(--beta-mobile-ink);
+  }
+
+  .beta-shell-compact .beta-empty {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    min-height: min(42vh, 22rem);
+    padding: 1.5rem 0.75rem 1rem;
+    text-align: center;
+  }
+
+  .beta-shell-compact .beta-empty-title {
+    font-size: 1.35rem;
+    font-weight: 650;
+    letter-spacing: -0.03em;
+    margin-bottom: 0.5rem;
+    color: var(--beta-mobile-ink);
+  }
+
+  .beta-shell-compact .beta-empty-hint {
+    max-width: 18rem;
+    margin-bottom: 0;
+    font-size: 0.875rem;
+    line-height: 1.45;
+    color: var(--beta-mobile-muted);
+  }
+
+  .beta-shell-compact .beta-mobile-prompt {
+    background: var(--beta-mobile-chip-bg);
+    border: 1px solid var(--beta-mobile-border);
+    color: var(--beta-mobile-ink);
+    box-shadow: 0 1px 2px rgba(15, 23, 42, 0.04);
+  }
+
+  .beta-shell-compact .beta-mobile-prompt:hover:not(:disabled) {
+    background: var(--beta-mobile-chip-hover);
+    border-color: color-mix(in srgb, var(--p-primary-color) 30%, var(--beta-mobile-border));
+  }
+
+  .beta-shell-compact .beta-msg-grid-assistant {
+    grid-template-columns: 1fr;
+  }
+
+  .beta-shell-compact .beta-msg-avatar-col,
+  .beta-shell-compact .beta-message-author,
+  .beta-shell-compact .beta-check-icon {
+    display: none;
+  }
+
+  .beta-shell-compact .beta-bubble {
+    max-width: 100%;
+    padding: 0.75rem 0;
+    border: 0;
+    border-radius: 0;
+    background: transparent !important;
+    box-shadow: none !important;
+    backdrop-filter: none !important;
+    font-size: 0.9375rem;
+    line-height: 1.55;
+    color: var(--beta-mobile-ink);
+  }
+
+  .beta-shell-compact .beta-bubble :deep(.chat-markdown),
+  .beta-shell-compact .beta-bubble :deep(.chat-markdown p),
+  .beta-shell-compact .beta-bubble :deep(.chat-markdown li) {
+    color: inherit;
+  }
+
+  .beta-shell-compact .beta-bubble-user {
+    max-width: 88%;
+    margin-left: auto;
+    padding: 0.65rem 0.85rem;
+    border-radius: 1.15rem 1.15rem 0.35rem 1.15rem;
+    border: 1px solid var(--beta-mobile-border);
+    background: var(--beta-mobile-user-bubble) !important;
+    color: var(--beta-mobile-ink) !important;
+  }
+
+  .beta-shell-compact .beta-bubble-assistant.beta-bubble-loading {
+    padding: 0.35rem 0;
+  }
+
+  .beta-shell-compact .beta-message-time {
+    font-size: 0.6875rem;
+    opacity: 0.72;
+    color: var(--beta-mobile-muted);
+  }
+
+  .beta-footer-compact {
+    border-top: 1px solid var(--beta-mobile-border);
+    background: var(--beta-mobile-bg) !important;
+    backdrop-filter: none !important;
+    -webkit-backdrop-filter: none !important;
+    padding:
+      0.5rem 0.75rem
+      calc(0.65rem + env(safe-area-inset-bottom, 0px));
+  }
+
+  .beta-footer-compact .beta-composer {
+    background: var(--beta-mobile-composer-bg);
+    border-color: var(--beta-mobile-border);
+  }
+
+  .beta-footer-compact .beta-composer-input :deep(input) {
+    color: var(--beta-mobile-ink);
+  }
+
+  .beta-footer-compact .beta-composer-input :deep(input::placeholder) {
+    color: var(--beta-mobile-muted);
+    opacity: 1;
+  }
+
+  .beta-footer-compact .beta-composer-icon :deep(.p-button) {
+    color: var(--beta-mobile-muted);
+  }
+
+  .beta-footer-compact .beta-composer-send {
+    background: var(--p-primary-color) !important;
+    border-color: var(--p-primary-color) !important;
+    color: var(--p-primary-contrast-color) !important;
+  }
+
+  .beta-shell-compact .beta-pending {
+    border-top: 0;
+    background: var(--beta-mobile-bg);
+    padding: 0.35rem 0.85rem 0;
+    color: var(--beta-mobile-ink);
+  }
+
+  :global(.app-dark) .beta-shell-compact :deep(.deployment-subtasks-title),
+  :global(.app-dark) .beta-shell-compact :deep(.deployment-subtask--pending) {
+    color: var(--beta-mobile-muted);
+  }
+
+  :global(.app-dark) .beta-shell-compact :deep(.role-switch-notice) {
+    color: var(--beta-mobile-ink);
+  }
+
+  .chat-pane-beta:has(.beta-shell-compact) {
+    --glass-text: #0f172a;
+    --glass-muted: #64748b;
+    background: #f8fafc;
+  }
+
+  :global(.app-dark) .chat-pane-beta:has(.beta-shell-compact) {
+    --glass-text: #f5f5f5;
+    --glass-muted: #a3a3a3;
+    background: #000000;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .beta-mobile-prompt {
+    transition: none;
+  }
 }
 
 .deployment-continue-actions {

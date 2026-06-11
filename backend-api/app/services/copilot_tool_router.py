@@ -4,6 +4,7 @@ from __future__ import annotations
 
 from typing import Any
 
+from app.services.copilot_architect_discovery import user_wants_deliverable_now
 from app.services.copilot_form import is_form_submission, user_requests_design_implementation
 
 # Pack names map to tool names included when that intent is detected.
@@ -52,7 +53,7 @@ PACK_TOOLS: dict[str, frozenset[str]] = {
 }
 
 ROLE_BASE_PACKS: dict[str, frozenset[str]] = {
-    "architect": frozenset({"inventory", "architect_search", "cli_search", "nextgen_search"}),
+    "architect": frozenset({"inventory"}),
     "analyst": frozenset({"core_read", "read", "diagnostic", "cli_search", "nextgen_search"}),
     "operator": frozenset({"core_read", "read"}),
 }
@@ -126,6 +127,12 @@ def classify_tool_packs(
     else:
         packs = set(ROLE_BASE_PACKS.get(role, ROLE_BASE_PACKS["operator"]))
 
+    if role == "architect" and vendor == "netscaler":
+        architect_packs: set[str] = set()
+        if user_wants_deliverable_now(user_message):
+            architect_packs.update({"architect_search", "cli_search", "nextgen_search"})
+        return architect_packs
+
     if _contains_any(
         lowered,
         (
@@ -133,12 +140,49 @@ def classify_tool_packs(
             "can jpilot reach",
             "doc connectivity",
             "documentation site",
-            "internet access",
             "reach the documentation",
-            "reach the internet",
         ),
     ):
         packs.add("doc_connectivity")
+
+    if _contains_any(
+        lowered,
+        (
+            "internet access",
+            "internet connectivity",
+            "reach the internet",
+            "outbound internet",
+            "has internet",
+            "access the internet",
+            "connect to the internet",
+            "external connectivity",
+        ),
+    ):
+        if _contains_any(
+            lowered,
+            (
+                "netscaler",
+                "adc",
+                "appliance",
+                "nsip",
+                "the box",
+                "this box",
+                "vpx",
+            ),
+        ) or not _contains_any(
+            lowered,
+            (
+                "can you reach",
+                "can jpilot",
+                "jpilot reach",
+                "your server",
+                "the backend",
+                "documentation site",
+            ),
+        ):
+            packs.add("diagnostic")
+        else:
+            packs.add("doc_connectivity")
 
     if _contains_any(
         lowered,
@@ -176,24 +220,23 @@ def classify_tool_packs(
     ):
         packs.add("read")
 
-    if role == "architect" and _contains_any(
-        lowered,
-        (
-            "design",
-            "architecture",
-            "discovery",
-            "ha ",
-            "high availability",
-            "gslb",
-            "deployment plan",
-            "outline",
-            "gateway",
-            "storefront",
-            "azure",
-            "aws",
-        ),
-    ):
-        packs.add("architect_search")
+    if role == "architect" and user_wants_deliverable_now(user_message):
+        packs.update({"architect_search", "cli_search", "nextgen_search"})
+
+    if is_form_submission(user_message):
+        if role == "architect":
+            packs.discard("architect_search")
+            packs.discard("cli_search")
+            packs.discard("nextgen_search")
+            packs.discard("cli_write")
+            packs.discard("nextgen_write")
+            packs.discard("read")
+            packs.discard("inventory")
+        else:
+            packs.update({"cli_write", "cli_search", "nextgen_write", "nextgen_search", "read"})
+
+    if role == "architect":
+        return packs
 
     cli_write_signal = _contains_any(
         lowered,
@@ -234,9 +277,6 @@ def classify_tool_packs(
             "post application",
         ),
     )
-
-    if is_form_submission(user_message):
-        packs.update({"cli_write", "cli_search", "nextgen_write", "nextgen_search", "read"})
 
     if user_requests_design_implementation(user_message, attachments):
         packs.update({"cli_write", "cli_search", "read", "core_read"})
@@ -312,6 +352,9 @@ def route_copilot_tools(
     allowed_names = pack_tool_names(packs, vendor=vendor)
     enabled_names = {tool["name"] for tool in enabled_tools}
     selected_names = allowed_names & enabled_names
+
+    if role == "architect":
+        return [tool for tool in enabled_tools if tool["name"] in selected_names]
 
     if len(selected_names) < MIN_ROUTED_TOOLS:
         return enabled_tools

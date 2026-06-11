@@ -632,27 +632,23 @@ defineExpose({ openMenu })
 }
 
 :global(.p-dialog.cmd-dialog) .cmd-dialog-sidebar {
-  flex: 0 0 auto;
-  width: 100%;
-  max-height: 11rem;
-  box-sizing: border-box;
-  display: block;
-  overflow-x: hidden;
-  overflow-y: auto;
-  padding: 0.35rem 0 0.5rem;
-  border-bottom: 1px solid color-mix(in srgb, var(--p-surface-0) 15%, transparent);
-  background: color-mix(in srgb, var(--p-surface-900) 88%, transparent);
+  display: none;
 }
 
 @media (min-width: 768px) {
   :global(.p-dialog.cmd-dialog) .cmd-dialog-sidebar {
+    display: block;
     flex: 0 0 14rem;
     width: 14rem;
     max-width: 14rem;
     max-height: none;
+    box-sizing: border-box;
+    overflow-x: hidden;
+    overflow-y: auto;
     padding: 0.85rem 0;
     border-bottom: 0;
     border-left: 1px solid color-mix(in srgb, var(--p-surface-0) 15%, transparent);
+    background: color-mix(in srgb, var(--p-surface-900) 88%, transparent);
   }
 }
 
@@ -840,10 +836,6 @@ defineExpose({ openMenu })
 @media (max-width: 991px) {
   .cmd-inline {
     display: none;
-  }
-
-  .cmd-menu-beta .cmd-inline {
-    display: block;
   }
 
   .cmd-menu-trigger .cmd-kbd {

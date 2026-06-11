@@ -6,6 +6,7 @@ from app.services.copilot_form import (
     user_requests_design_implementation,
     user_requests_lb_vserver_create,
 )
+from app.services.copilot_architect_discovery import JPILOT_FORM_NOT_A_TOOL_HINT
 
 
 def _parse_tool_payload(result: str) -> Any:
@@ -43,6 +44,16 @@ def build_tool_retry_hint(
     user_message: str,
     attachment_names: list[str] | None = None,
 ) -> str | None:
+    normalized_tool = (tool_name or "").strip().lower().replace("_", "-")
+    if normalized_tool in {"jpilot-form", "inputform", "input-form"}:
+        return JPILOT_FORM_NOT_A_TOOL_HINT
+
+    if isinstance(result, str) and result.startswith("BLOCKED:"):
+        return result.removeprefix("BLOCKED:").strip()
+
+    if isinstance(result, str) and "jpilot-form" in result.lower() and "not available" in result.lower():
+        return JPILOT_FORM_NOT_A_TOOL_HINT
+
     data = _parse_tool_payload(result)
 
     if _user_asks_for_all_ips(user_message) and tool_name in {

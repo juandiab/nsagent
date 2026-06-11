@@ -292,4 +292,30 @@ function submit() {
 .config-choice-other {
   margin-top: 0.25rem;
 }
+
+:global(.app-dark) .config-form {
+  background: #141414;
+  border-color: #333333;
+}
+
+:global(.app-dark) .config-label {
+  color: #f5f5f5;
+}
+
+:global(.app-dark) .config-choice-btn {
+  background: #0a0a0a;
+  border-color: #333333;
+  color: #f5f5f5;
+}
+
+:global(.app-dark) .config-choice-btn-active {
+  border-color: var(--p-primary-color);
+  background: color-mix(in srgb, var(--p-primary-color) 20%, #0a0a0a);
+}
+
+:global(.app-dark) .config-choice-desc,
+:global(.app-dark) .config-hint,
+:global(.app-dark) .config-form-desc {
+  color: #a3a3a3;
+}
 </style>

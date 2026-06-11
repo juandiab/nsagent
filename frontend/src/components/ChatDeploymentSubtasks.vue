@@ -39,9 +39,14 @@ function statusIcon(status) {
 .deployment-subtasks {
   margin-top: 0.75rem;
   padding: 0.75rem 0.9rem;
-  border: 1px solid var(--surface-border);
+  border: 1px solid var(--p-content-border-color);
   border-radius: 0.75rem;
-  background: color-mix(in srgb, var(--surface-ground) 88%, transparent);
+  background: color-mix(in srgb, var(--p-surface-100) 40%, var(--p-content-background));
+}
+
+:global(.app-dark) .deployment-subtasks {
+  background: #141414;
+  border-color: #333333;
 }
 
 .deployment-subtasks-title {
@@ -49,7 +54,7 @@ function statusIcon(status) {
   font-weight: 600;
   letter-spacing: 0.02em;
   text-transform: uppercase;
-  color: var(--text-color-secondary);
+  color: var(--p-text-muted-color);
   margin-bottom: 0.5rem;
 }
 
@@ -74,14 +79,14 @@ function statusIcon(status) {
 }
 
 .deployment-subtask--in_progress {
-  color: var(--primary-color);
+  color: var(--p-primary-color);
 }
 
 .deployment-subtask--failed {
-  color: var(--red-500, #ef4444);
+  color: var(--p-red-500, #ef4444);
 }
 
 .deployment-subtask--pending {
-  color: var(--text-color-secondary);
+  color: var(--p-text-muted-color);
 }
 </style>
