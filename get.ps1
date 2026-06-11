@@ -9,15 +9,6 @@ $ErrorActionPreference = 'Stop'
 
 $RepoUrl = if ($env:JPILOT_REPO) { $env:JPILOT_REPO } else { 'https://github.com/Nexxus-Tech-SAS/jpilot.git' }
 $Ref     = if ($env:JPILOT_REF)  { $env:JPILOT_REF }  else { 'main' }
-if ($env:JPILOT_DIR) {
-  $Target = $env:JPILOT_DIR
-}
-elseif ($env:USERPROFILE) {
-  $Target = Join-Path $env:USERPROFILE 'jpilot'
-}
-else {
-  $Target = Join-Path (Get-Location) 'jpilot'
-}
 
 # When run as `irm ... | iex`, this script executes inside the current
 # PowerShell session, so a bare `exit` terminates the host and closes the
@@ -47,6 +38,58 @@ function Update-SessionPath {
   $machine = [Environment]::GetEnvironmentVariable('Path', 'Machine')
   $user    = [Environment]::GetEnvironmentVariable('Path', 'User')
   $env:Path = (@($machine, $user) | Where-Object { $_ }) -join ';'
+}
+
+function Get-DefaultInstallDir {
+  if ($env:USERPROFILE) { return (Join-Path $env:USERPROFILE 'jpilot') }
+  return (Join-Path (Get-Location) 'jpilot')
+}
+
+function Resolve-InstallPath([string]$Path) {
+  if ($Path -match '^~[\\/]?$') { return $env:USERPROFILE }
+  if ($Path -match '^~[\\/](.+)$') { return (Join-Path $env:USERPROFILE $Matches[1]) }
+  return $Path
+}
+
+function Ask-InstallDir {
+  if ($env:JPILOT_DIR) { return (Resolve-InstallPath $env:JPILOT_DIR) }
+  $default = Get-DefaultInstallDir
+  if (Test-Path (Join-Path $default '.git')) {
+    Info "Using existing install at $default."
+    return $default
+  }
+  if (-not $Interactive) { return $default }
+  Write-Host ""
+  Info "Where should JPilot be downloaded on this PC?"
+  Info "Pick a folder you can write to. Press Enter for the default, or type another path"
+  Info "(for example D:\jpilot — protected folders may need an Administrator prompt once)."
+  $choice = Read-Host "  Install folder [$default]"
+  if ([string]::IsNullOrWhiteSpace($choice)) { return $default }
+  return (Resolve-InstallPath $choice.Trim())
+}
+
+function Ensure-InstallDir([string]$Path) {
+  if ((Test-Path $Path) -and -not (Test-Path $Path -PathType Container)) {
+    Die "$Path exists but is not a folder."
+  }
+  if (Test-Path $Path -PathType Container) { return }
+  try {
+    New-Item -ItemType Directory -Path $Path -Force | Out-Null
+    return
+  }
+  catch {
+    Warn "That location needs Administrator rights (common under Program Files or C:\)."
+    if (-not (Ask-YesNo "Create $Path and give you access (Administrator prompt)?")) {
+      Die "Cannot use $Path. Pick a folder you can write to — the default in your profile works."
+    }
+    $cmd = "New-Item -ItemType Directory -Path '$Path' -Force | Out-Null; " +
+           "icacls '$Path' /grant '$env:USERNAME:(OI)(CI)F' /T"
+    Start-Process powershell -Verb RunAs -Wait -ArgumentList @('-NoProfile', '-Command', $cmd) | Out-Null
+    if (-not (Test-Path $Path -PathType Container)) {
+      Die "Could not create $Path. Try the default folder or run PowerShell as Administrator."
+    }
+    Ok "Created $Path"
+  }
 }
 
 Write-Host ""
@@ -124,6 +167,9 @@ if ($LASTEXITCODE -ne 0 -and -not (Get-Command docker-compose -ErrorAction Silen
   Die "Docker Compose was not found. Install Docker Desktop (https://docs.docker.com/get-docker/)."
 }
 Ok "Docker is ready"
+
+$Target = Ask-InstallDir
+Ensure-InstallDir $Target
 
 # ---- fetch the project -----------------------------------------------------
 if (Test-Path (Join-Path $Target '.git')) {

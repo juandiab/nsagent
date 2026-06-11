@@ -8,13 +8,6 @@ set -eu
 
 REPO_URL="${JPILOT_REPO:-https://github.com/Nexxus-Tech-SAS/jpilot.git}"
 REF="${JPILOT_REF:-main}"
-if [ -n "${JPILOT_DIR:-}" ]; then
-  TARGET="$JPILOT_DIR"
-elif [ -n "${HOME:-}" ]; then
-  TARGET="${HOME}/jpilot"
-else
-  TARGET="$(pwd)/jpilot"
-fi
 
 # ---- pretty output ---------------------------------------------------------
 if [ -t 1 ]; then B="$(printf '\033[1m')"; G="$(printf '\033[32m')"; Y="$(printf '\033[33m')"; R="$(printf '\033[31m')"; N="$(printf '\033[0m')"; else B=""; G=""; Y=""; R=""; N=""; fi
@@ -44,6 +37,77 @@ ask_yes_no() {
     case "$_ans" in [Yy]|[Yy][Ee][Ss]) return 0 ;; *) return 1 ;; esac
   fi
   return 1
+}
+
+default_install_dir() {
+  if [ -n "${HOME:-}" ]; then
+    printf '%s/jpilot' "$HOME"
+  else
+    printf '%s/jpilot' "$(pwd)"
+  fi
+}
+
+expand_path() {
+  case "$1" in
+    "~") printf '%s' "${HOME:-~}" ;;
+    "~/"*) printf '%s/%s' "${HOME:-~}" "${1#~/}" ;;
+    *) printf '%s' "$1" ;;
+  esac
+}
+
+ask_install_dir() {
+  _default=$(default_install_dir)
+  if [ -n "${JPILOT_DIR:-}" ]; then
+    TARGET=$(expand_path "$JPILOT_DIR")
+    return 0
+  fi
+  if [ -d "$_default/.git" ]; then
+    TARGET="$_default"
+    info "Using existing install at ${B}${TARGET}${N}."
+    return 0
+  fi
+  if [ ! -r /dev/tty ]; then
+    TARGET="$_default"
+    return 0
+  fi
+  printf '\n' > /dev/tty
+  info "Where should JPilot be downloaded on this machine?"
+  info "Pick a folder you can write to. Press Enter for the default, or type another path"
+  info "(for example /opt/jpilot — the installer can create system folders with sudo)."
+  printf '  Install folder [%s]: ' "$_default" > /dev/tty
+  read _choice < /dev/tty || _choice=""
+  if [ -z "$_choice" ]; then
+    TARGET="$_default"
+  else
+    TARGET=$(expand_path "$_choice")
+  fi
+}
+
+ensure_install_dir() {
+  _parent=$(dirname "$TARGET")
+  if [ -e "$TARGET" ] && [ ! -d "$TARGET" ]; then
+    die "$TARGET exists but is not a folder."
+  fi
+  if [ -d "$TARGET" ]; then
+    return 0
+  fi
+  if [ -d "$_parent" ] && [ -w "$_parent" ]; then
+    mkdir -p "$TARGET" || die "Could not create ${TARGET}."
+    return 0
+  fi
+  if [ "$OS" = "Linux" ] && command -v sudo >/dev/null 2>&1; then
+    warn "${_parent} needs administrator rights (common for /opt and similar paths)."
+    if ask_yes_no "  Create ${TARGET} and give you ownership (sudo)?"; then
+      sudo mkdir -p "$TARGET" || die "Could not create ${TARGET}."
+      sudo chown "$(id -un):$(id -gn 2>/dev/null || id -un)" "$TARGET" \
+        || die "Could not set ownership on ${TARGET}."
+      ok "Created ${TARGET}"
+      return 0
+    fi
+  fi
+  die "Cannot use ${TARGET}.
+     Pick a folder you can write to (the default in your home directory works),
+     or allow the installer to create it with sudo."
 }
 
 # After usermod -aG docker, the current shell keeps the old group list until re-login.
@@ -267,6 +331,9 @@ if ! command -v curl >/dev/null 2>&1; then
     fi
   fi
 fi
+
+ask_install_dir
+ensure_install_dir
 
 # ---- fetch the project -----------------------------------------------------
 if [ -d "$TARGET/.git" ]; then
