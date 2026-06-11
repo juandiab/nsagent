@@ -110,6 +110,10 @@ ensure_install_dir() {
      or allow the installer to create it with sudo."
 }
 
+dir_is_empty() {
+  [ -d "$1" ] && [ -z "$(ls -A "$1" 2>/dev/null)" ]
+}
+
 # After usermod -aG docker, the current shell keeps the old group list until re-login.
 # id -nG reads the account's groups from the system, so sg docker works immediately.
 user_in_docker_group() {
@@ -342,10 +346,11 @@ if [ -d "$TARGET/.git" ]; then
   git -C "$TARGET" checkout -q "$REF" 2>/dev/null || true
   git -C "$TARGET" reset --hard "origin/$REF" >/dev/null 2>&1 || git -C "$TARGET" reset --hard "$REF" >/dev/null 2>&1 || true
   ok "Updated to latest $REF"
-elif [ -e "$TARGET" ]; then
-  die "$TARGET already exists and is not a JPilot checkout.
-     Remove that folder and re-run this installer."
 else
+  if [ -e "$TARGET" ] && ! dir_is_empty "$TARGET"; then
+    die "$TARGET already exists and is not a JPilot checkout.
+     Remove that folder and re-run this installer."
+  fi
   info "Downloading JPilot into ${B}$TARGET${N}..."
   _clone_err="/tmp/jpilot-clone-$$.err"
   if git clone --depth 1 --branch "$REF" "$REPO_URL" "$TARGET" >/dev/null 2>"$_clone_err"; then

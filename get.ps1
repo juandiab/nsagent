@@ -92,6 +92,10 @@ function Ensure-InstallDir([string]$Path) {
   }
 }
 
+function Test-EmptyDirectory([string]$Path) {
+  return (Test-Path $Path -PathType Container) -and -not (Get-ChildItem -LiteralPath $Path -Force -ErrorAction SilentlyContinue | Select-Object -First 1)
+}
+
 Write-Host ""
 Write-Host "JPilot / NSAgent installer" -ForegroundColor White
 Write-Host ""
@@ -179,10 +183,10 @@ if (Test-Path (Join-Path $Target '.git')) {
   git -C $Target reset --hard "origin/$Ref" *> $null
   Ok "Updated to latest $Ref"
 }
-elseif (Test-Path $Target) {
-  Die "$Target already exists and is not a JPilot checkout. Remove that folder and re-run this installer."
-}
 else {
+  if ((Test-Path $Target) -and -not (Test-EmptyDirectory $Target)) {
+    Die "$Target already exists and is not a JPilot checkout. Remove that folder and re-run this installer."
+  }
   Info "Downloading JPilot into $Target..."
   git clone --depth 1 --branch $Ref $RepoUrl $Target 2>&1 | Out-Null
   if ($LASTEXITCODE -ne 0) { Die "Clone failed. Check your network and try again." }
