@@ -8,7 +8,7 @@ Repository: [github.com/Nexxus-Tech-SAS/jpilot](https://github.com/Nexxus-Tech-S
 
 > **Disclaimer:** JPilot is an independent project and is not affiliated with, endorsed by, or sponsored by Citrix Systems, Inc. NetScaler is a trademark of Citrix Systems, Inc.
 
-**Current release:** `v0.48` — public marketing home page, agent orchestration for long deployments, and role-switch confirmation before leaving Architect.
+**Current release:** `v0.49` — Linux installer fix for Docker socket permissions after a fresh Engine install.
 
 Bump the root [`VERSION`](VERSION) file when tagging a release so in-app update checks match GitHub.
 
@@ -22,7 +22,7 @@ curl -fsSL https://install.nexxus-tech.com/jpilot | bash
 ```
 
 - 🍎 **macOS** — run it in **Terminal**. Offers to install **git** + **Docker Desktop** (Homebrew / Xcode CLT) if missing.
-- 🐧 **Linux** _(Ubuntu recommended)_ — run it in a **terminal**. Offers to install **git** + **Docker Engine** (`apt`/`dnf`/`yum`/`pacman`/`zypper`/`apk` auto-detected) if missing.
+- 🐧 **Linux** _(Ubuntu recommended)_ — run it in a **terminal**. Offers to install **git** + **Docker Engine** (`apt`/`dnf`/`yum`/`pacman`/`zypper`/`apk` auto-detected) if missing. After Docker Engine is installed, the bootstrap script activates the `docker` group in the same session (no logout required).
 - 🪟 **Windows** — in **PowerShell**:
 
   ```powershell
@@ -66,6 +66,12 @@ curl -fsSL https://install.nexxus-tech.com/jpilot | bash
 - **NetScaler SDX (SSH)** — Operator and Analyst for SVM platform and VPX lifecycle with `search_sdx_cli_reference` memory gate (beta).
 - **F5 BIG-IP (SSH / TMSH)** — Operator, Analyst, and Architect (official F5 docs only); `f5_*` MCP tools and `search_f5_tmsh_reference` / `search_f5_documentation` (beta).
 - **Nexxus licensing** — Settings → **License**: enter a license code, import an offline `.lic` file, or sync with the Nexxus licensing API; installation fingerprint binding; encrypted payload validation; daily background sync and expiry enforcement; **activation gate** redirects unlicensed or expired installs to Settings → License before using the app.
+
+## What's new in v0.49
+
+| Area | Highlights |
+|------|------------|
+| **Linux installer** | `get.sh` no longer hangs on “Waiting for the Docker daemon…” after a fresh Docker Engine install when the daemon is up but the shell has not picked up the `docker` group yet; uses `sg docker` so the setup wizard can run without logging out. |
 
 ## What's new in v0.48
 

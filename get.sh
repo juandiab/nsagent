@@ -42,11 +42,47 @@ ask_yes_no() {
   return 1
 }
 
+# After usermod -aG docker, the current shell keeps the old group list until re-login.
+# id -nG reads the account's groups from the system, so sg docker works immediately.
+user_in_docker_group() {
+  [ "$OS" = "Linux" ] || return 1
+  id -nG "$(id -un)" 2>/dev/null | grep -qw docker
+}
+
+docker_has_access() {
+  docker info >/dev/null 2>&1 && return 0
+  [ "$OS" = "Linux" ] && user_in_docker_group \
+    && command -v sg >/dev/null 2>&1 \
+    && sg docker -c "docker info" >/dev/null 2>&1
+}
+
+docker_daemon_running() {
+  if docker info >/dev/null 2>&1; then
+    return 0
+  fi
+  [ "$OS" = "Linux" ] || return 1
+  if [ "$(id -u)" -eq 0 ]; then
+    return 1
+  fi
+  command -v sudo >/dev/null 2>&1 && sudo docker info >/dev/null 2>&1
+}
+
+docker_compose_available() {
+  docker compose version >/dev/null 2>&1 && return 0
+  command -v docker-compose >/dev/null 2>&1 && return 0
+  [ "$OS" = "Linux" ] && user_in_docker_group \
+    && command -v sg >/dev/null 2>&1 \
+    && sg docker -c "docker compose version" >/dev/null 2>&1
+}
+
 # Poll the Docker daemon for up to ~2 minutes (Docker Desktop can take a while).
 wait_for_docker() {
   _n=0
   while [ "$_n" -lt 60 ]; do
-    docker info >/dev/null 2>&1 && return 0
+    docker_has_access && return 0
+    if [ "$OS" = "Linux" ] && docker_daemon_running && user_in_docker_group; then
+      return 0
+    fi
     sleep 2; _n=$((_n + 1))
   done
   return 1
@@ -168,8 +204,8 @@ if ! command -v docker >/dev/null 2>&1; then
       if wait_for_docker; then
         ok "Docker installed and running"
       elif [ "$OS" = "Linux" ]; then
-        die "Docker was installed, but your shell isn't in the 'docker' group yet.
-     Log out and back in (or run 'newgrp docker'), then re-run this command."
+        die "Docker was installed but the daemon didn't start in time.
+     Check 'sudo systemctl status docker', start it if needed, then re-run."
       else
         die "Docker was installed but isn't running yet.
      Start Docker Desktop, wait for it to finish, then re-run this command."
@@ -185,20 +221,28 @@ if ! command -v docker >/dev/null 2>&1; then
   fi
 fi
 
-if ! docker info >/dev/null 2>&1; then
-  warn "Docker is installed but the daemon isn't running."
-  if [ "$OS" = "Darwin" ] && ask_yes_no "  Start Docker Desktop and wait for it?"; then
-    open -a Docker >/dev/null 2>&1 || true
-    wait_for_docker || die "Docker didn't come up in time. Start it manually and re-run."
-  elif [ "$OS" = "Linux" ] && ask_yes_no "  Start the Docker service now (needs sudo)?"; then
-    { [ "$(id -u)" -eq 0 ] && systemctl start docker || sudo systemctl start docker; } >/dev/null 2>&1 || true
-    wait_for_docker || die "Docker didn't come up. Start it manually ('sudo systemctl start docker') and re-run."
+if ! docker_has_access; then
+  if [ "$OS" = "Linux" ] && docker_daemon_running && user_in_docker_group; then
+    info "Docker is running; activating the docker group for this install session..."
+  elif [ "$OS" = "Linux" ] && docker_daemon_running && ! user_in_docker_group; then
+    die "Docker is running but your user can't access it.
+     Run: sudo usermod -aG docker $(id -un)
+     Then log out and back in, and re-run this command."
   else
-    die "Start Docker (Docker Desktop, or 'sudo systemctl start docker') and re-run."
+    warn "Docker is installed but the daemon isn't running."
+    if [ "$OS" = "Darwin" ] && ask_yes_no "  Start Docker Desktop and wait for it?"; then
+      open -a Docker >/dev/null 2>&1 || true
+      wait_for_docker || die "Docker didn't come up in time. Start it manually and re-run."
+    elif [ "$OS" = "Linux" ] && ask_yes_no "  Start the Docker service now (needs sudo)?"; then
+      { [ "$(id -u)" -eq 0 ] && systemctl start docker || sudo systemctl start docker; } >/dev/null 2>&1 || true
+      wait_for_docker || die "Docker didn't come up. Start it manually ('sudo systemctl start docker') and re-run."
+    else
+      die "Start Docker (Docker Desktop, or 'sudo systemctl start docker') and re-run."
+    fi
   fi
 fi
 
-if docker compose version >/dev/null 2>&1 || command -v docker-compose >/dev/null 2>&1; then
+if docker_compose_available; then
   ok "Docker is ready"
 else
   die "Docker Compose was not found. Install Docker Desktop or the compose plugin:
@@ -230,4 +274,8 @@ chmod +x install.sh 2>/dev/null || true
 printf '\n'
 info "Starting the setup wizard..."
 printf '\n'
+if [ "$OS" = "Linux" ] && user_in_docker_group && ! docker info >/dev/null 2>&1 \
+    && command -v sg >/dev/null 2>&1; then
+  exec sg docker -c "sh ./install.sh"
+fi
 exec sh ./install.sh
