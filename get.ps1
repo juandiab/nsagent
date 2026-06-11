@@ -62,33 +62,39 @@ function Ask-InstallDir {
   Write-Host ""
   Info "Where should JPilot be downloaded on this PC?"
   Info "Pick a folder you can write to. Press Enter for the default, or type another path"
-  Info "(for example D:\jpilot — protected folders may need an Administrator prompt once)."
+  Info "(for example D:\jpilot — the installer can download there with Administrator approval)."
   $choice = Read-Host "  Install folder [$default]"
   if ([string]::IsNullOrWhiteSpace($choice)) { return $default }
   return (Resolve-InstallPath $choice.Trim())
 }
 
-function Ensure-InstallDir([string]$Path) {
+function Test-InstallDirBlocked([string]$Path) {
   if ((Test-Path $Path) -and -not (Test-Path $Path -PathType Container)) {
     Die "$Path exists but is not a folder."
   }
-  if (Test-Path $Path -PathType Container) { return }
-  try {
-    New-Item -ItemType Directory -Path $Path -Force | Out-Null
-    return
+  if (Test-Path (Join-Path $Path '.git')) { return }
+  if ((Test-Path $Path -PathType Container) -and -not (Test-EmptyDirectory $Path)) {
+    Die "$Path already exists and is not a JPilot checkout. Remove that folder and re-run this installer."
   }
-  catch {
-    Warn "That location needs Administrator rights (common under Program Files or C:\)."
-    if (-not (Ask-YesNo "Create $Path and give you access (Administrator prompt)?")) {
-      Die "Cannot use $Path. Pick a folder you can write to — the default in your profile works."
-    }
-    $cmd = "New-Item -ItemType Directory -Path '$Path' -Force | Out-Null; " +
-           "icacls '$Path' /grant '$env:USERNAME:(OI)(CI)F' /T"
-    Start-Process powershell -Verb RunAs -Wait -ArgumentList @('-NoProfile', '-Command', $cmd) | Out-Null
-    if (-not (Test-Path $Path -PathType Container)) {
-      Die "Could not create $Path. Try the default folder or run PowerShell as Administrator."
-    }
-    Ok "Created $Path"
+}
+
+function Invoke-GitClone([string]$Path) {
+  git clone --depth 1 --branch $Ref $RepoUrl $Path 2>&1 | Out-Null
+  if ($LASTEXITCODE -eq 0) { return }
+
+  Warn "That location needs Administrator rights (common under Program Files or C:\)."
+  if (-not (Ask-YesNo "Download into $Path with Administrator access?")) {
+    Die "Cannot download into $Path. Pick a folder you can write to — the default in your profile works."
+  }
+  $cmd = @"
+Set-Location '$((Split-Path -Parent $Path))'
+git clone --depth 1 --branch $Ref $RepoUrl '$Path'
+if (`$LASTEXITCODE -ne 0) { exit `$LASTEXITCODE }
+icacls '$Path' /grant '$($env:USERNAME):(OI)(CI)F' /T
+"@
+  Start-Process powershell -Verb RunAs -Wait -ArgumentList @('-NoProfile', '-Command', $cmd) | Out-Null
+  if (-not (Test-Path (Join-Path $Path '.git'))) {
+    Die "Clone failed. Check your network and try again."
   }
 }
 
@@ -173,7 +179,7 @@ if ($LASTEXITCODE -ne 0 -and -not (Get-Command docker-compose -ErrorAction Silen
 Ok "Docker is ready"
 
 $Target = Ask-InstallDir
-Ensure-InstallDir $Target
+Test-InstallDirBlocked $Target
 
 # ---- fetch the project -----------------------------------------------------
 if (Test-Path (Join-Path $Target '.git')) {
@@ -184,12 +190,8 @@ if (Test-Path (Join-Path $Target '.git')) {
   Ok "Updated to latest $Ref"
 }
 else {
-  if ((Test-Path $Target) -and -not (Test-EmptyDirectory $Target)) {
-    Die "$Target already exists and is not a JPilot checkout. Remove that folder and re-run this installer."
-  }
   Info "Downloading JPilot into $Target..."
-  git clone --depth 1 --branch $Ref $RepoUrl $Target 2>&1 | Out-Null
-  if ($LASTEXITCODE -ne 0) { Die "Clone failed. Check your network and try again." }
+  Invoke-GitClone $Target
   Ok "Downloaded"
 }
 

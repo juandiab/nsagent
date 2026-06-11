@@ -73,7 +73,7 @@ ask_install_dir() {
   printf '\n' > /dev/tty
   info "Where should JPilot be downloaded on this machine?"
   info "Pick a folder you can write to. Press Enter for the default, or type another path"
-  info "(for example /opt/jpilot — the installer can create system folders with sudo)."
+  info "(for example /opt/jpilot — the installer can download there with sudo)."
   printf '  Install folder [%s]: ' "$_default" > /dev/tty
   read _choice < /dev/tty || _choice=""
   if [ -z "$_choice" ]; then
@@ -83,35 +83,56 @@ ask_install_dir() {
   fi
 }
 
-ensure_install_dir() {
-  _parent=$(dirname "$TARGET")
+install_dir_blocked() {
   if [ -e "$TARGET" ] && [ ! -d "$TARGET" ]; then
     die "$TARGET exists but is not a folder."
   fi
-  if [ -d "$TARGET" ]; then
+  if [ -d "$TARGET/.git" ]; then
     return 0
   fi
-  if [ -d "$_parent" ] && [ -w "$_parent" ]; then
-    mkdir -p "$TARGET" || die "Could not create ${TARGET}."
-    return 0
+  if [ -d "$TARGET" ] && find "$TARGET" -mindepth 1 -print -quit 2>/dev/null | grep -q .; then
+    die "$TARGET already exists and is not a JPilot checkout.
+     Remove that folder and re-run this installer."
   fi
-  if [ "$OS" = "Linux" ] && command -v sudo >/dev/null 2>&1; then
-    warn "${_parent} needs administrator rights (common for /opt and similar paths)."
-    if ask_yes_no "  Create ${TARGET} and give you ownership (sudo)?"; then
-      sudo mkdir -p "$TARGET" || die "Could not create ${TARGET}."
-      sudo chown "$(id -un):$(id -gn 2>/dev/null || id -un)" "$TARGET" \
-        || die "Could not set ownership on ${TARGET}."
-      ok "Created ${TARGET}"
-      return 0
-    fi
-  fi
-  die "Cannot use ${TARGET}.
-     Pick a folder you can write to (the default in your home directory works),
-     or allow the installer to create it with sudo."
+  return 0
 }
 
-dir_is_empty() {
-  [ -d "$1" ] && [ -z "$(ls -A "$1" 2>/dev/null)" ]
+run_git_clone() {
+  _clone_err="/tmp/jpilot-clone-$$.err"
+  rm -f "$_clone_err"
+
+  if git clone --depth 1 --branch "$REF" "$REPO_URL" "$TARGET" >/dev/null 2>"$_clone_err"; then
+    rm -f "$_clone_err"
+    return 0
+  fi
+
+  if [ "$OS" = "Linux" ] && command -v sudo >/dev/null 2>&1 \
+      && grep -qiE 'permission denied|cannot mkdir|could not create|unable to create|read-only file system|Permission denied' "$_clone_err" 2>/dev/null; then
+    warn "$(dirname "$TARGET") needs administrator rights (common for /opt and similar paths)."
+    if ask_yes_no "  Download into ${TARGET} with sudo and give you ownership?"; then
+      if sudo git clone --depth 1 --branch "$REF" "$REPO_URL" "$TARGET" >/dev/null 2>"$_clone_err" \
+          && sudo chown -R "$(id -un):$(id -gn 2>/dev/null || id -un)" "$TARGET"; then
+        rm -f "$_clone_err"
+        return 0
+      fi
+    else
+      rm -f "$_clone_err"
+      die "Cannot download into ${TARGET}.
+     Pick a folder you can write to (the default in your home directory works)."
+    fi
+  fi
+
+  _clone_hint=""
+  if grep -qiE 'Could not resolve host|Failed to connect|Connection timed out|Network is unreachable' "$_clone_err" 2>/dev/null; then
+    _clone_hint="
+     Could not reach GitHub — check DNS, firewall, and outbound HTTPS."
+  elif grep -qi 'already exists and is not an empty directory' "$_clone_err" 2>/dev/null; then
+    _clone_hint="
+     ${TARGET} already has files in it — remove the folder and re-run."
+  fi
+  rm -f "$_clone_err"
+  die "Clone failed.${_clone_hint}
+     Check your network and try again."
 }
 
 # After usermod -aG docker, the current shell keeps the old group list until re-login.
@@ -337,7 +358,7 @@ if ! command -v curl >/dev/null 2>&1; then
 fi
 
 ask_install_dir
-ensure_install_dir
+install_dir_blocked
 
 # ---- fetch the project -----------------------------------------------------
 if [ -d "$TARGET/.git" ]; then
@@ -347,24 +368,8 @@ if [ -d "$TARGET/.git" ]; then
   git -C "$TARGET" reset --hard "origin/$REF" >/dev/null 2>&1 || git -C "$TARGET" reset --hard "$REF" >/dev/null 2>&1 || true
   ok "Updated to latest $REF"
 else
-  if [ -e "$TARGET" ] && ! dir_is_empty "$TARGET"; then
-    die "$TARGET already exists and is not a JPilot checkout.
-     Remove that folder and re-run this installer."
-  fi
   info "Downloading JPilot into ${B}$TARGET${N}..."
-  _clone_err="/tmp/jpilot-clone-$$.err"
-  if git clone --depth 1 --branch "$REF" "$REPO_URL" "$TARGET" >/dev/null 2>"$_clone_err"; then
-    rm -f "$_clone_err"
-  else
-    _clone_hint=""
-    if grep -qiE 'Could not resolve host|Failed to connect|Connection timed out|Network is unreachable' "$_clone_err" 2>/dev/null; then
-      _clone_hint="
-     Could not reach GitHub — check DNS, firewall, and outbound HTTPS."
-    fi
-    rm -f "$_clone_err"
-    die "Clone failed.${_clone_hint}
-     Check your network and try again."
-  fi
+  run_git_clone
   ok "Downloaded"
 fi
 
