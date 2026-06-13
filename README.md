@@ -8,7 +8,7 @@ Repository: [github.com/Nexxus-Tech-SAS/jpilot](https://github.com/Nexxus-Tech-S
 
 > **Disclaimer:** JPilot is an independent project and is not affiliated with, endorsed by, or sponsored by Citrix Systems, Inc. NetScaler is a trademark of Citrix Systems, Inc.
 
-**Current release:** `v0.57` — Stable license fingerprint across container rebuilds, Operator service-status tooling, and chat tool-trace improvements.
+**Current release:** `v0.58` — Chat Beta collapsible chat list with slide animation and lighter glass panels so background animations show through.
 
 Bump the root [`VERSION`](VERSION) file when tagging a release so in-app update checks match GitHub.
 
@@ -67,6 +67,14 @@ curl -fsSL https://install.nexxus-tech.com/jpilot | bash
 - **NetScaler SDX (SSH)** — Operator and Analyst for SVM platform and VPX lifecycle with `search_sdx_cli_reference` memory gate (beta).
 - **F5 BIG-IP (SSH / TMSH)** — Operator, Analyst, and Architect (official F5 docs only); `f5_*` MCP tools and `search_f5_tmsh_reference` / `search_f5_documentation` (beta).
 - **Nexxus licensing** — Settings → **License**: enter a license code, import an offline `.lic` file, or sync with the Nexxus licensing API; installation fingerprint binding; encrypted payload validation; daily background sync and expiry enforcement; **activation gate** redirects unlicensed or expired installs to Settings → License before using the app.
+
+## What's new in v0.58
+
+| Area | Highlights |
+|------|------------|
+| **Chat Beta layout** | Desktop header button to **hide or show the chat list**; sidebar slides and fades (~320ms) so the main chat expands smoothly; preference saved on this device. |
+| **Chat Beta glass** | Lighter translucent panels (sidebar, header, footer, bubbles) on desktop so animated backgrounds read through more clearly. |
+| **Accessibility** | Sidebar slide animation respects `prefers-reduced-motion`. |
 
 ## What's new in v0.57
 

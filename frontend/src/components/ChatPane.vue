@@ -128,6 +128,17 @@
               @click="$emit('open-conversations')"
             />
             <Button
+              v-if="showChatSidebarToggle"
+              v-tooltip.bottom="chatSidebarVisible ? 'Hide chat list' : 'Show chat list'"
+              :icon="chatSidebarVisible ? 'pi pi-angle-left' : 'pi pi-comments'"
+              :text="showConversationSwitcher"
+              :outlined="!showConversationSwitcher"
+              severity="secondary"
+              rounded
+              :aria-label="chatSidebarVisible ? 'Hide chat list' : 'Show chat list'"
+              @click="$emit('toggle-chat-sidebar')"
+            />
+            <Button
               v-tooltip.bottom="'Chat options'"
               icon="pi pi-ellipsis-v"
               :text="showConversationSwitcher"
@@ -1033,11 +1044,14 @@ const props = defineProps({
   uiVariant: { type: String, default: 'classic' },
   /** Mobile beta chat: show button to open conversation list in parent. */
   showConversationSwitcher: { type: Boolean, default: false },
+  /** Desktop beta chat: show button to collapse the conversation list sidebar. */
+  showChatSidebarToggle: { type: Boolean, default: false },
+  chatSidebarVisible: { type: Boolean, default: true },
   betaBackground: { type: String, default: 'constellation' },
   betaBackgrounds: { type: Array, default: () => [] }
 })
 
-const emit = defineEmits(['close', 'open-conversations', 'update:betaBackground'])
+const emit = defineEmits(['close', 'open-conversations', 'toggle-chat-sidebar', 'update:betaBackground'])
 
 const openAppNav = inject('openMobileNav', () => {})
 
@@ -2498,12 +2512,12 @@ onUnmounted(() => {
 
 /* ---------- Beta variant (Diamond ChatBox-style) ---------- */
 .chat-pane-beta {
-  --glass-bg: color-mix(in srgb, var(--p-content-background) 72%, transparent);
-  --glass-strong: color-mix(in srgb, var(--p-content-background) 78%, transparent);
-  --glass-border: color-mix(in srgb, var(--p-content-border-color) 70%, transparent);
+  --glass-bg: color-mix(in srgb, var(--p-content-background) 45%, transparent);
+  --glass-strong: color-mix(in srgb, var(--p-content-background) 50%, transparent);
+  --glass-border: color-mix(in srgb, var(--p-content-border-color) 55%, transparent);
   --glass-text: var(--p-text-color);
   --glass-muted: var(--p-text-muted-color);
-  --glass-field: color-mix(in srgb, var(--p-surface-100) 82%, transparent);
+  --glass-field: color-mix(in srgb, var(--p-surface-100) 58%, transparent);
   background: transparent;
   border-color: transparent;
   backdrop-filter: none;
@@ -2513,7 +2527,7 @@ onUnmounted(() => {
 }
 
 :global(.app-dark) .chat-pane-beta {
-  --glass-field: color-mix(in srgb, var(--p-surface-800) 82%, transparent);
+  --glass-field: color-mix(in srgb, var(--p-surface-800) 58%, transparent);
 }
 
 .beta-shell {
@@ -2526,10 +2540,10 @@ onUnmounted(() => {
   align-items: center;
   gap: 0.65rem;
   padding: 0.65rem 0.75rem;
-  border-bottom: 1px solid color-mix(in srgb, var(--p-content-border-color) 70%, transparent);
-  background: color-mix(in srgb, var(--p-content-background) 80%, transparent);
-  backdrop-filter: blur(10px);
-  -webkit-backdrop-filter: blur(10px);
+  border-bottom: 1px solid color-mix(in srgb, var(--p-content-border-color) 55%, transparent);
+  background: color-mix(in srgb, var(--p-content-background) 48%, transparent);
+  backdrop-filter: blur(8px);
+  -webkit-backdrop-filter: blur(8px);
   flex-shrink: 0;
 }
 
@@ -2919,25 +2933,25 @@ onUnmounted(() => {
 
 .beta-bubble-assistant {
   color: var(--p-text-color);
-  background: color-mix(in srgb, var(--p-content-background) 78%, transparent);
-  border-color: color-mix(in srgb, var(--p-content-border-color) 65%, transparent);
-  backdrop-filter: blur(8px);
-  -webkit-backdrop-filter: blur(8px);
-  box-shadow: 0 2px 10px rgba(2, 6, 23, 0.06);
+  background: color-mix(in srgb, var(--p-content-background) 50%, transparent);
+  border-color: color-mix(in srgb, var(--p-content-border-color) 55%, transparent);
+  backdrop-filter: blur(6px);
+  -webkit-backdrop-filter: blur(6px);
+  box-shadow: 0 2px 10px rgba(2, 6, 23, 0.05);
 }
 
 .beta-bubble-user {
   color: var(--p-primary-900);
-  background: color-mix(in srgb, var(--p-primary-100) 82%, transparent);
-  border-color: color-mix(in srgb, var(--p-primary-color) 25%, transparent);
-  backdrop-filter: blur(8px);
-  -webkit-backdrop-filter: blur(8px);
-  box-shadow: 0 2px 10px rgba(2, 6, 23, 0.05);
+  background: color-mix(in srgb, var(--p-primary-100) 55%, transparent);
+  border-color: color-mix(in srgb, var(--p-primary-color) 28%, transparent);
+  backdrop-filter: blur(6px);
+  -webkit-backdrop-filter: blur(6px);
+  box-shadow: 0 2px 10px rgba(2, 6, 23, 0.04);
 }
 
 :global(.app-dark) .beta-bubble-assistant {
-  background: color-mix(in srgb, var(--p-surface-900) 76%, transparent);
-  box-shadow: 0 2px 12px rgba(0, 0, 0, 0.22);
+  background: color-mix(in srgb, var(--p-surface-900) 48%, transparent);
+  box-shadow: 0 2px 12px rgba(0, 0, 0, 0.18);
 }
 
 :global(.app-dark) .beta-bubble-user {
@@ -2964,11 +2978,11 @@ onUnmounted(() => {
 }
 
 .beta-pending {
-  border-top: 1px solid color-mix(in srgb, var(--p-content-border-color) 70%, transparent);
+  border-top: 1px solid color-mix(in srgb, var(--p-content-border-color) 55%, transparent);
   padding: 0.75rem 1rem 0;
-  background: color-mix(in srgb, var(--p-content-background) 72%, transparent);
-  backdrop-filter: blur(8px);
-  -webkit-backdrop-filter: blur(8px);
+  background: color-mix(in srgb, var(--p-content-background) 45%, transparent);
+  backdrop-filter: blur(6px);
+  -webkit-backdrop-filter: blur(6px);
 }
 
 .beta-footer {
@@ -2979,10 +2993,10 @@ onUnmounted(() => {
   padding: 0.65rem 0.75rem;
   padding-bottom: calc(0.65rem + env(safe-area-inset-bottom, 0px));
   margin-top: auto;
-  border-top: 1px solid color-mix(in srgb, var(--p-content-border-color) 70%, transparent);
-  background: color-mix(in srgb, var(--p-content-background) 82%, transparent);
-  backdrop-filter: blur(10px);
-  -webkit-backdrop-filter: blur(10px);
+  border-top: 1px solid color-mix(in srgb, var(--p-content-border-color) 55%, transparent);
+  background: color-mix(in srgb, var(--p-content-background) 48%, transparent);
+  backdrop-filter: blur(8px);
+  -webkit-backdrop-filter: blur(8px);
   flex-shrink: 0;
 }
 
@@ -3182,9 +3196,9 @@ onUnmounted(() => {
 
 .beta-footer:not(.beta-footer-compact) .beta-composer-input :deep(input) {
   width: 100%;
-  border: 1px solid var(--p-content-border-color);
+  border: 1px solid color-mix(in srgb, var(--p-content-border-color) 55%, transparent);
   border-radius: 0.65rem;
-  background: var(--p-content-background);
+  background: color-mix(in srgb, var(--p-content-background) 52%, transparent);
   color: var(--p-text-color);
   padding: 0.55rem 0.75rem;
 }

@@ -7,18 +7,24 @@
 
     <div class="stage flex-1" :class="{ 'stage-plain': background === 'none' }">
       <BetaChatBackground v-if="background !== 'none'" :background-id="background" />
-      <div class="beta-chat-layout">
-        <div class="beta-sidebar-card content-panel">
-          <BetaChatSidebar
-            :panes="paneSummaries"
-            :active-session-id="activeSessionId"
-            :can-add="canAddConversation"
-            :conversation-count="betaChatState.conversations.length"
-            :max-conversations="MAX_BETA_CONVERSATIONS"
-            @select="setActiveBetaConversation"
-            @new-chat="onNewChat"
-            @delete="onDeleteChat"
-          />
+      <div class="beta-chat-layout" :class="{ 'beta-chat-layout-sidebar-hidden': !chatSidebarVisible }">
+        <div
+          v-show="!isMobileLayout"
+          class="beta-sidebar-card content-panel"
+          :class="{ 'beta-sidebar-card-collapsed': !chatSidebarVisible }"
+        >
+          <div class="beta-sidebar-card-inner">
+            <BetaChatSidebar
+              :panes="paneSummaries"
+              :active-session-id="activeSessionId"
+              :can-add="canAddConversation"
+              :conversation-count="betaChatState.conversations.length"
+              :max-conversations="MAX_BETA_CONVERSATIONS"
+              @select="setActiveBetaConversation"
+              @new-chat="onNewChat"
+              @delete="onDeleteChat"
+            />
+          </div>
         </div>
         <div class="beta-chat-card content-panel">
           <ChatPane
@@ -34,10 +40,13 @@
             :web-search-available="webSearchAvailable"
             :can-close="false"
             :show-conversation-switcher="isMobileLayout"
+            :show-chat-sidebar-toggle="!isMobileLayout"
+            :chat-sidebar-visible="chatSidebarVisible"
             :beta-background="background"
             :beta-backgrounds="backgrounds"
             @update:beta-background="onBetaBackgroundChange"
             @open-conversations="mobileChatsOpen = true"
+            @toggle-chat-sidebar="toggleChatSidebar"
           />
         </div>
       </div>
@@ -106,12 +115,35 @@ import { getCopilotPlatformSettings } from '../services/copilotPlatform'
 const toast = useToast()
 const confirm = useConfirm()
 
+const CHAT_SIDEBAR_STORAGE_KEY = 'jpilot_beta_chat_sidebar_v1'
+
+function loadChatSidebarVisible() {
+  try {
+    const raw = localStorage.getItem(CHAT_SIDEBAR_STORAGE_KEY)
+    if (raw === '0') return false
+    if (raw === '1') return true
+  } catch {
+    /* ignore */
+  }
+  return true
+}
+
 const providers = ref([])
 const appliances = ref([])
 const backgrounds = BETA_CHAT_BACKGROUNDS
 const background = ref(getBetaChatBackground())
 const webSearchAvailable = ref(false)
 const mobileChatsOpen = ref(false)
+const chatSidebarVisible = ref(loadChatSidebarVisible())
+
+function toggleChatSidebar() {
+  chatSidebarVisible.value = !chatSidebarVisible.value
+  try {
+    localStorage.setItem(CHAT_SIDEBAR_STORAGE_KEY, chatSidebarVisible.value ? '1' : '0')
+  } catch {
+    /* ignore */
+  }
+}
 
 const MOBILE_LAYOUT_MQL = typeof window !== 'undefined' ? window.matchMedia('(max-width: 991px)') : null
 const isMobileLayout = ref(MOBILE_LAYOUT_MQL?.matches ?? false)
@@ -305,6 +337,10 @@ watch(
     height: 100%;
   }
 
+  .beta-chat-layout-sidebar-hidden .beta-chat-card {
+    flex: 1;
+  }
+
   .beta-sidebar-card {
     display: none;
   }
@@ -365,11 +401,11 @@ watch(
 @media (min-width: 992px) {
   .beta-sidebar-card.content-panel,
   .beta-chat-card.content-panel {
-    background: color-mix(in srgb, var(--p-content-background) 70%, transparent);
-    border-color: color-mix(in srgb, var(--p-content-border-color) 65%, transparent);
-    backdrop-filter: blur(12px);
-    -webkit-backdrop-filter: blur(12px);
-    box-shadow: 0 8px 28px rgba(2, 6, 23, 0.08);
+    background: color-mix(in srgb, var(--p-content-background) 42%, transparent);
+    border-color: color-mix(in srgb, var(--p-content-border-color) 52%, transparent);
+    backdrop-filter: blur(10px);
+    -webkit-backdrop-filter: blur(10px);
+    box-shadow: 0 8px 28px rgba(2, 6, 23, 0.06);
   }
 
   :global(.app-dark) .beta-sidebar-card.content-panel,
@@ -397,16 +433,56 @@ watch(
     flex-direction: row;
     gap: 2rem;
     padding: 1rem;
+    transition: gap 0.32s cubic-bezier(0.4, 0, 0.2, 1);
+  }
+
+  .beta-chat-layout-sidebar-hidden {
+    gap: 0;
   }
 
   .beta-sidebar-card {
     width: 25rem;
     flex-shrink: 0;
+    overflow: hidden;
+    transition:
+      width 0.32s cubic-bezier(0.4, 0, 0.2, 1),
+      opacity 0.26s ease,
+      border-color 0.26s ease,
+      box-shadow 0.26s ease;
+  }
+
+  .beta-sidebar-card-collapsed {
+    width: 0;
+    opacity: 0;
+    border-color: transparent;
+    box-shadow: none;
+    pointer-events: none;
+  }
+
+  .beta-sidebar-card-inner {
+    width: 25rem;
+    height: 100%;
+    min-height: 0;
+    transition: opacity 0.22s ease;
+  }
+
+  .beta-sidebar-card-collapsed .beta-sidebar-card-inner {
+    opacity: 0;
   }
 
   .beta-chat-card {
     flex: 1;
     min-width: 0;
+    transition: flex 0.32s cubic-bezier(0.4, 0, 0.2, 1);
+  }
+}
+
+@media (min-width: 992px) and (prefers-reduced-motion: reduce) {
+  .beta-chat-layout,
+  .beta-sidebar-card,
+  .beta-sidebar-card-inner,
+  .beta-chat-card {
+    transition: none;
   }
 }
 

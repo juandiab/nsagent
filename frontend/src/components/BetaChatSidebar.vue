@@ -154,6 +154,25 @@ const filteredPanes = computed(() => {
   flex: 1;
 }
 
+.beta-sidebar:not(.beta-sidebar-drawer) :deep(.beta-pane-card) {
+  background: color-mix(in srgb, var(--p-content-background) 50%, transparent);
+  border-color: color-mix(in srgb, var(--p-content-border-color) 52%, transparent);
+  backdrop-filter: blur(6px);
+  -webkit-backdrop-filter: blur(6px);
+}
+
+.beta-sidebar:not(.beta-sidebar-drawer) :deep(.beta-pane-card:hover) {
+  background: color-mix(in srgb, var(--p-surface-100) 55%, transparent);
+}
+
+:global(.app-dark) .beta-sidebar:not(.beta-sidebar-drawer) :deep(.beta-pane-card:hover) {
+  background: color-mix(in srgb, var(--p-surface-800) 55%, transparent);
+}
+
+.beta-sidebar:not(.beta-sidebar-drawer) :deep(.beta-pane-card-active) {
+  background: color-mix(in srgb, var(--p-primary-color) 12%, transparent);
+}
+
 .beta-sidebar-limit {
   margin: 0;
   font-size: 0.75rem;
