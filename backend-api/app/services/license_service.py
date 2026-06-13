@@ -80,17 +80,33 @@ def build_license_fingerprint(
     return hashlib.sha256(payload.encode("utf-8")).hexdigest()
 
 
-def licensefingerprint() -> dict[str, str]:
-    """Compute the current installation fingerprint (used only when seeding the license record)."""
+def _license_binding_hostname() -> str:
+    return os.environ.get("NGINX_HOSTNAME", "").strip() or settings.nginx_hostname
+
+
+def _fingerprint_binding_date(activation_date: Any = None) -> str:
+    """``YYYY-MM-DD`` leg of the fingerprint hash; fixed after first license record creation."""
+    parsed = _parse_datetime(activation_date)
+    if parsed is not None:
+        return parsed.strftime("%Y-%m-%d")
+    return datetime.now(timezone.utc).strftime("%Y-%m-%d")
+
+
+def licensefingerprint(activation_date: Any = None) -> dict[str, str]:
+    """Compute the installation fingerprint (stable once ``activationDate`` is stored)."""
     nsagent_encryption_key = settings.nsagent_encryption_key
-    nginx_hostname = os.environ.get("NGINX_HOSTNAME", "").strip() or settings.nginx_hostname
-    date = datetime.now(timezone.utc).strftime("%Y-%m-%d")
+    nginx_hostname = _license_binding_hostname()
+    date = _fingerprint_binding_date(activation_date)
     return {
         "nsagent_encryption_key": nsagent_encryption_key,
         "nginx_hostname": nginx_hostname,
         "date": date,
         "fingerprint": build_license_fingerprint(nsagent_encryption_key, nginx_hostname, date),
     }
+
+
+def _fingerprint_for_document(document: dict[str, Any]) -> str:
+    return licensefingerprint(document.get("activationDate"))["fingerprint"]
 
 
 def normalize_license_code(raw: str) -> str:
@@ -599,6 +615,11 @@ def _apply_sync_result(document: dict[str, Any], result: LicenseSyncResult) -> d
 
 async def _find_license_document(db: AsyncIOMotorDatabase) -> dict[str, Any] | None:
     """Load the license row for this installation, migrating legacy ``_id: \"default\"`` if needed."""
+    for document in await db[LICENSE_COLLECTION].find({}).to_list(length=32):
+        stored_fp = str(document.get("appFingerprint") or document.get("_id") or "").strip()
+        if stored_fp and stored_fp == _fingerprint_for_document(document):
+            return document
+
     install_id = license_document_id()
     document = await db[LICENSE_COLLECTION].find_one({"_id": install_id})
     if document is not None:
@@ -676,6 +697,13 @@ async def run_scheduled_license_sync(db: AsyncIOMotorDatabase) -> None:
             {"_id": doc_id},
             {"$set": {"syncError": str(exc), "updatedAt": utc_now()}},
         )
+
+
+async def get_installation_fingerprint(db: AsyncIOMotorDatabase) -> dict[str, str]:
+    """Return the binding fingerprint for this install (uses stored activation date when present)."""
+    document = await _find_license_document(db)
+    activation_date = document.get("activationDate") if document else None
+    return licensefingerprint(activation_date)
 
 
 async def get_or_create_license(db: AsyncIOMotorDatabase) -> LicenseResponse:

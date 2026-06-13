@@ -16,6 +16,7 @@ import AccountRecoveryView from '../views/AccountRecoveryView.vue'
 import OtherAppliancesView from '../views/OtherAppliancesView.vue'
 import SettingsView from '../views/SettingsView.vue'
 import PricingView from '../views/PricingView.vue'
+import CalibrationStudioView from '../views/CalibrationStudioView.vue'
 import HomeView from '../views/HomeView.vue'
 
 const router = createRouter({
@@ -66,6 +67,7 @@ const router = createRouter({
         { path: 'next-gen-api', redirect: { path: '/settings', query: { section: 'nextgen' } } },
         { path: 'users', redirect: { path: '/settings', query: { section: 'users' } } },
         { path: 'plans', name: 'plans', component: PricingView },
+        { path: 'calibration-studio', name: 'calibration-studio', component: CalibrationStudioView },
         { path: 'settings', name: 'settings', component: SettingsView }
       ]
     }

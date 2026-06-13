@@ -79,6 +79,28 @@ COPILOT_TOOLS = [
         },
     },
     {
+        "name": "netscaler_list_service_status",
+        "description": (
+            "List backend service and service-group health via read-only NITRO stats. "
+            "Use for down/unhealthy backends or 'services that are down'. "
+            "Prefer this over inventing stat/show service CLI syntax."
+        ),
+        "parameters": {
+            "type": "object",
+            "properties": {
+                "appliance_name": {
+                    "type": "string",
+                    "description": "Inventory name of the NetScaler appliance",
+                },
+                "down_only": {
+                    "type": "boolean",
+                    "description": "Return only DOWN/out-of-service targets (default true)",
+                },
+            },
+            "required": ["appliance_name"],
+        },
+    },
+    {
         "name": "netscaler_list_virtual_ips",
         "description": (
             "List load-balancing virtual IPs from Next-Gen API applications. "
@@ -819,6 +841,7 @@ MCP_TOOL_MAP = {
     "netscaler_list_virtual_servers": "netscaler_list_virtual_servers",
     "netscaler_list_virtual_ips": "netscaler_list_virtual_ips",
     "netscaler_list_ip_addresses": "netscaler_list_ip_addresses",
+    "netscaler_list_service_status": "netscaler_list_service_status",
     "netscaler_nextgen_get": "netscaler_nextgen_get",
     "netscaler_create_application": "netscaler_create_application",
     "netscaler_add_ip_address": "netscaler_add_ip_address",

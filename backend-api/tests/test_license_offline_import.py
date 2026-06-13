@@ -100,7 +100,12 @@ def test_import_offline_license():
     async def fake_insert_one(doc):
         stored["doc"] = doc
 
+    async def fake_to_list(length):
+        doc = stored.get("doc")
+        return [doc] if doc else []
+
     coll = MagicMock()
+    coll.find = MagicMock(return_value=MagicMock(to_list=AsyncMock(side_effect=fake_to_list)))
     coll.find_one = AsyncMock(side_effect=fake_find_one)
     coll.update_one = AsyncMock(side_effect=fake_update_one)
     coll.insert_one = AsyncMock(side_effect=fake_insert_one)

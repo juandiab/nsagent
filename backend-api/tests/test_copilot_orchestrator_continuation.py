@@ -174,3 +174,20 @@ def test_read_only_operation_progress_single_step():
     assert bundle.title == "Operation progress"
     assert len(bundle.subtasks) == 1
     assert bundle.subtasks[0].label == "Review request"
+
+
+def test_nextgen_create_marks_all_deployment_steps_complete():
+    traces = [
+        ToolCallTrace(
+            name="netscaler_create_application",
+            arguments={"name": "iis_lb_app"},
+            result=json.dumps({"success": True, "application": {"name": "iis_lb_app"}}),
+        )
+    ]
+    bundle = build_progress_subtasks(
+        traces,
+        role="operator",
+        user_message="Configuration inputs for: Create IIS Load Balancer\n- Application Name: iis",
+    )
+    assert bundle.subtasks[1].status == "completed"
+    assert bundle.subtasks[2].status == "completed"

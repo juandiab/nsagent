@@ -6,6 +6,8 @@ from typing import Any
 
 from app.services.copilot_architect_discovery import user_wants_deliverable_now
 from app.services.copilot_form import is_form_submission, user_requests_design_implementation
+from app.services.copilot_inventory import detect_ip_inventory_request
+from app.services.copilot_service_status import detect_service_status_request
 
 # Pack names map to tool names included when that intent is detected.
 PACK_TOOLS: dict[str, frozenset[str]] = {
@@ -22,10 +24,13 @@ PACK_TOOLS: dict[str, frozenset[str]] = {
             "netscaler_list_virtual_servers",
             "netscaler_list_virtual_ips",
             "netscaler_list_ip_addresses",
+            "netscaler_list_service_status",
             "netscaler_nextgen_get",
             "netscaler_run_cli_command",
         }
     ),
+    "ip_inventory": frozenset({"netscaler_list_ip_addresses"}),
+    "service_status": frozenset({"netscaler_list_service_status"}),
     "diagnostic": frozenset(
         {
             "netscaler_run_diagnostic",
@@ -127,6 +132,11 @@ def classify_tool_packs(
     else:
         packs = set(ROLE_BASE_PACKS.get(role, ROLE_BASE_PACKS["operator"]))
 
+    if vendor == "netscaler" and role != "architect" and detect_service_status_request(user_message):
+        return packs | {"service_status"}
+    if vendor == "netscaler" and role != "architect" and detect_ip_inventory_request(user_message):
+        return packs | {"ip_inventory"}
+
     if role == "architect" and vendor == "netscaler":
         architect_packs: set[str] = set()
         if user_wants_deliverable_now(user_message):
@@ -216,6 +226,21 @@ def classify_tool_packs(
             "firmware",
             "hostname",
             "serial",
+        ),
+    ):
+        packs.add("read")
+
+    if _contains_any(
+        lowered,
+        (
+            "nsip",
+            "snip",
+            "all ip",
+            "list ip",
+            "every ip",
+            "ip address",
+            "ip addresses",
+            "show ns ip",
         ),
     ):
         packs.add("read")
@@ -355,6 +380,14 @@ def route_copilot_tools(
 
     if role == "architect":
         return [tool for tool in enabled_tools if tool["name"] in selected_names]
+
+    if "ip_inventory" in packs:
+        selected = [tool for tool in enabled_tools if tool["name"] in selected_names]
+        return selected or enabled_tools
+
+    if "service_status" in packs:
+        selected = [tool for tool in enabled_tools if tool["name"] in selected_names]
+        return selected or enabled_tools
 
     if len(selected_names) < MIN_ROUTED_TOOLS:
         return enabled_tools

@@ -86,9 +86,11 @@ from app.services.copilot_orchestration import (
     build_progress_subtasks,
     continuation_for_tool_limit,
     deliverable_ready_from_content,
+    deployment_write_complete,
     had_successful_state_change,
     orchestration_settings_from_document,
     should_offer_long_task_consent,
+    trace_executed_successfully,
     trace_is_state_changing,
 )
 from app.services.copilot_progress import QueueChatProgressReporter
@@ -210,6 +212,17 @@ UNEXECUTED_ACTION_BANNER = (
     "was actually sent to the appliance. This usually means the current model is not reliably "
     "emitting tool calls. Switch to a more capable model (Anthropic Claude or a GPT-4o-class "
     "model) in **AI Providers**, retry, and verify on the appliance."
+)
+
+UNVERIFIED_READ_BANNER = (
+    "> ⚠️ **Unverified read.** Tool calls failed this turn, so the details below may be "
+    "invented from earlier chat context rather than live appliance data. Retry with "
+    "netscaler_list_service_status or the exact official CLI from search_netscaler_cli_reference."
+)
+
+_STATUS_ANSWER_PATTERN = re.compile(
+    r"\b(down|unhealthy|out of service|root cause|bound to|service group|backend target)\b",
+    re.IGNORECASE,
 )
 
 
@@ -433,7 +446,7 @@ def _deployment_may_be_incomplete(
         return config_requested
     if not had_successful_state_change(tool_traces):
         return config_requested or bool(state_changing_traces)
-    if _classic_config_saved(tool_traces):
+    if deployment_write_complete(tool_traces):
         return False
     return bool(state_changing_traces)
 
@@ -470,6 +483,27 @@ def guard_fabricated_execution(
         )
         return f"{UNEXECUTED_ACTION_BANNER}\n\n---\n\n{content}"
     return content
+
+
+def guard_unverified_read(
+    content: str,
+    tool_traces: list[ToolCallTrace],
+    role: str | None = None,
+) -> str:
+    """Prepend a warning when the reply looks like live status data but every tool failed."""
+    if normalize_role(role) == JPilotRole.ARCHITECT:
+        return content
+    if not tool_traces or not (content or "").strip():
+        return content
+    if any(trace_executed_successfully(trace) for trace in tool_traces):
+        return content
+    if not _STATUS_ANSWER_PATTERN.search(content):
+        return content
+    logger.warning(
+        "unverified_read_guard fired — response looks like service/status data but all tools failed (toolCalls=%d)",
+        len(tool_traces),
+    )
+    return f"{UNVERIFIED_READ_BANNER}\n\n---\n\n{content}"
 
 def trim_chat_history(history: list[dict], max_messages: int) -> list[dict]:
     if max_messages <= 0 or len(history) <= max_messages:
@@ -795,30 +829,63 @@ async def run_copilot_chat(
     if progress is not None:
         await progress.status(phase="preparing", label="Preparing request…")
 
+    from app.services.copilot_deploy import try_auto_create_application
+    from app.services.copilot_form import is_form_submission
     from app.services.copilot_port_check import try_auto_appliance_internet_check, try_auto_tcp_port_check
+    from app.services.copilot_inventory import try_auto_ip_inventory
+    from app.services.copilot_service_status import try_auto_service_status
 
     auto_traces: list[ToolCallTrace] = []
     auto_response = None
     if appliance_name and role_requires_appliance(chat_role):
-        auto_traces, auto_response = await try_auto_appliance_internet_check(
-            db,
-            user_message=user_message,
-            appliance_name=appliance_name,
-            enabled_tool_names=enabled_tool_names,
-        )
-        if not auto_traces:
-            auto_traces, auto_response = await try_auto_tcp_port_check(
+        if is_form_submission(user_message):
+            auto_traces, auto_response = await try_auto_create_application(
                 db,
                 user_message=user_message,
                 appliance_name=appliance_name,
                 enabled_tool_names=enabled_tool_names,
             )
+        else:
+            auto_traces, auto_response = await try_auto_service_status(
+                db,
+                user_message=user_message,
+                appliance_name=appliance_name,
+                enabled_tool_names=enabled_tool_names,
+            )
+            if not auto_traces:
+                auto_traces, auto_response = await try_auto_ip_inventory(
+                    db,
+                    user_message=user_message,
+                    appliance_name=appliance_name,
+                    enabled_tool_names=enabled_tool_names,
+                )
+            if not auto_traces:
+                auto_traces, auto_response = await try_auto_appliance_internet_check(
+                    db,
+                    user_message=user_message,
+                    appliance_name=appliance_name,
+                    enabled_tool_names=enabled_tool_names,
+                )
+            if not auto_traces:
+                auto_traces, auto_response = await try_auto_tcp_port_check(
+                    db,
+                    user_message=user_message,
+                    appliance_name=appliance_name,
+                    enabled_tool_names=enabled_tool_names,
+                )
     if auto_traces:
         tool_traces.extend(auto_traces)
-    if auto_response and auto_traces:
+    if auto_response and (auto_traces or is_form_submission(user_message)):
         provider_name = provider["providerName"]
         if auto_response.startswith("**") and (
-            "Verdict:" in auto_response or "Internet access" in auto_response
+            "Verdict:" in auto_response
+            or "Internet access" in auto_response
+            or "IP address(es)" in auto_response
+            or "DOWN backend" in auto_response
+            or "no DOWN backend" in auto_response
+            or "created via Next-Gen API" in auto_response
+            or "Application create failed" in auto_response
+            or "Configuration form received" in auto_response
         ):
             return _finalize_chat_response(
                 auto_response,
@@ -939,6 +1006,7 @@ async def run_copilot_chat(
         )
 
     content = guard_fabricated_execution(content, tool_traces, role=chat_role.value)
+    content = guard_unverified_read(content, tool_traces, role=chat_role.value)
     if orchestration.pause is not None:
         content = orchestration.pause.message
 
@@ -1006,7 +1074,9 @@ async def _run_openai_loop(
     tools = to_openai_tools(enabled_tools)
     active_base_url = base_url
     fallback_candidates = base_url_candidates
-    nextgen_memory_reviewed = False
+    from app.services.copilot_deploy import detect_nextgen_application_form_submission
+
+    nextgen_memory_reviewed = detect_nextgen_application_form_submission(user_message)
     cli_memory_reviewed = False
     progress_ctx = _progress_context(history, user_message, attachments)
 
@@ -1201,7 +1271,9 @@ async def _run_gemini_loop(
     )
 
     tools = to_gemini_tools(enabled_tools)
-    nextgen_memory_reviewed = False
+    from app.services.copilot_deploy import detect_nextgen_application_form_submission
+
+    nextgen_memory_reviewed = detect_nextgen_application_form_submission(user_message)
     cli_memory_reviewed = False
     progress_ctx = _progress_context(history, user_message, attachments)
 
@@ -1386,7 +1458,9 @@ async def _run_anthropic_loop(
     )
 
     tools = to_anthropic_tools(enabled_tools)
-    nextgen_memory_reviewed = False
+    from app.services.copilot_deploy import detect_nextgen_application_form_submission
+
+    nextgen_memory_reviewed = detect_nextgen_application_form_submission(user_message)
     cli_memory_reviewed = False
     progress_ctx = _progress_context(history, user_message, attachments)
 

@@ -6,9 +6,9 @@ from app.schemas.license import LicenseCodeUpdate, LicenseResponse
 from app.schemas.system import LicenseFingerprintResponse, UpdateCheckResponse, VersionResponse
 from app.services.jpilot_settings_service import get_jpilot_settings, get_portal_config, update_jpilot_settings
 from app.services.license_service import (
+    get_installation_fingerprint,
     get_or_create_license,
     import_offline_license,
-    licensefingerprint,
     remove_license,
     save_license_code,
 )
@@ -54,8 +54,11 @@ async def read_update_check(
 
 
 @router.get("/license-fingerprint", response_model=LicenseFingerprintResponse)
-async def read_license_fingerprint(_user=Depends(get_current_user)) -> LicenseFingerprintResponse:
-    return LicenseFingerprintResponse(**licensefingerprint())
+async def read_license_fingerprint(
+    db=Depends(get_db),
+    _user=Depends(get_current_user),
+) -> LicenseFingerprintResponse:
+    return LicenseFingerprintResponse(**await get_installation_fingerprint(db))
 
 
 @router.get("/license", response_model=LicenseResponse)

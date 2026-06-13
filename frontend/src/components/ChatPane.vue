@@ -526,7 +526,7 @@
               rounded
               class="beta-composer-send"
               aria-label="Send"
-              :disabled="(!session.input.trim() && !pendingAttachments.length) || !ready || isGenerating"
+              :disabled="sendDisabled"
               @click="sendMessage()"
             />
           </div>
@@ -552,7 +552,7 @@
             <Button
               label="Send"
               icon="pi pi-send"
-              :disabled="(!session.input.trim() && !pendingAttachments.length) || !ready || isGenerating"
+              :disabled="sendDisabled"
               @click="sendMessage()"
             />
           </div>
@@ -1051,7 +1051,13 @@ const session = getSession(props.sessionId, props.initialRole)
 const connecting = ref(false)
 const isGenerating = computed(() => isSessionLoading(props.sessionId))
 const hasPendingRoleSwitch = computed(() => Boolean(session.pendingRoleSwitch))
-const chatInputDisabled = computed(() => isGenerating.value || connecting.value || !ready.value || hasPendingRoleSwitch.value)
+const chatInputDisabled = computed(() => isGenerating.value || !ready.value || hasPendingRoleSwitch.value)
+const sendDisabled = computed(
+  () =>
+    chatInputDisabled.value ||
+    connecting.value ||
+    (!session.input.trim() && !pendingAttachments.value.length)
+)
 
 function markPaneFocused() {
   setFocusedChatSession(props.sessionId)
@@ -1642,7 +1648,12 @@ function hostOf(url) {
 
 async function scrollToBottom() {
   await nextTick()
-  if (messagesEl.value) messagesEl.value.scrollTop = messagesEl.value.scrollHeight
+  await nextTick()
+  requestAnimationFrame(() => {
+    if (messagesEl.value) {
+      messagesEl.value.scrollTop = messagesEl.value.scrollHeight
+    }
+  })
 }
 
 function onApplianceChange() {
@@ -1854,7 +1865,7 @@ async function sendMessage(text, externalAttachments = null, options = {}) {
     mimeType: item.mimeType,
     data: item.data
   }))
-  if ((!content && !attachments.length) || isGenerating.value) return
+  if ((!content && !attachments.length) || isGenerating.value || connecting.value) return
 
   if (session.pendingRoleSwitch && !options.skipRoleInference) {
     toast.add({
@@ -3157,7 +3168,30 @@ onUnmounted(() => {
 }
 
 .beta-composer {
+  display: flex;
+  flex: 1;
+  align-items: center;
+  gap: 0.15rem;
+  min-width: 0;
+}
+
+.beta-footer:not(.beta-footer-compact) .beta-composer-icon,
+.beta-footer:not(.beta-footer-compact) .beta-composer-send {
   display: none;
+}
+
+.beta-footer:not(.beta-footer-compact) .beta-composer-input :deep(input) {
+  width: 100%;
+  border: 1px solid var(--p-content-border-color);
+  border-radius: 0.65rem;
+  background: var(--p-content-background);
+  color: var(--p-text-color);
+  padding: 0.55rem 0.75rem;
+}
+
+.beta-footer:not(.beta-footer-compact) .beta-composer-input :deep(input:disabled) {
+  opacity: 0.72;
+  cursor: not-allowed;
 }
 
 .beta-footer-compact .beta-composer {
@@ -3177,6 +3211,15 @@ onUnmounted(() => {
   box-shadow: none !important;
   padding-left: 0.25rem;
   padding-right: 0.25rem;
+}
+
+.beta-composer-input :deep(input:disabled) {
+  opacity: 0.72;
+  cursor: not-allowed;
+}
+
+.beta-footer-compact .beta-composer-input :deep(input:disabled) {
+  color: var(--beta-mobile-muted, var(--p-text-muted-color));
 }
 
 .beta-composer-icon {

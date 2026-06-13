@@ -19,6 +19,7 @@ def _tools(*names: str) -> list[dict]:
 ALL_OPERATOR = _tools(
     "netscaler_get_system_info",
     "netscaler_list_virtual_servers",
+    "netscaler_list_ip_addresses",
     "netscaler_run_diagnostic",
     "netscaler_telnet",
     "netscaler_run_cli_command",
@@ -85,6 +86,19 @@ def test_jpilot_doc_internet_routes_doc_check():
     packs = classify_tool_packs("can you reach the documentation site?", role="operator")
     names = pack_tool_names(packs)
     assert "jpilot_check_doc_connectivity" in names
+
+
+def test_list_all_ip_addresses_routes_list_ip_tool():
+    routed = route_copilot_tools(
+        ALL_OPERATOR,
+        role="operator",
+        user_message=(
+            "List all IP addresses on the connected appliance with their types "
+            "(NSIP, SNIP, VIP, etc.)."
+        ),
+    )
+    routed_names = {t["name"] for t in routed}
+    assert routed_names == {"netscaler_get_system_info", "netscaler_list_ip_addresses"}
 
 
 def test_ambiguous_short_message_uses_full_tool_set():

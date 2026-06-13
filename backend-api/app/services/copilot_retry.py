@@ -6,7 +6,8 @@ from app.services.copilot_form import (
     user_requests_design_implementation,
     user_requests_lb_vserver_create,
 )
-from app.services.copilot_architect_discovery import JPILOT_FORM_NOT_A_TOOL_HINT
+from app.services.copilot_service_status import detect_service_status_request
+from app.services.copilot_inventory import user_asks_for_all_ips, user_asks_for_management_ip_only
 
 
 def _parse_tool_payload(result: str) -> Any:
@@ -18,24 +19,6 @@ def _parse_tool_payload(result: str) -> Any:
     if isinstance(payload, dict) and "data" in payload:
         return payload["data"]
     return payload
-
-
-def _user_asks_for_all_ips(user_message: str) -> bool:
-    lowered = user_message.lower()
-    if any(term in lowered for term in ("all ip", "list ip", "every ip", "show ns ip", "show ip", "ns ip")):
-        return True
-    if "ip" in lowered and any(term in lowered for term in ("all", "list", "every", "each")):
-        return True
-    return any(term in lowered for term in ("nsip", "snip"))
-
-
-def _user_asks_for_management_ip_only(user_message: str) -> bool:
-    lowered = user_message.lower()
-    if _user_asks_for_all_ips(user_message):
-        return False
-    if "vip" in lowered or "virtual server" in lowered or "virtual ip" in lowered:
-        return False
-    return any(term in lowered for term in ("management ip", "mgmt ip", "management address"))
 
 
 def build_tool_retry_hint(
@@ -56,7 +39,7 @@ def build_tool_retry_hint(
 
     data = _parse_tool_payload(result)
 
-    if _user_asks_for_all_ips(user_message) and tool_name in {
+    if user_asks_for_all_ips(user_message) and tool_name in {
         "netscaler_get_system_info",
         "netscaler_list_virtual_ips",
     }:
@@ -66,7 +49,7 @@ def build_tool_retry_hint(
             "Do not add troubleshooting steps or suggestions."
         )
 
-    if tool_name == "netscaler_list_virtual_ips" and _user_asks_for_management_ip_only(user_message):
+    if tool_name == "netscaler_list_virtual_ips" and user_asks_for_management_ip_only(user_message):
         return (
             "Wrong tool for this request. The user asked for the appliance management IP only. "
             "Call netscaler_get_system_info and report ipAddress/managementIp. "
@@ -97,15 +80,15 @@ def build_tool_retry_hint(
         asks_firmware = any(term in msg for term in ("firmware", "version", "build", "release"))
         if asks_firmware and not data.get("firmwareVersion") and not data.get("version"):
             missing_expected = True
-        elif _user_asks_for_management_ip_only(user_message) and not data.get("ipAddress") and not data.get("managementIp"):
+        elif user_asks_for_management_ip_only(user_message) and not data.get("ipAddress") and not data.get("managementIp"):
             missing_expected = True
 
     if tool_name == "netscaler_list_ip_addresses" and isinstance(data, dict):
-        if _user_asks_for_all_ips(user_message) and not data.get("addresses"):
+        if user_asks_for_all_ips(user_message) and not data.get("addresses"):
             missing_expected = True
 
     if empty_result or missing_expected:
-        if _user_asks_for_all_ips(user_message):
+        if user_asks_for_all_ips(user_message):
             return (
                 "IP listing via Next-Gen/NITRO did not return addresses. "
                 "Follow SSH fallback: search_netscaler_cli_reference for 'show ns ip', "
@@ -142,8 +125,9 @@ def build_tool_retry_hint(
         lowered = user_message.lower()
         if is_form_submission(user_message):
             return (
-                "The user submitted the configuration form. EXECUTE now with "
-                "netscaler_run_cli_commands (full sequence + save ns config) using the provided values. "
+                "The user submitted the configuration form. EXECUTE now: "
+                "netscaler_create_application when fields include Application Name + VIP + backend IPs; "
+                "otherwise netscaler_run_cli_commands (full sequence + save ns config). "
                 "Do not ask the same questions again in prose."
             )
         if user_requests_design_implementation(user_message, attachment_names):
@@ -237,7 +221,18 @@ def build_tool_retry_hint(
                     "Do not answer the user until the full sequence succeeds."
                 )
 
-    if tool_name in ("netscaler_ssh_run_command", "netscaler_run_cli_command") and isinstance(data, dict):
+    if detect_service_status_request(user_message) and tool_name in {
+        "netscaler_run_cli_command",
+        "netscaler_ssh_run_command",
+        "netscaler_list_virtual_servers",
+    }:
+        return (
+            "The user asked for backend service health (especially DOWN services). "
+            "Call netscaler_list_service_status first — it uses read-only NITRO stats. "
+            "Do not invent stat/show service CLI syntax and do not answer from earlier chat memory."
+        )
+
+    if tool_name in ("netscaler_run_cli_command", "netscaler_ssh_run_command") and isinstance(data, dict):
         # A failed ping/traceroute is a legitimate diagnostic result (host unreachable),
         # not a syntax error to fix — don't push the model to retry it.
         ran_command = str(data.get("command") or "").strip().lower()

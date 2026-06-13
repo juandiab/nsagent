@@ -1,154 +1,92 @@
 <template>
-  <Panel toggleable collapsed class="tool-trace-panel">
-    <template #header>
-      <div class="tool-trace-header">
-        <i class="pi pi-wrench" />
-        <span>Tool activity ({{ tools.length }})</span>
-      </div>
-    </template>
-
-    <div class="tool-trace-list">
-      <div v-for="(tool, index) in tools" :key="index" class="tool-trace-item">
-        <div class="tool-trace-title">
-          <Tag :value="formatToolName(tool.name)" severity="info" />
-        </div>
-
-        <div v-if="parsed(tool).type === 'inventory'" class="tool-formatted">
-          <DataTable :value="parsed(tool).items" size="small" striped-rows>
-            <Column field="name" header="Name" />
-            <Column field="environment" header="Environment" />
-            <Column header="Enabled">
-              <template #body="{ data }">
-                <Tag
-                  :value="data.enabled ? 'Yes' : 'No'"
-                  :severity="data.enabled ? 'success' : 'secondary'"
-                />
-              </template>
-            </Column>
-          </DataTable>
-        </div>
-
-        <div v-else-if="parsed(tool).type === 'connection' || parsed(tool).type === 'ssh-result'" class="tool-formatted">
-          <Message
-            v-if="parsed(tool).type === 'connection'"
-            :severity="parsed(tool).success ? 'success' : 'error'"
-            :closable="false"
-            class="tool-message"
-          >
-            {{ parsed(tool).message }}
-          </Message>
-          <template v-else>
-            <Message
-              :severity="parsed(tool).success ? 'success' : 'error'"
-              :closable="false"
-              class="tool-message mb-2"
-            >
-              {{ parsed(tool).success ? 'Command succeeded' : 'Command failed — check syntax and retry' }}
-            </Message>
-            <dl class="tool-kv">
-              <template v-for="(value, key) in parsed(tool).fields" :key="key">
-                <template v-if="value">
-                  <dt>{{ key }}</dt>
-                  <dd>{{ value }}</dd>
-                </template>
-              </template>
-            </dl>
-          </template>
-        </div>
-
-        <div v-else-if="parsed(tool).type === 'system-info'" class="tool-formatted">
-          <dl class="tool-kv">
-            <template v-for="(value, key) in parsed(tool).fields" :key="key">
-              <template v-if="value">
-                <dt>{{ key }}</dt>
-                <dd>{{ value }}</dd>
-              </template>
-            </template>
-          </dl>
-        </div>
-
-        <div v-else-if="parsed(tool).type === 'web-search'" class="tool-formatted">
-          <div v-for="(item, index) in parsed(tool).items" :key="index" class="search-result">
-            <a :href="item.url" target="_blank" rel="noopener" class="search-title">{{ item.title }}</a>
-            <div class="search-url">{{ item.url }}</div>
-            <div class="search-desc">{{ item.description }}</div>
-          </div>
-        </div>
-
-        <div v-else-if="parsed(tool).type === 'virtual-ips'" class="tool-formatted">
-          <DataTable :value="parsed(tool).items" size="small" striped-rows>
-            <Column field="application" header="Application" />
-            <Column field="virtualIp" header="Virtual IP" />
-            <Column field="protocol" header="Protocol" />
-            <Column field="port" header="Port" />
-            <Column field="frontend" header="Frontend" />
-            <Column field="source" header="Source" />
-          </DataTable>
-        </div>
-
-        <div v-else-if="parsed(tool).type === 'ip-addresses'" class="tool-formatted">
-          <div v-if="parsed(tool).summary?.ipCount != null" class="setting-hint mb-2">
-            {{ parsed(tool).summary.ipCount }} address(es)
-            <span v-if="parsed(tool).summary.managementIp"> · management {{ parsed(tool).summary.managementIp }}</span>
-          </div>
-          <DataTable :value="parsed(tool).items" size="small" striped-rows>
-            <Column field="ipAddress" header="IP Address" />
-            <Column field="type" header="Type" />
-            <Column field="name" header="Name" />
-            <Column field="port" header="Port" />
-            <Column field="application" header="Application" />
-            <Column field="source" header="Source" />
-            <Column field="state" header="State" />
-          </DataTable>
-        </div>
-
-        <div v-else-if="parsed(tool).type === 'applications'" class="tool-formatted">
-          <DataTable :value="parsed(tool).items" size="small" striped-rows>
-            <Column field="name" header="Name" />
-            <Column field="virtualIp" header="Virtual IP" />
-            <Column field="protocol" header="Protocol" />
-            <Column field="port" header="Port" />
-            <Column field="serverCount" header="Servers" />
-            <Column field="state" header="State" />
-          </DataTable>
-        </div>
-
-        <div v-else-if="parsed(tool).type === 'vservers'" class="tool-formatted">
-          <DataTable :value="parsed(tool).items" size="small" striped-rows>
-            <Column field="name" header="Name" />
-            <Column field="ipv46" header="IP" />
-            <Column field="servicetype" header="Type" />
-            <Column field="curstate" header="State" />
-          </DataTable>
-        </div>
-
-        <pre v-else class="tool-raw">{{ tool.result }}</pre>
-      </div>
+  <div v-if="tools.length" class="tool-trace-wrap">
+    <div
+      v-for="(entry, index) in prominentTools"
+      :key="`prominent-${index}`"
+      class="tool-inline-result"
+    >
+      <ChatToolResultBody :tool="entry.tool" :view="entry.view" />
     </div>
-  </Panel>
+
+    <Panel v-if="secondaryTools.length" toggleable collapsed class="tool-trace-panel">
+      <template #header>
+        <div class="tool-trace-header">
+          <i class="pi pi-wrench" />
+          <span>Tool activity ({{ secondaryTools.length }})</span>
+        </div>
+      </template>
+
+      <div class="tool-trace-list">
+        <div v-for="(entry, index) in secondaryTools" :key="index" class="tool-trace-item">
+          <div class="tool-trace-title">
+            <Tag :value="formatToolName(entry.tool.name)" severity="info" />
+          </div>
+          <ChatToolResultBody :tool="entry.tool" :view="entry.view" />
+        </div>
+      </div>
+    </Panel>
+  </div>
 </template>
 
 <script setup>
-import Column from 'primevue/column'
-import DataTable from 'primevue/datatable'
-import Message from 'primevue/message'
+import { computed } from 'vue'
 import Panel from 'primevue/panel'
 import Tag from 'primevue/tag'
+import ChatToolResultBody from './ChatToolResultBody.vue'
 
-defineProps({
+const PROMINENT_TYPES = new Set([
+  'ip-addresses',
+  'virtual-ips',
+  'applications',
+  'vservers',
+  'system-info',
+  'inventory',
+  'service-status'
+])
+
+const props = defineProps({
   tools: {
     type: Array,
     default: () => []
   }
 })
 
+const enrichedTools = computed(() =>
+  props.tools.map((tool) => ({ tool, view: parsed(tool) }))
+)
+
+const prominentTools = computed(() => {
+  const entries = enrichedTools.value.filter(({ view }) => PROMINENT_TYPES.has(view.type))
+  const applicationTables = entries.filter(({ view }) => view.type === 'applications')
+  if (applicationTables.length <= 1) {
+    return entries
+  }
+  const preferred = applicationTables.find(({ tool }) => tool.name === 'netscaler_list_virtual_servers')
+    || applicationTables[applicationTables.length - 1]
+  return [
+    ...entries.filter(({ view }) => view.type !== 'applications'),
+    preferred
+  ]
+})
+
+const secondaryTools = computed(() =>
+  enrichedTools.value.filter(({ view }) => !PROMINENT_TYPES.has(view.type))
+)
+
 function formatToolName(name) {
   return name.replace(/^netscaler_/, '').replace(/_/g, ' ')
 }
 
+function unwrapToolData(data) {
+  if (data && typeof data === 'object' && data.data && typeof data.data === 'object' && !Array.isArray(data.data)) {
+    return data.data
+  }
+  return data
+}
+
 function parsed(tool) {
   try {
-    const data = JSON.parse(tool.result)
+    const data = unwrapToolData(JSON.parse(tool.result))
 
     if (tool.name === 'netscaler_list_inventory' && Array.isArray(data)) {
       return { type: 'inventory', items: data }
@@ -222,6 +160,18 @@ function parsed(tool) {
           managementIp: data.managementIp,
           ipCount: data.ipCount
         }
+      }
+    }
+
+    if (tool.name === 'netscaler_list_service_status' && typeof data === 'object') {
+      return {
+        type: 'service-status',
+        summary: {
+          downCount: data.downCount,
+          downOnly: data.downOnly
+        },
+        services: data.services || [],
+        serviceGroups: data.serviceGroups || []
       }
     }
 
@@ -377,8 +327,16 @@ function parsed(tool) {
 </script>
 
 <style scoped>
-.tool-trace-panel {
+.tool-trace-wrap {
   margin-top: 0.75rem;
+}
+
+.tool-inline-result {
+  margin-bottom: 0.75rem;
+}
+
+.tool-trace-panel {
+  margin-top: 0;
 }
 
 .tool-trace-panel :deep(.p-panel-header) {

@@ -82,6 +82,61 @@ def test_licensefingerprint_reads_configured_values():
     }
 
 
+def test_licensefingerprint_uses_activation_date_not_today():
+    with (
+        patch("app.services.license_service.settings") as mock_settings,
+        patch.dict(os.environ, {"NGINX_HOSTNAME": "jpilot.example.com"}, clear=False),
+    ):
+        mock_settings.nsagent_encryption_key = "fernet-key"
+        mock_settings.nginx_hostname = ""
+
+        result = licensefingerprint("2026-06-01T08:30:00Z")
+
+    assert result["date"] == "2026-06-01"
+    assert result["fingerprint"] == build_license_fingerprint(
+        "fernet-key", "jpilot.example.com", "2026-06-01"
+    )
+
+
+def test_find_license_document_matches_stored_activation_date():
+    import asyncio
+
+    activation = "2026-06-01T08:30:00Z"
+    install_id = build_license_fingerprint("fernet-key", "jpilot.example.com", "2026-06-01")
+    stored_doc = {
+        "_id": install_id,
+        "appFingerprint": install_id,
+        "activationDate": activation,
+        "appName": "JPilot",
+    }
+
+    coll = MagicMock()
+    coll.find = MagicMock(
+        return_value=MagicMock(
+            to_list=AsyncMock(return_value=[stored_doc]),
+        )
+    )
+    coll.find_one = AsyncMock(return_value=None)
+    db = MagicMock()
+    db.__getitem__ = MagicMock(return_value=coll)
+
+    with (
+        patch("app.services.license_service.settings") as mock_settings,
+        patch.dict(os.environ, {"NGINX_HOSTNAME": "jpilot.example.com"}, clear=False),
+        patch("app.services.license_service.datetime") as mock_datetime,
+    ):
+        mock_settings.nsagent_encryption_key = "fernet-key"
+        mock_settings.nginx_hostname = ""
+        mock_datetime.now.return_value = datetime(2026, 6, 12, 12, 0, 0, tzinfo=timezone.utc)
+        mock_datetime.timezone = timezone
+
+        from app.services.license_service import _find_license_document
+
+        document = asyncio.run(_find_license_document(db))
+
+    assert document is stored_doc
+
+
 def test_ensure_license_record_inserts_default_document():
     import asyncio
     from app.services.license_service import _ensure_license_record

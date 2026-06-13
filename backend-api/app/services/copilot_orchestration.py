@@ -24,6 +24,7 @@ READ_ONLY_OPERATOR_TOOLS = frozenset(
         "netscaler_list_virtual_servers",
         "netscaler_list_virtual_ips",
         "netscaler_list_ip_addresses",
+        "netscaler_list_service_status",
         "netscaler_nextgen_get",
         "netscaler_run_diagnostic",
         "netscaler_telnet",
@@ -371,6 +372,8 @@ def _build_operator_progress_subtasks(
     memory_reviewed = any(trace.name in MEMORY_SEARCH_TOOLS for trace in tool_traces)
     write_started = any(trace_is_state_changing(trace) for trace in tool_traces)
     saved = _classic_config_saved(tool_traces)
+    nextgen_done = _nextgen_write_succeeded(tool_traces)
+    write_complete = saved or nextgen_done
 
     if review_docs:
         reference_done = memory_reviewed
@@ -383,12 +386,19 @@ def _build_operator_progress_subtasks(
 
     reference_status = "completed" if reference_done else "pending"
     execute_status = "pending"
-    if saved:
+    if write_complete:
         execute_status = "completed"
     elif write_started:
         execute_status = "in_progress"
 
-    save_status = "completed" if saved else ("in_progress" if write_started else "pending")
+    if saved:
+        save_status = "completed"
+    elif nextgen_done:
+        save_status = "completed"
+    elif write_started:
+        save_status = "in_progress"
+    else:
+        save_status = "pending"
 
     read_only = not review_docs and not write_started and not saved
     if tool_traces:
@@ -447,6 +457,21 @@ def _classic_config_saved(tool_traces: list[ToolCallTrace]) -> bool:
             continue
         return True
     return False
+
+
+def _nextgen_write_succeeded(tool_traces: list[ToolCallTrace]) -> bool:
+    for trace in tool_traces:
+        if trace.name == "netscaler_create_application" and trace_executed_successfully(trace):
+            return True
+        if trace.name == "netscaler_nextgen_request":
+            method = str((trace.arguments or {}).get("method", "GET")).upper()
+            if method != "GET" and trace_executed_successfully(trace):
+                return True
+    return False
+
+
+def deployment_write_complete(tool_traces: list[ToolCallTrace]) -> bool:
+    return _classic_config_saved(tool_traces) or _nextgen_write_succeeded(tool_traces)
 
 
 def should_offer_long_task_consent(

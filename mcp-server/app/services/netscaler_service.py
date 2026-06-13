@@ -246,6 +246,103 @@ class NextGenClient:
             "virtualServers": virtual_servers,
         }
 
+    async def list_service_status(self, *, down_only: bool = True) -> dict[str, Any]:
+        services = await _fetch_nitro_service_stats(
+            self._client,
+            self.host,
+            self.username,
+            self.password,
+        )
+        members = await _fetch_nitro_servicegroup_members(
+            self._client,
+            self.host,
+            self.username,
+            self.password,
+        )
+        vserver_sg_bindings = await _fetch_nitro_bindings(
+            self._client,
+            self.host,
+            self.username,
+            self.password,
+            "lbvserver_servicegroup_binding",
+            "lbvserver_servicegroup_binding",
+        )
+        vserver_service_bindings = await _fetch_nitro_bindings(
+            self._client,
+            self.host,
+            self.username,
+            self.password,
+            "lbvserver_service_binding",
+            "lbvserver_service_binding",
+        )
+
+        service_to_vservers: dict[str, list[str]] = {}
+        for binding in vserver_service_bindings:
+            service_name = str(binding.get("servicename") or binding.get("name") or "")
+            vserver_name = str(binding.get("name") or binding.get("lbvserver") or "")
+            if service_name and vserver_name:
+                service_to_vservers.setdefault(service_name, []).append(vserver_name)
+
+        group_to_vservers: dict[str, list[str]] = {}
+        for binding in vserver_sg_bindings:
+            group_name = str(binding.get("servicegroupname") or "")
+            vserver_name = str(binding.get("name") or binding.get("lbvserver") or "")
+            if group_name and vserver_name:
+                group_to_vservers.setdefault(group_name, []).append(vserver_name)
+
+        normalized_services: list[dict[str, Any]] = []
+        for item in services:
+            state = str(item.get("state") or item.get("svrstate") or "")
+            if down_only and not _service_state_is_down(state):
+                continue
+            name = str(item.get("name") or "")
+            normalized_services.append(
+                {
+                    "name": name,
+                    "ipAddress": str(item.get("ipaddress") or item.get("primaryip") or item.get("ipv46") or ""),
+                    "port": item.get("port") or item.get("primaryport") or "",
+                    "protocol": str(item.get("servicetype") or ""),
+                    "state": state,
+                    "boundTo": sorted(set(service_to_vservers.get(name, []))),
+                }
+            )
+
+        groups_by_name: dict[str, dict[str, Any]] = {}
+        for member in members:
+            group_name = str(member.get("servicegroupname") or "")
+            if not group_name:
+                continue
+            state = str(member.get("svrstate") or member.get("state") or member.get("servicegroupmemberstate") or "")
+            if down_only and not _service_state_is_down(state):
+                continue
+            entry = groups_by_name.setdefault(
+                group_name,
+                {
+                    "name": group_name,
+                    "boundTo": sorted(set(group_to_vservers.get(group_name, []))),
+                    "members": [],
+                },
+            )
+            entry["members"].append(
+                {
+                    "name": str(member.get("servicename") or member.get("name") or ""),
+                    "ipAddress": str(member.get("ipaddress") or member.get("ipv46") or ""),
+                    "port": member.get("port") or "",
+                    "state": state,
+                    "weight": member.get("weight") or "",
+                }
+            )
+
+        service_groups = [group for group in groups_by_name.values() if group["members"]]
+        down_count = len(normalized_services) + sum(len(group["members"]) for group in service_groups)
+        return {
+            "downOnly": down_only,
+            "downCount": down_count,
+            "services": normalized_services,
+            "serviceGroups": service_groups,
+            "source": "nitro:stat/service,servicegroupmember",
+        }
+
     async def get_applications(self) -> list[dict[str, Any]]:
         payload = await self.get("applications")
         return _extract_resource_list(payload, "application", "applications")
@@ -854,6 +951,74 @@ async def _fetch_nitro_nsip_addresses(
     return rows
 
 
+def _service_state_is_down(state: str) -> bool:
+    normalized = (state or "").strip().upper()
+    if not normalized:
+        return False
+    return normalized in {"DOWN", "OUT OF SERVICE", "OOS", "UNHEALTHY"} or "DOWN" in normalized
+
+
+async def _fetch_nitro_json(
+    client: httpx.AsyncClient | None,
+    host: str,
+    username: str,
+    password: str,
+    path: str,
+) -> dict[str, Any]:
+    if client is None:
+        return {}
+
+    headers = {
+        "Accept": "application/json",
+        "X-NITRO-USER": username,
+        "X-NITRO-PASS": password,
+    }
+    try:
+        response = await client.get(f"https://{host}/nitro/v1/{path.lstrip('/')}", headers=headers)
+        payload = response.json()
+    except Exception:
+        return {}
+
+    if payload.get("errorcode", 0) != 0:
+        return {}
+    return payload if isinstance(payload, dict) else {}
+
+
+async def _fetch_nitro_service_stats(
+    client: httpx.AsyncClient | None,
+    host: str,
+    username: str,
+    password: str,
+) -> list[dict[str, Any]]:
+    payload = await _fetch_nitro_json(client, host, username, password, "stat/service")
+    items = payload.get("service") or []
+    return [item for item in items if isinstance(item, dict)]
+
+
+async def _fetch_nitro_servicegroup_members(
+    client: httpx.AsyncClient | None,
+    host: str,
+    username: str,
+    password: str,
+) -> list[dict[str, Any]]:
+    payload = await _fetch_nitro_json(client, host, username, password, "config/servicegroupmember")
+    items = payload.get("servicegroupmember") or []
+    return [item for item in items if isinstance(item, dict)]
+
+
+async def _fetch_nitro_bindings(
+    client: httpx.AsyncClient | None,
+    host: str,
+    username: str,
+    password: str,
+    path: str,
+    key: str,
+) -> list[dict[str, Any]]:
+    payload = await _fetch_nitro_json(client, host, username, password, f"config/{path}")
+    items = payload.get(key) or []
+    return [item for item in items if isinstance(item, dict)]
+
+
 async def _fetch_nitro_lbvserver_addresses(
     client: httpx.AsyncClient | None,
     host: str,
@@ -1092,6 +1257,17 @@ async def list_virtual_ips(host: str, username: str, password: str) -> list[dict
 async def list_ip_addresses(host: str, username: str, password: str) -> dict[str, Any]:
     async with nextgen_session(host, username, password) as client:
         return await client.list_ip_addresses()
+
+
+async def list_service_status(
+    host: str,
+    username: str,
+    password: str,
+    *,
+    down_only: bool = True,
+) -> dict[str, Any]:
+    async with nextgen_session(host, username, password) as client:
+        return await client.list_service_status(down_only=down_only)
 
 
 async def nextgen_get(host: str, username: str, password: str, path: str) -> dict[str, Any]:

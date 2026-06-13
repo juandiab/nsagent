@@ -8,6 +8,7 @@ ALL_TOOL_NAMES = [
     "netscaler_list_virtual_servers",
     "netscaler_list_virtual_ips",
     "netscaler_list_ip_addresses",
+    "netscaler_list_service_status",
     "netscaler_nextgen_get",
     "netscaler_create_application",
     "netscaler_add_ip_address",

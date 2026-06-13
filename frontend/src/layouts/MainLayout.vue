@@ -365,6 +365,7 @@ const mainNavGroups = [
 
 const bottomNavItems = [
   { label: 'Plans', path: '/plans', icon: 'pi pi-tags' },
+  { label: 'Calibration Studio', path: '/calibration-studio', icon: 'pi pi-sliders-h' },
   { label: 'Settings', path: '/settings', icon: 'pi pi-cog' }
 ]
 

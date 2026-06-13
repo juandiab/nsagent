@@ -8,8 +8,21 @@ NEXTGEN_API_TOOLS = frozenset(
         "netscaler_list_virtual_servers",
         "netscaler_list_virtual_ips",
         "netscaler_list_ip_addresses",
+        "netscaler_list_service_status",
         "netscaler_nextgen_get",
         "netscaler_test_connection",
+    }
+)
+
+# Curated read tools with fixed Next-Gen/NITRO endpoints — no memory search before use.
+NEXTGEN_CURATED_READ_TOOLS = frozenset(
+    {
+        "netscaler_get_system_info",
+        "netscaler_list_applications",
+        "netscaler_list_virtual_servers",
+        "netscaler_list_virtual_ips",
+        "netscaler_list_ip_addresses",
+        "netscaler_list_service_status",
     }
 )
 
@@ -64,6 +77,8 @@ READONLY_CLI_VERBS = frozenset(
 def nextgen_memory_review_required(tool_name: str) -> bool:
     if tool_name in NEXTGEN_WRITE_TOOLS:
         return True
+    if tool_name in NEXTGEN_CURATED_READ_TOOLS:
+        return False
     return tool_name in NEXTGEN_API_TOOLS and tool_name != "netscaler_test_connection"
 
 

@@ -10,6 +10,7 @@ from app.services.netscaler_service import (
     get_system_info,
     list_applications,
     list_ip_addresses,
+    list_service_status,
     list_virtual_ips,
     list_virtual_servers,
     nextgen_get,
@@ -132,6 +133,27 @@ NETSCALER_TOOLS = [
                 "host": {"type": "string", "description": "NetScaler hostname or IP"},
                 "username": {"type": "string", "description": "NetScaler API username"},
                 "password": {"type": "string", "description": "NetScaler API password"},
+            },
+            "required": ["host", "username", "password"],
+        },
+    ),
+    types.Tool(
+        name="netscaler_list_service_status",
+        description=(
+            "List backend service and service-group health from read-only NITRO stats. "
+            "Use for down/unhealthy backends, service state, or 'services that are down'. "
+            "Prefer this over inventing stat/show service CLI syntax."
+        ),
+        inputSchema={
+            "type": "object",
+            "properties": {
+                "host": {"type": "string", "description": "NetScaler hostname or IP"},
+                "username": {"type": "string", "description": "NetScaler API username"},
+                "password": {"type": "string", "description": "NetScaler API password"},
+                "down_only": {
+                    "type": "boolean",
+                    "description": "When true (default), return only DOWN/out-of-service members",
+                },
             },
             "required": ["host", "username", "password"],
         },
@@ -539,6 +561,12 @@ async def call_netscaler_tool(name: str, arguments: dict) -> list[types.TextCont
 
     if name == "netscaler_list_virtual_servers":
         return await _run_nextgen_tool(lambda: list_virtual_servers(host, username, password))
+
+    if name == "netscaler_list_service_status":
+        down_only = arguments.get("down_only", True)
+        return await _run_nextgen_tool(
+            lambda: list_service_status(host, username, password, down_only=bool(down_only))
+        )
 
     if name == "netscaler_create_application":
         app_name = arguments.get("name", "").strip()

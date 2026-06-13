@@ -76,6 +76,7 @@ _ANALYST_TOOLS = _PLANNING_TOOLS | frozenset(
         "netscaler_list_virtual_servers",
         "netscaler_list_virtual_ips",
         "netscaler_list_ip_addresses",
+        "netscaler_list_service_status",
         "netscaler_nextgen_get",
         "netscaler_run_diagnostic",
         "netscaler_telnet",

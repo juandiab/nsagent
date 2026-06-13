@@ -8,7 +8,7 @@ Repository: [github.com/Nexxus-Tech-SAS/jpilot](https://github.com/Nexxus-Tech-S
 
 > **Disclaimer:** JPilot is an independent project and is not affiliated with, endorsed by, or sponsored by Citrix Systems, Inc. NetScaler is a trademark of Citrix Systems, Inc.
 
-**Current release:** `v0.56` — Chat Beta mobile layout with true dark mode, Architect discovery that stays on forms until the deliverable, and Operator connectivity/progress fixes.
+**Current release:** `v0.57` — Stable license fingerprint across container rebuilds, Operator service-status tooling, and chat tool-trace improvements.
 
 Bump the root [`VERSION`](VERSION) file when tagging a release so in-app update checks match GitHub.
 
@@ -67,6 +67,16 @@ curl -fsSL https://install.nexxus-tech.com/jpilot | bash
 - **NetScaler SDX (SSH)** — Operator and Analyst for SVM platform and VPX lifecycle with `search_sdx_cli_reference` memory gate (beta).
 - **F5 BIG-IP (SSH / TMSH)** — Operator, Analyst, and Architect (official F5 docs only); `f5_*` MCP tools and `search_f5_tmsh_reference` / `search_f5_documentation` (beta).
 - **Nexxus licensing** — Settings → **License**: enter a license code, import an offline `.lic` file, or sync with the Nexxus licensing API; installation fingerprint binding; encrypted payload validation; daily background sync and expiry enforcement; **activation gate** redirects unlicensed or expired installs to Settings → License before using the app.
+
+## What's new in v0.57
+
+| Area | Highlights |
+|------|------------|
+| **License persistence** | Installation fingerprint now binds to stored `activationDate` instead of the current calendar day, so licenses survive container rebuilds and daily restarts without re-activation (keep `.env` and the MongoDB volume). |
+| **Operator service status** | New `netscaler_list_service_status` MCP tool (NITRO stats) plus auto-routing for down/unhealthy backend questions; unverified-read warning when tools fail but the model still answers with status-like data. |
+| **Operator automation** | Auto IP inventory reads, Next-Gen application create from confirmed form submissions, and tighter deployment-complete detection for continuation prompts. |
+| **Chat tool traces** | Refactored tool-activity panel with shared result rendering (`ChatToolResultBody`) for inventory, CLI, and service-status output. |
+| **Calibration Studio** | Placeholder page under JPilot for future Stack Calibration Studio skills catalog (vendor-grouped). |
 
 ## What's new in v0.56
 
