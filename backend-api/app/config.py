@@ -28,6 +28,9 @@ class Settings(BaseSettings):
     smtp_use_ssl: bool = False
     password_reset_log_codes: bool = False
     nexxus_licensing_base_url: str = "https://nexxus-tech.com"
+    nexxus_calibration_base_url: str = "https://scstudio.nexxus-tech.com"
+    calibration_feedback_enabled: bool = True
+    calibration_sync_enabled: bool = True
     jpilot_app_name: str = "JPilot"
     license_sync_interval_seconds: int = 86400
 

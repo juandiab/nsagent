@@ -61,8 +61,9 @@ from app.services.copilot_memory_gate import (
 )
 from app.services.copilot_architect_discovery import (
     architect_discovery_should_retry,
+    architect_tools_enabled,
     block_architect_tool_during_discovery,
-    build_discovery_form_submit_nudge,
+    build_architect_session_nudge,
     sanitize_architect_reply,
 )
 from app.services.copilot_retry import build_tool_retry_hint
@@ -77,6 +78,8 @@ from app.services.copilot_vendors import copilot_vendor_is_supported
 from app.services.vendor_registry import resolve_chat_vendor
 from app.services.encryption_service import decrypt_value
 
+from app.services.calibration_matcher import build_skill_injection_block
+from app.services.calibration_sync_service import list_installed_skills
 from app.services.context_limits import ContextLimits, resolve_context_limits
 from app.services.copilot_orchestration import (
     OrchestrationRuntime,
@@ -288,18 +291,52 @@ def _response_has_input_form(content: str) -> bool:
     return form is not None
 
 
+def _append_skill_calibration(
+    system_prompt: str,
+    *,
+    user_message: str,
+    role: str,
+    vendor: str | None,
+) -> str:
+    block = build_skill_injection_block(
+        user_message=user_message,
+        role=role,
+        vendor=vendor or "netscaler",
+        installed=list_installed_skills(),
+    )
+    if not block:
+        return system_prompt
+    return f"{system_prompt}\n\n{block}"
+
+
 def _architect_effective_system_prompt(
     system_prompt: str,
     user_message: str,
     history: list[dict],
 ) -> str:
-    nudge = build_discovery_form_submit_nudge(
+    nudge = build_architect_session_nudge(
         user_message,
         conversation_text=_conversation_text(history, user_message),
     )
     if not nudge:
         return system_prompt
     return f"{system_prompt}\n\n{nudge}"
+
+
+def _llm_tools_for_turn(
+    enabled_tools: list[dict[str, Any]],
+    jpilot_role: str | None,
+    user_message: str,
+    history: list[dict],
+    to_tools_fn: Any,
+) -> list[dict[str, Any]] | None:
+    if not architect_tools_enabled(
+        jpilot_role,
+        user_message,
+        conversation_text=_conversation_text(history, user_message),
+    ):
+        return None
+    return to_tools_fn(enabled_tools)
 
 
 async def _execute_chat_tool(
@@ -802,6 +839,12 @@ async def run_copilot_chat(
             "Connect a supported appliance or use Architect role for planning."
         )
     system_prompt = build_system_prompt(chat_role, appliance_name, vendor=chat_vendor)
+    system_prompt = _append_skill_calibration(
+        system_prompt,
+        user_message=user_message,
+        role=chat_role.value,
+        vendor=chat_vendor,
+    )
     from app.services.copilot_platform_service import ensure_default_settings
 
     await ensure_default_settings(db)
@@ -1071,7 +1114,7 @@ async def _run_openai_loop(
         }
     )
 
-    tools = to_openai_tools(enabled_tools)
+    active_tools = _llm_tools_for_turn(enabled_tools, jpilot_role, user_message, history, to_openai_tools)
     active_base_url = base_url
     fallback_candidates = base_url_candidates
     from app.services.copilot_deploy import detect_nextgen_application_form_submission
@@ -1110,7 +1153,7 @@ async def _run_openai_loop(
                 api_key=api_key,
                 model=model,
                 messages=messages,
-                tools=tools,
+                tools=active_tools,
                 base_url_candidates=fallback_candidates,
                 provider_type=provider_type,
                 provider_name=provider_name,
@@ -1270,7 +1313,7 @@ async def _run_gemini_loop(
         }
     )
 
-    tools = to_gemini_tools(enabled_tools)
+    active_tools = _llm_tools_for_turn(enabled_tools, jpilot_role, user_message, history, to_gemini_tools)
     from app.services.copilot_deploy import detect_nextgen_application_form_submission
 
     nextgen_memory_reviewed = detect_nextgen_application_form_submission(user_message)
@@ -1307,7 +1350,7 @@ async def _run_gemini_loop(
                 model=model,
                 system=_architect_effective_system_prompt(system_prompt, user_message, history),
                 contents=contents,
-                tools=tools,
+                tools=active_tools,
                 provider_name=provider_name,
             )
             if progress is not None:
@@ -1457,7 +1500,7 @@ async def _run_anthropic_loop(
         }
     )
 
-    tools = to_anthropic_tools(enabled_tools)
+    active_tools = _llm_tools_for_turn(enabled_tools, jpilot_role, user_message, history, to_anthropic_tools)
     from app.services.copilot_deploy import detect_nextgen_application_form_submission
 
     nextgen_memory_reviewed = detect_nextgen_application_form_submission(user_message)
@@ -1494,7 +1537,7 @@ async def _run_anthropic_loop(
                 model=model,
                 system=_architect_effective_system_prompt(system_prompt, user_message, history),
                 messages=messages,
-                tools=tools,
+                tools=active_tools,
                 provider_name=provider_name,
             )
             if progress is not None:

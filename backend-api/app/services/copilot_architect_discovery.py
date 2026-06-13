@@ -79,6 +79,22 @@ _PLANNING_INTENT_FIELD_RE = re.compile(
     re.IGNORECASE,
 )
 
+_CHANGE_CONTROL_SIGNAL_RE = re.compile(
+    r"(firmware\s+upgrade|maintenance\s+window|change\s+control|rollback\s+plan|"
+    r"pre-?change\s+checklist|verification\s+checklist|phased\s+.+\s+plan|"
+    r"upgrade\s+plan\s+for\s+ha)",
+    re.IGNORECASE,
+)
+
+_RICH_CHANGE_CONTROL_SECTIONS = (
+    "prerequisite",
+    "risk",
+    "maintenance",
+    "rollback",
+    "verification",
+    "checklist",
+)
+
 
 def user_wants_design_now(user_message: str) -> bool:
     text = (user_message or "").strip()
@@ -123,6 +139,18 @@ JPILOT_FORM_NOT_A_TOOL_HINT = (
 )
 
 
+def is_rich_change_control_request(text: str) -> bool:
+    """User already asked for a structured change-control deliverable (e.g. firmware HA upgrade plan)."""
+    stripped = (text or "").strip()
+    if not stripped or is_form_submission(stripped):
+        return False
+    if not _CHANGE_CONTROL_SIGNAL_RE.search(stripped):
+        return False
+    lowered = stripped.lower()
+    section_hits = sum(1 for term in _RICH_CHANGE_CONTROL_SECTIONS if term in lowered)
+    return section_hits >= 2 or "ha pair" in lowered
+
+
 def extract_planning_intent(*texts: str) -> str | None:
     """Return planning_intent from form submissions or plain-text hints."""
     combined = "\n".join(t for t in texts if t).lower()
@@ -135,7 +163,23 @@ def extract_planning_intent(*texts: str) -> str | None:
         return "new_functionality"
     if "planning intent: change control" in combined or "change control / maintenance" in combined:
         return "change_control"
+    for raw in texts:
+        if raw and is_rich_change_control_request(raw):
+            return "change_control"
+    if _CHANGE_CONTROL_SIGNAL_RE.search(combined):
+        return "change_control"
     return None
+
+
+def _conversation_started_with_rich_change_control(conversation_text: str) -> bool:
+    """True when the opening user request already specified a change-control deliverable."""
+    for line in (conversation_text or "").splitlines():
+        if re.match(r"planning inputs for:", line, re.IGNORECASE):
+            return False
+        stripped = line.strip()
+        if stripped and is_rich_change_control_request(stripped):
+            return True
+    return False
 
 
 def _uses_bad_discovery_prose(content: str) -> bool:
@@ -242,10 +286,31 @@ def architect_discovery_ready_for_deliverable(
     if planning_intent == "new_functionality":
         return count >= 5
     if planning_intent == "change_control":
-        return count >= 8
+        if _conversation_started_with_rich_change_control(conversation_text):
+            return count >= 1
+        return count >= 4
     if planning_intent == "new_deployment":
         return count >= 7
     return count >= 6
+
+
+def architect_tools_enabled(
+    role: str | None,
+    user_message: str,
+    *,
+    conversation_text: str = "",
+) -> bool:
+    """Architect uses jpilot-form in markdown during discovery — disable MCP tools to avoid retry loops."""
+    if normalize_role(role) != JPilotRole.ARCHITECT:
+        return True
+    if conversation_has_deliverable(conversation_text):
+        return False
+    planning_intent = extract_planning_intent(conversation_text, user_message)
+    if architect_discovery_ready_for_deliverable(conversation_text, planning_intent):
+        return False
+    if user_wants_deliverable_now(user_message):
+        return True
+    return False
 
 
 def _deliverable_ready_nudge(*, planning_intent: str | None) -> str:
@@ -268,6 +333,33 @@ def _deliverable_ready_nudge(*, planning_intent: str | None) -> str:
     )
 
 
+def _rich_change_control_initial_nudge() -> str:
+    return (
+        "The user requested a change-control deliverable (e.g. firmware HA upgrade plan) and already "
+        "described the document sections they need. Treat planning_intent as **change_control** — "
+        "do NOT show the 'What are you planning?' form. "
+        f"{JPILOT_FORM_NOT_A_TOOL_HINT} "
+        "Do NOT call any MCP tools. Acknowledge in one sentence, then output exactly ONE ```jpilot-form``` "
+        "with ≤6 fields covering only what is still unknown: change classification, current & target "
+        "firmware version/build, HA pair count, primary/secondary hostnames or IPs per pair, planned "
+        "maintenance window (date, start, end, timezone). Re-use values the user already gave in chat. "
+        'Use submitLabel "Continue". No prose after the closing fence.'
+    )
+
+
+def build_architect_session_nudge(
+    user_message: str,
+    *,
+    conversation_text: str = "",
+) -> str | None:
+    """Proactive system nudge for Architect turns (form submits and rich opening requests)."""
+    if conversation_has_deliverable(conversation_text):
+        return None
+    if count_planning_form_submissions(conversation_text) == 0 and is_rich_change_control_request(user_message):
+        return _rich_change_control_initial_nudge()
+    return build_discovery_form_submit_nudge(user_message, conversation_text=conversation_text)
+
+
 def build_discovery_form_submit_nudge(
     user_message: str,
     *,
@@ -286,7 +378,10 @@ def build_discovery_form_submit_nudge(
 
     intent_hint = ""
     if planning_intent == "change_control":
-        intent_hint = " Next topics: change classification, window, rollback, validation — per change-control branch."
+        intent_hint = (
+            " Next topics: change classification, window, rollback, validation — per change-control branch. "
+            "Skip any topic already answered in chat or prior forms — never re-ask change summary or scope."
+        )
     elif planning_intent == "new_functionality":
         intent_hint = " Next topics: delta/impact, dependencies, validation — not full greenfield topology."
     elif planning_intent == "new_deployment":

@@ -25,6 +25,8 @@ from app.services.ai_provider_errors import (
     enrich_ai_provider_error,
     maybe_parse_ai_provider_error,
 )
+from app.schemas.calibration import CalibrationSkillSummary, CalibrationSyncResponse
+from app.schemas.calibration_feedback import CalibrationFeedbackRequest, CalibrationFeedbackResponse
 from app.schemas.copilot import (
     ChatRequest,
     ChatResponse,
@@ -35,6 +37,13 @@ from app.schemas.copilot import (
     CopilotSettings,
     CopilotStatusResponse,
 )
+from app.config import settings
+from app.services.calibration_sync_service import (
+    CalibrationSyncError,
+    list_installed_skills,
+    sync_calibrations_from_studio,
+)
+from app.services.skill_feedback_service import CalibrationFeedbackError, submit_calibration_feedback
 from app.services.copilot_roles import get_role_catalog, normalize_role, role_requires_appliance
 from app.schemas.model_usage import ModelUsageDashboardResponse, UsageLimitsUpdate
 from app.services.model_usage_service import get_usage_dashboard, update_usage_limits
@@ -264,6 +273,69 @@ async def copilot_chat(
             status_code=status.HTTP_502_BAD_GATEWAY,
             detail=f"Copilot request failed: {exc}",
         ) from exc
+
+
+@router.get("/calibrations", response_model=list[CalibrationSkillSummary])
+async def list_calibrations() -> list[CalibrationSkillSummary]:
+    return [CalibrationSkillSummary(**row) for row in list_installed_skills()]
+
+
+@router.post("/calibrations/sync", response_model=CalibrationSyncResponse)
+async def sync_calibrations(
+    db: AsyncIOMotorDatabase = Depends(get_db),
+) -> CalibrationSyncResponse:
+    try:
+        result = await sync_calibrations_from_studio(db)
+    except CalibrationSyncError as exc:
+        raise HTTPException(status_code=exc.status_code or status.HTTP_502_BAD_GATEWAY, detail=str(exc)) from exc
+
+    return CalibrationSyncResponse(
+        installed=result.installed,
+        updated=result.updated,
+        removed=result.removed,
+        skills=result.skills,
+        message=f"Synced {result.updated} updated and {result.installed} unchanged skill(s) from Calibration Studio.",
+    )
+
+
+@router.get("/calibration-feedback/status", response_model=CalibrationFeedbackResponse)
+async def calibration_feedback_status() -> CalibrationFeedbackResponse:
+    if not settings.calibration_feedback_enabled:
+        return CalibrationFeedbackResponse(
+            status="disabled",
+            message="Calibration feedback is disabled on this installation.",
+        )
+    return CalibrationFeedbackResponse(
+        status="ready",
+        message="Calibration feedback can be sent to Stack Calibration Studio.",
+        calibrationUrl=settings.nexxus_calibration_base_url.rstrip("/"),
+    )
+
+
+@router.post("/calibration-feedback", response_model=CalibrationFeedbackResponse)
+async def submit_calibration_feedback_route(
+    payload: CalibrationFeedbackRequest,
+    db: AsyncIOMotorDatabase = Depends(get_db),
+) -> CalibrationFeedbackResponse:
+    if not payload.session.messages:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="session.messages is required",
+        )
+    try:
+        result = await submit_calibration_feedback(db, payload)
+    except CalibrationFeedbackError as exc:
+        code = exc.status_code or status.HTTP_502_BAD_GATEWAY
+        if "disabled" in str(exc).lower():
+            code = status.HTTP_503_SERVICE_UNAVAILABLE
+        raise HTTPException(status_code=code, detail=str(exc)) from exc
+
+    return CalibrationFeedbackResponse(
+        status=str(result.payload.get("status") or "accepted"),
+        message=str(result.payload.get("message") or "Feedback sent to Calibration Studio."),
+        feedbackId=result.feedback_id,
+        calibrationUrl=result.payload.get("calibrationUrl"),
+    )
 
 
 @router.post("/chat/stream")

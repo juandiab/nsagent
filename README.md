@@ -8,7 +8,7 @@ Repository: [github.com/Nexxus-Tech-SAS/jpilot](https://github.com/Nexxus-Tech-S
 
 > **Disclaimer:** JPilot is an independent project and is not affiliated with, endorsed by, or sponsored by Citrix Systems, Inc. NetScaler is a trademark of Citrix Systems, Inc.
 
-**Current release:** `v0.58` — Chat Beta collapsible chat list with slide animation and lighter glass panels so background animations show through.
+**Current release:** `v0.59` — Stack Calibration Studio sync, in-chat **Send to Calibration** feedback, and Architect skill injection with discovery-safe tool gating.
 
 Bump the root [`VERSION`](VERSION) file when tagging a release so in-app update checks match GitHub.
 
@@ -67,6 +67,17 @@ curl -fsSL https://install.nexxus-tech.com/jpilot | bash
 - **NetScaler SDX (SSH)** — Operator and Analyst for SVM platform and VPX lifecycle with `search_sdx_cli_reference` memory gate (beta).
 - **F5 BIG-IP (SSH / TMSH)** — Operator, Analyst, and Architect (official F5 docs only); `f5_*` MCP tools and `search_f5_tmsh_reference` / `search_f5_documentation` (beta).
 - **Nexxus licensing** — Settings → **License**: enter a license code, import an offline `.lic` file, or sync with the Nexxus licensing API; installation fingerprint binding; encrypted payload validation; daily background sync and expiry enforcement; **activation gate** redirects unlicensed or expired installs to Settings → License before using the app.
+- **Stack Calibration Studio** — sync skills from scstudio, view installed calibrations in-app, and send redacted session feedback when chat misses the user's goal; skills inject into Architect/Operator prompts at runtime.
+
+## What's new in v0.59
+
+| Area | Highlights |
+|------|------------|
+| **Calibration Studio sync** | Pull Nexxus and org skills from Stack Calibration Studio; cache under `data/calibrations/` with version pins so custom calibrations survive JPilot upgrades. New API: `GET/POST /copilot/calibrations` and sync from **Calibration Studio** in the app. |
+| **Send to Calibration** | When a chat session misses the user's goal, **Send to Calibration** in chat builds a redacted payload and posts to scstudio (`POST /copilot/calibration-feedback`). Configurable via `NEXXUS_CALIBRATION_BASE_URL` and `CALIBRATION_FEEDBACK_ENABLED`. |
+| **Skill-aware chat** | Matched calibration skills inject prompts/memory into Architect and Operator turns; Architect discovery keeps MCP tools off until planning is far enough along. |
+| **Backend reliability** | Fix missing startup imports (`ContextLimits`, license scheduler) that could crash the API and block login/passkey sign-in. |
+| **Docs** | Integration contract and sync guide: `docs/JPILOT_SCSTUDIO_INTEGRATION.md`, `docs/CALIBRATION_SYNC.md`. |
 
 ## What's new in v0.58
 

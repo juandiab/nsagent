@@ -1,0 +1,36 @@
+{
+  "skillId": "nexxus-netscaler-firmware-ha-upgrade",
+  "scenarios": [
+    {
+      "id": "firmware-ha-rich-prompt-fast-path",
+      "role": "architect",
+      "userMessage": "Create a phased firmware upgrade plan for HA pairs: prerequisites, risks, maintenance windows, rollback, and verification checklist.",
+      "forbiddenTools": [
+        "netscaler_list_inventory",
+        "search_jpilot_architect_resources",
+        "netscaler_run_cli_commands"
+      ],
+      "maxToolRounds": 0,
+      "maxFormRounds": 2,
+      "expectContent": ["<!-- jpilot-change-control-document -->", "Rollback", "Validation"],
+      "forbiddenContent": ["I reached the maximum number of tool calls"]
+    },
+    {
+      "id": "firmware-ha-after-consolidated-form",
+      "role": "architect",
+      "setupMessages": [
+        {
+          "role": "user",
+          "content": "Create a phased firmware upgrade plan for HA pairs: prerequisites, risks, maintenance windows, rollback, and verification checklist."
+        },
+        {
+          "role": "user",
+          "content": "Planning inputs for: Firmware upgrade essentials\n- Change classification: emergency\n- Current firmware: 13.1 54.11\n- Target firmware: 14.1 65.35\n- HA pairs: 2\n- Window: 2026-06-15 02:00-05:00 UTC"
+        }
+      ],
+      "userMessage": "Continue",
+      "maxToolRounds": 0,
+      "expectMarkers": ["<!-- jpilot-change-control-document -->"]
+    }
+  ]
+}

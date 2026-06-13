@@ -543,6 +543,17 @@
           </div>
           <div v-if="!showConversationSwitcher" class="beta-footer-actions">
             <Button
+              v-if="showCalibrationOffer"
+              v-tooltip.top="'Send this session to Stack Calibration Studio'"
+              label="Send to Calibration"
+              icon="pi pi-sliders-h"
+              severity="secondary"
+              text
+              class="beta-calibration-btn"
+              :disabled="calibrationSubmitting"
+              @click="openCalibrationDialog"
+            />
+            <Button
               v-tooltip.top="'Browse recommended actions (⌘K)'"
               icon="pi pi-search"
               severity="secondary"
@@ -918,6 +929,19 @@
         </div>
       </div>
 
+      <div v-if="showCalibrationOffer" class="calibration-offer-row">
+        <Button
+          label="Send to Calibration"
+          icon="pi pi-sliders-h"
+          size="small"
+          severity="secondary"
+          text
+          :disabled="calibrationSubmitting"
+          @click="openCalibrationDialog"
+        />
+        <span class="calibration-offer-hint">Didn't get the result you needed?</span>
+      </div>
+
       <div class="chat-input-bar">
         <Button
           v-tooltip.top="'Attach file'"
@@ -952,6 +976,64 @@
       </div>
     </template>
     </template>
+
+    <Dialog
+      v-model:visible="calibrationDialogVisible"
+      header="Send to Calibration Studio"
+      modal
+      class="calibration-feedback-dialog"
+      :style="{ width: 'min(32rem, 94vw)' }"
+      @hide="resetCalibrationDialog"
+    >
+      <p class="calibration-dialog-lead m-0">
+        Share this conversation with Stack Calibration Studio so SMEs can improve skills and workflows.
+        Secrets and credentials are redacted before send.
+      </p>
+      <div class="calibration-dialog-fields">
+        <label for="calibration-goal">What were you trying to accomplish?</label>
+        <Textarea
+          id="calibration-goal"
+          v-model="calibrationForm.userGoal"
+          rows="2"
+          auto-resize
+          class="w-full"
+        />
+        <label for="calibration-category">What went wrong?</label>
+        <Select
+          id="calibration-category"
+          v-model="calibrationForm.category"
+          :options="calibrationCategoryOptions"
+          option-label="label"
+          option-value="value"
+          class="w-full"
+        />
+        <label for="calibration-comment">Additional notes (optional)</label>
+        <Textarea
+          id="calibration-comment"
+          v-model="calibrationForm.userComment"
+          rows="2"
+          auto-resize
+          class="w-full"
+          placeholder="e.g. Too many discovery forms before the document was generated"
+        />
+        <div v-if="calibrationSuggestedSkillLabel" class="calibration-suggested-skill">
+          <Tag severity="info" :value="calibrationSuggestedSkillLabel" />
+        </div>
+        <label class="calibration-checkbox">
+          <input v-model="calibrationForm.includeApplianceName" type="checkbox" />
+          Include connected appliance name in the report
+        </label>
+      </div>
+      <template #footer>
+        <Button label="Cancel" severity="secondary" text @click="calibrationDialogVisible = false" />
+        <Button
+          label="Send to Calibration"
+          icon="pi pi-send"
+          :loading="calibrationSubmitting"
+          @click="submitCalibrationFeedback"
+        />
+      </template>
+    </Dialog>
   </div>
 </template>
 
@@ -959,6 +1041,7 @@
 import { computed, inject, nextTick, onMounted, onUnmounted, ref, watch } from 'vue'
 import { RouterLink, useRouter } from 'vue-router'
 import { useToast } from 'primevue/usetoast'
+import Dialog from 'primevue/dialog'
 import Button from 'primevue/button'
 import Menu from 'primevue/menu'
 import ProgressSpinner from 'primevue/progressspinner'
@@ -1032,6 +1115,17 @@ import ChatRoleSwitchPrompt from './ChatRoleSwitchPrompt.vue'
 import BetaChatBackground from './BetaChatBackground.vue'
 import { buildRoleSwitchNotice, getRoleSwitchPrompt } from '../config/jpilotRoleInference'
 import Tag from 'primevue/tag'
+import {
+  buildCalibrationFeedbackPayload,
+  inferCalibrationCategory,
+  inferUserGoal,
+  shouldOfferCalibrationFeedback
+} from '../utils/buildCalibrationFeedbackPayload'
+import { sendCalibrationFeedback, getCalibrationFeedbackStatus } from '../services/calibrationFeedback'
+import {
+  CALIBRATION_FEEDBACK_CATEGORIES,
+  CALIBRATION_SUGGESTED_SKILLS
+} from '../config/calibrationStudio'
 
 const props = defineProps({
   sessionId: { type: String, required: true },
@@ -1097,6 +1191,87 @@ const liveProgressTitle = ref('Operation progress')
 let generationStartedAt = 0
 let generationElapsedTimer = null
 let lastGenerationStats = null
+
+const calibrationDialogVisible = ref(false)
+const calibrationSubmitting = ref(false)
+const calibrationFeedbackReady = ref(true)
+const calibrationForm = ref({
+  userGoal: '',
+  category: 'other',
+  userComment: '',
+  includeApplianceName: false
+})
+
+const calibrationCategoryOptions = CALIBRATION_FEEDBACK_CATEGORIES
+
+const showCalibrationOffer = computed(
+  () =>
+    calibrationFeedbackReady.value &&
+    shouldOfferCalibrationFeedback(session, { isGenerating: isGenerating.value })
+)
+
+const calibrationSuggestedSkillLabel = computed(() => {
+  const payload = buildCalibrationFeedbackPayload({
+    session,
+    sessionId: props.sessionId,
+    userGoal: calibrationForm.value.userGoal,
+    category: calibrationForm.value.category
+  })
+  const id = payload.suggestedSkillId
+  return id ? CALIBRATION_SUGGESTED_SKILLS[id] || id : ''
+})
+
+function resetCalibrationDialog() {
+  calibrationForm.value = {
+    userGoal: '',
+    category: 'other',
+    userComment: '',
+    includeApplianceName: false
+  }
+}
+
+function openCalibrationDialog() {
+  calibrationForm.value = {
+    userGoal: inferUserGoal(session.messages),
+    category: inferCalibrationCategory(session),
+    userComment: '',
+    includeApplianceName: false
+  }
+  calibrationDialogVisible.value = true
+}
+
+async function submitCalibrationFeedback() {
+  if (calibrationSubmitting.value) return
+  calibrationSubmitting.value = true
+  try {
+    const payload = buildCalibrationFeedbackPayload({
+      session,
+      sessionId: props.sessionId,
+      objectiveMet: false,
+      userGoal: calibrationForm.value.userGoal,
+      category: calibrationForm.value.category,
+      userComment: calibrationForm.value.userComment,
+      includeApplianceName: calibrationForm.value.includeApplianceName
+    })
+    const result = await sendCalibrationFeedback(payload)
+    calibrationDialogVisible.value = false
+    toast.add({
+      severity: 'success',
+      summary: 'Sent to Calibration Studio',
+      detail: result.message || 'Session queued for SME review.',
+      life: 6000
+    })
+  } catch (error) {
+    toast.add({
+      severity: 'warn',
+      summary: 'Calibration send failed',
+      detail: error.response?.data?.detail || error.message || 'Could not reach Calibration Studio.',
+      life: 8000
+    })
+  } finally {
+    calibrationSubmitting.value = false
+  }
+}
 
 function resetGenerationStatus() {
   generationStatus.value = {
@@ -1971,6 +2146,13 @@ onMounted(() => {
   markPaneFocused()
   scrollToBottom()
   tryConsumeDesignHandoff()
+  getCalibrationFeedbackStatus()
+    .then((data) => {
+      calibrationFeedbackReady.value = data?.status !== 'disabled'
+    })
+    .catch(() => {
+      calibrationFeedbackReady.value = true
+    })
 })
 
 watch(
@@ -3498,5 +3680,52 @@ onUnmounted(() => {
 
 .deployment-continue-actions {
   margin-top: 0.75rem;
+}
+
+.calibration-offer-row {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  padding: 0.25rem 0.75rem 0;
+}
+
+.calibration-offer-hint {
+  font-size: 0.75rem;
+  color: var(--p-text-muted-color);
+}
+
+.calibration-dialog-lead {
+  font-size: 0.875rem;
+  line-height: 1.5;
+  color: var(--p-text-muted-color);
+  margin-bottom: 1rem;
+}
+
+.calibration-dialog-fields {
+  display: flex;
+  flex-direction: column;
+  gap: 0.5rem;
+}
+
+.calibration-dialog-fields label {
+  font-size: 0.8125rem;
+  font-weight: 600;
+}
+
+.calibration-checkbox {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  font-size: 0.8125rem;
+  font-weight: normal;
+  margin-top: 0.25rem;
+}
+
+.calibration-suggested-skill {
+  margin-top: 0.25rem;
+}
+
+.beta-calibration-btn {
+  margin-right: auto;
 }
 </style>

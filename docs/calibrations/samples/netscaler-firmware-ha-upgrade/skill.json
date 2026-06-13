@@ -1,0 +1,53 @@
+{
+  "id": "nexxus-netscaler-firmware-ha-upgrade",
+  "type": "skill",
+  "version": "0.1.0",
+  "status": "draft",
+  "minTier": "enterprise",
+  "vendor": "netscaler",
+  "primaryDomain": "maintenance",
+  "domains": ["maintenance", "change_control"],
+  "roles": ["architect"],
+  "label": "NetScaler firmware HA upgrade (change control)",
+  "description": "Phased firmware upgrade plan for HA pairs: prerequisites, risks, maintenance window, rollback, and verification checklist.",
+  "triggers": {
+    "intents": [
+      "firmware upgrade",
+      "firmware ha",
+      "ha pair upgrade",
+      "maintenance window",
+      "change control firmware",
+      "phased upgrade plan"
+    ],
+    "commands": ["arch-firmware-ha-upgrade"]
+  },
+  "toolPack": [],
+  "priority": 80,
+  "promptIncludes": ["prompts/architect.md"],
+  "memoryModules": [
+    {
+      "id": "firmware-ha-upgrade-checklist",
+      "filename": "memory/firmware-ha-upgrade.md",
+      "roleTags": ["architect"]
+    }
+  ],
+  "scenarios": [
+    {
+      "id": "firmware-ha-rich-prompt-fast-path",
+      "role": "architect",
+      "userMessage": "Create a phased firmware upgrade plan for HA pairs: prerequisites, risks, maintenance windows, rollback, and verification checklist.",
+      "forbiddenTools": ["netscaler_list_inventory", "search_jpilot_architect_resources"],
+      "maxToolRounds": 0,
+      "maxFormRounds": 2,
+      "expectMarkers": ["<!-- jpilot-change-control-document -->"],
+      "notes": "Rich opening request → one consolidated jpilot-form, then full change control record."
+    }
+  ],
+  "references": [
+    {
+      "type": "internal",
+      "title": "JPilot change control outline",
+      "path": "architect/netscaler/jpilot_change_control_outline.md"
+    }
+  ]
+}

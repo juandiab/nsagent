@@ -5,11 +5,14 @@ sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
 
 from app.services.copilot_architect_discovery import (  # noqa: E402
     architect_discovery_ready_for_deliverable,
+    architect_tools_enabled,
     block_architect_tool_during_discovery,
     build_architect_discovery_nudge,
+    build_architect_session_nudge,
     build_discovery_form_submit_nudge,
     conversation_has_deliverable,
     extract_planning_intent,
+    is_rich_change_control_request,
     sanitize_architect_reply,
     user_wants_design_now,
     user_wants_change_control_now,
@@ -30,6 +33,57 @@ def test_user_wants_change_control_now():
 def test_extract_planning_intent_from_form():
     text = "Planning inputs for: What are you planning?\n- Planning intent: change_control"
     assert extract_planning_intent(text) == "change_control"
+
+
+def test_extract_planning_intent_from_rich_firmware_request():
+    msg = (
+        "Create a phased firmware upgrade plan for HA pairs: prerequisites, risks, "
+        "maintenance windows, rollback, and verification checklist."
+    )
+    assert extract_planning_intent(msg) == "change_control"
+    assert is_rich_change_control_request(msg)
+
+
+def test_rich_change_control_fast_path_nudge():
+    msg = (
+        "Create a phased firmware upgrade plan for HA pairs: prerequisites, risks, "
+        "maintenance windows, rollback, and verification checklist."
+    )
+    nudge = build_architect_session_nudge(msg, conversation_text=msg)
+    assert nudge is not None
+    assert "What are you planning?" not in nudge
+    assert "ONE ```jpilot-form```" in nudge
+    assert "Do NOT call any MCP tools" in nudge
+
+
+def test_architect_tools_disabled_during_discovery():
+    history = "Planning inputs for: What are you planning?\n- Planning intent: change_control"
+    assert not architect_tools_enabled(
+        "architect",
+        "Planning inputs for: Classification\n- class: emergency",
+        conversation_text=history,
+    )
+
+
+def test_architect_tools_disabled_when_deliverable_ready():
+    conversation = (
+        "Create a phased firmware upgrade plan for HA pairs: prerequisites, risks, rollback.\n"
+        "Planning inputs for: Essentials\n- current: 13.1\n- target: 14.1\n"
+    )
+    assert architect_discovery_ready_for_deliverable(conversation, "change_control")
+    assert not architect_tools_enabled(
+        "architect",
+        "Planning inputs for: Essentials\n- current: 13.1\n- target: 14.1\n",
+        conversation_text=conversation,
+    )
+
+
+def test_change_control_ready_after_four_forms():
+    conversation = (
+        "Planning inputs for: What are you planning?\n- Planning intent: change_control\n"
+        + "\n".join(f"Planning inputs for: Step {i}\n- x: y" for i in range(3))
+    )
+    assert architect_discovery_ready_for_deliverable(conversation, "change_control")
 
 
 def test_nudge_on_checklist_without_form():

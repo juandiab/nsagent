@@ -72,6 +72,8 @@ services:
       - SMTP_USE_TLS=${SMTP_USE_TLS:-true}
       - SMTP_USE_SSL=${SMTP_USE_SSL:-false}
       - PASSWORD_RESET_LOG_CODES=${PASSWORD_RESET_LOG_CODES:-false}
+      - NEXXUS_CALIBRATION_BASE_URL=${NEXXUS_CALIBRATION_BASE_URL:-http://host.docker.internal:8090}
+      - CALIBRATION_FEEDBACK_ENABLED=${CALIBRATION_FEEDBACK_ENABLED:-true}
     networks:
       - jpilot-network
     healthcheck:

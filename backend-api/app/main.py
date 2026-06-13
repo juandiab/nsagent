@@ -13,8 +13,9 @@ from app.services.mcp_config_service import ensure_default_settings, get_mcp_set
 from app.services.ai_provider_service import migrate_lm_studio_endpoints
 from app.services.auth_lockout_service import ensure_auth_lockout_indexes
 from app.services.password_reset_service import ensure_password_reset_indexes
-from app.services.license_scheduler import periodic_license_sync, run_startup_license_sync
+from app.services.calibration_sync_service import ensure_calibration_indexes
 from app.services.license_service import ensure_license_collection
+from app.services.license_scheduler import periodic_license_sync, run_startup_license_sync
 from app.services.user_service import ensure_default_admin
 from app.services.jpilot_settings_service import ensure_jpilot_settings
 from app.services.security_settings_service import ensure_security_settings
@@ -30,6 +31,7 @@ async def lifespan(app: FastAPI):
     await ensure_security_settings(db)
     await ensure_jpilot_settings(db)
     await ensure_license_collection(db)
+    await ensure_calibration_indexes(db)
     await ensure_webauthn_indexes(db)
     await ensure_auth_lockout_indexes(db)
     await ensure_password_reset_indexes(db)
